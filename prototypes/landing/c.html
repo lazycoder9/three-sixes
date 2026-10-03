@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en" data-default-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>36s prototype C, Pips</title>
+<!-- PROTOTYPE, throwaway. Issue #13, variant C of three: "Pips".
+     A modern game box in daylight. Everything is built from the pip: a circle on a 3x3 grid.
+     People are pips, stats are pips, and a Bid is written "3 x [die]". One flat colour field per screen. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<style>
+:root {
+  /* palette */
+  --cobalt: #2B44E7;
+  --ink: #0D1030;
+  --chalk: #F2F3FA;
+  --mango: #FFB81C;
+  --coral: #FF5647;
+
+  /* roles, light */
+  --bg: var(--chalk);
+  --surface: #fff;
+  --text: var(--ink);
+  --dim: #5A5E80;
+  --line: #D5D8EA;
+  --primary: var(--cobalt);
+  --on-primary: #fff;
+  --strong: var(--ink);
+  --on-strong: #fff;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+  --r1: 10px; --r2: 16px; --r3: 28px;
+  --f: 'Archivo', system-ui, sans-serif;
+  --pop: cubic-bezier(.3, 1.6, .5, 1);
+}
+html[data-theme="dark"] {
+  --bg: #090B22;
+  --surface: #151A40;
+  --text: #EEF0FF;
+  --dim: #9CA2CF;
+  --line: #2A3068;
+  --primary: #4A62FF;
+  --strong: #EEF0FF;
+  --on-strong: var(--ink);
+}
+/* one colour field per screen */
+html { --field: var(--cobalt); --on-field: #fff; }
+html[data-screen="join"], html[data-screen="room"] { --field: var(--mango); --on-field: var(--ink); }
+html[data-screen="closed"], html[data-screen="account"] { --field: var(--ink); --on-field: #fff; }
+html[data-theme="dark"][data-screen="closed"], html[data-theme="dark"][data-screen="account"] { --field: #1B2060; }
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+html body { padding-bottom: 0 !important; }
+body { margin: 0; color: var(--text); background: var(--bg); font: 400 17px/1.5 var(--f); -webkit-font-smoothing: antialiased; }
+p { margin: 0; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 2px; text-decoration-color: var(--primary); }
+:focus-visible { outline: 3px solid var(--mango); outline-offset: 2px; border-radius: 6px; }
+.wide { font-stretch: 125%; font-weight: 800; letter-spacing: -.02em; }
+
+/* shell */
+.split { position: relative; display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); min-height: 100dvh; }
+.field {
+  position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column;
+  padding: clamp(18px, 2.6vw, 36px); background: var(--field); color: var(--on-field);
+  transition: background-color .45s, color .45s;
+}
+.mark { font: 900 30px/1 var(--f); font-stretch: 125%; letter-spacing: -.04em; text-decoration: none; color: inherit; display: inline-flex; align-items: center; min-height: 44px; align-self: flex-start; }
+.art { flex: 1; display: grid; place-items: center; align-content: center; gap: var(--s5); padding: var(--s4) 0; }
+.panel { display: flex; flex-direction: column; padding: clamp(18px, 2.6vw, 36px) clamp(18px, 4vw, 64px) 92px; min-width: 0; }
+.nav { display: flex; justify-content: flex-end; align-items: center; gap: var(--s3); min-height: 44px; font-weight: 600; font-size: 15px; }
+.nav a { padding: 10px 4px; }
+.iconbtn { all: unset; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
+.iconbtn:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.iconbtn:focus-visible { outline: 3px solid var(--mango); }
+.who { display: inline-flex; align-items: center; gap: var(--s2); text-decoration: none; }
+.who i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--strong); color: var(--on-strong); font-style: normal; font-weight: 800; font-size: 14px; }
+.pane { width: 100%; max-width: 480px; margin: auto; padding: var(--s6) 0; }
+html[data-screen="system"] .split { grid-template-columns: 1fr; }
+html[data-screen="system"] .field { display: none; }
+
+/* type */
+.h1 { margin: 0 0 var(--s4); font: 800 clamp(34px, 3.6vw, 52px)/1.04 var(--f); font-stretch: 125%; letter-spacing: -.025em; }
+.lede { color: var(--dim); font-size: 18px; margin-bottom: var(--s6); }
+.dimtext { color: var(--dim); }
+
+/* buttons */
+.btn {
+  appearance: none; border: 2px solid transparent; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; padding: 0 22px; border-radius: var(--r2);
+  font: 700 16px/1 var(--f); background: none; color: var(--text);
+  transition: transform .18s var(--pop), background-color .15s, border-color .15s;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: scale(.96); }
+.btn--primary { background: var(--primary); color: var(--on-primary); }
+.btn--line { border-color: var(--line); background: var(--surface); }
+.btn--line:hover { border-color: var(--text); }
+.btn--danger { background: var(--coral); color: var(--ink); }
+.btn--big { min-height: 64px; font-size: 19px; border-radius: 20px; }
+.btn--wide { width: 100%; }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.btn.is-loading::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; animation: bounce .5s ease-in-out infinite alternate; }
+@keyframes bounce { to { transform: translateY(-7px); } }
+
+/* fields */
+label, legend { display: block; padding: 0; font-weight: 700; font-size: 15px; margin-bottom: var(--s2); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.input { width: 100%; min-height: 58px; padding: 0 18px; border: 2px solid var(--line); border-radius: var(--r2); background: var(--surface); color: var(--text); font: 600 19px/1 var(--f); }
+.input::placeholder { color: var(--dim); font-weight: 400; opacity: .8; }
+.input:focus { outline: 3px solid var(--mango); outline-offset: 1px; border-color: var(--text); }
+.hint { color: var(--dim); font-size: 14px; margin-top: var(--s2); }
+.error { color: #C4261A; font-weight: 700; font-size: 14px; margin-top: var(--s2); }
+html[data-theme="dark"] .error { color: var(--coral); }
+.error:empty { display: none; }
+form.is-error .input, form.is-error .cell { border-color: var(--coral); }
+form.is-error .codeform__row, form.is-error .input { animation: nudge .3s; }
+@keyframes nudge { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+.codeform { margin-top: var(--s5); padding-top: var(--s5); border-top: 2px solid var(--line); }
+.codeform__row { display: flex; gap: var(--s2); }
+.cell {
+  flex: 1 1 0; min-width: 0; max-width: 64px; height: 64px; padding: 0; text-align: center; text-transform: uppercase;
+  border: 2px solid var(--line); border-radius: var(--r2); background: var(--surface); color: var(--text);
+  font: 800 28px/1 var(--f); font-stretch: 125%;
+}
+.cell:focus { outline: 3px solid var(--mango); outline-offset: 1px; border-color: var(--text); }
+.cell.is-filled { background: var(--strong); color: var(--on-strong); border-color: var(--strong); animation: pop .3s var(--pop); }
+.codeform .btn { min-height: 64px; margin-left: auto; }
+@keyframes pop { from { transform: scale(.6); } }
+.aside { margin-top: var(--s5); color: var(--dim); font-size: 15px; }
+.aside a { color: var(--text); font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: var(--s5); }
+.pane form .btn--wide { margin-top: var(--s5); }
+.dev { margin-top: var(--s6); padding: var(--s4); border: 2px dashed var(--line); border-radius: var(--r2); font-size: 14px; color: var(--dim); display: grid; gap: var(--s3); justify-items: start; }
+.dev b { color: var(--text); }
+.dev .btn { min-height: 42px; font-size: 14px; }
+
+/* dice */
+.die { background: #fff; color: var(--ink); border-radius: 22%; }
+
+/* ART: the Round, replayed */
+.demo { width: min(100%, 470px); }
+.demo__cap { font: 800 clamp(24px, 2.5vw, 34px)/1.12 var(--f); font-stretch: 125%; letter-spacing: -.02em; min-height: 2.3em; margin-bottom: var(--s4); display: flex; align-items: end; }
+.demo__cap.is-new { animation: rise .3s both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+.seats { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.seat {
+  display: grid; grid-template-columns: 42px 1fr auto; grid-template-areas: "av name say" "av dice say"; align-items: center; gap: 3px 12px;
+  padding: 10px 14px 10px 10px; border-radius: 20px; background: rgba(255, 255, 255, .12);
+  transition: background-color .25s, color .25s, transform .3s var(--pop);
+}
+.seat.is-turn { background: #fff; color: var(--ink); transform: scale(1.025); }
+.av { grid-area: av; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 800; }
+.seat--me .av { background: var(--mango); color: var(--ink); }
+.seat__name { grid-area: name; font-weight: 700; font-size: 15px; line-height: 1.2; }
+.seat__dice { grid-area: dice; display: flex; gap: 5px; min-height: 24px; }
+.seat__dice .die { --d: 24px; box-shadow: 0 0 0 1.5px var(--ink); transition: opacity .3s, background-color .3s; }
+.seat__dice .die.is-down { background: var(--ink); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .35); }
+.seat__dice .die.is-down i { opacity: 0; }
+.seat__dice .die.is-flip { animation: flip .4s both; }
+.seat__dice .die.is-hit { background: var(--mango); transform: scale(1.15); }
+.seat__dice .die.is-miss { opacity: .45; }
+.seat__dice .die.is-new { background: var(--coral); box-shadow: 0 0 0 1.5px var(--ink); animation: pop .4s var(--pop); }
+@keyframes flip { from { transform: rotateY(90deg); } }
+.seat__say { grid-area: say; display: flex; justify-content: flex-end; min-width: 92px; }
+.bidchip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px 6px 12px; border-radius: 999px; background: var(--mango); color: var(--ink); font: 800 18px/1 var(--f); animation: pop .35s var(--pop); }
+.bidchip .die { --d: 24px; box-shadow: 0 0 0 1.5px var(--ink); }
+.bidchip small { font-size: 13px; font-weight: 600; }
+.bidchip--check { background: var(--coral); padding: 9px 14px; }
+
+@media (min-width: 1100px) {
+  .demo { width: min(100%, 540px); }
+  .seat { grid-template-columns: 48px 1fr auto; padding: 12px 16px 12px 12px; gap: 4px 14px; }
+  .av { width: 48px; height: 48px; font-size: 18px; }
+  .seat__name { font-size: 16px; }
+  .seat__dice .die, .bidchip .die { --d: 30px; }
+  .seat__dice { min-height: 30px; gap: 6px; }
+  .bidchip { font-size: 21px; }
+}
+
+/* ART: the Room as a die, people as pips */
+.codetiles { display: flex; gap: var(--s2); }
+.codetiles span { display: grid; place-items: center; width: clamp(52px, 6vw, 76px); aspect-ratio: 1; border-radius: 22%; background: #fff; color: var(--ink); font: 900 clamp(26px, 3vw, 40px)/1 var(--f); font-stretch: 125%; }
+[data-screen]:not([hidden]) .codetiles span { animation: pop .4s var(--pop) both; }
+.codetiles span:nth-child(2) { animation-delay: .06s !important; }
+.codetiles span:nth-child(3) { animation-delay: .12s !important; }
+.codetiles span:nth-child(4) { animation-delay: .18s !important; }
+.roomdie { width: min(100%, 340px); aspect-ratio: 1; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 4%; padding: 7%; background: #fff; border-radius: 15%; }
+.pip { display: grid; place-content: center; justify-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 800; font-size: clamp(20px, 2.4vw, 28px); line-height: 1; overflow: hidden; }
+.pip small { font-size: 10.5px; font-weight: 600; margin-top: 3px; max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pip--you { background: var(--cobalt); animation: pop .4s var(--pop); }
+.pip--empty { background: none; border: 2px dashed #A9ADC8; color: #7B80A3; font-size: 13px; font-weight: 600; }
+.art__cap { font-weight: 600; text-align: center; max-width: 22em; }
+
+/* ART: six numbers, laid out like a six */
+.sixdie { --p: clamp(84px, 8.6vw, 122px); margin: 0; display: grid; grid-template: repeat(3, var(--p)) / repeat(2, var(--p)); gap: calc(var(--p) * .12) calc(var(--p) * .5); padding: calc(var(--p) * .18) calc(var(--p) * .55); background: #fff; border-radius: 15%; }
+.sixdie div { display: grid; place-content: center; text-align: center; border-radius: 50%; background: var(--ink); color: #fff; padding: 6px; }
+.sixdie dd { margin: 0; font: 800 clamp(20px, 2.4vw, 30px)/1 var(--f); font-stretch: 125%; letter-spacing: -.02em; }
+.sixdie dt { font-size: clamp(10.5px, 1vw, 12px); font-weight: 600; line-height: 1.15; margin-top: 3px; }
+html[data-screen="signin"] .sixdie dd { display: none; }
+html[data-screen="signin"] .sixdie dt { font-size: clamp(12px, 1.2vw, 14px); margin: 0; }
+html[data-screen="account"] .art__cap--six { display: none; }
+[data-screen]:not([hidden]) > .sixdie div { animation: pop .45s var(--pop) both; }
+.sixdie div:nth-child(2) { animation-delay: .05s !important; } .sixdie div:nth-child(3) { animation-delay: .1s !important; }
+.sixdie div:nth-child(4) { animation-delay: .15s !important; } .sixdie div:nth-child(5) { animation-delay: .2s !important; }
+.sixdie div:nth-child(6) { animation-delay: .25s !important; }
+
+/* ART: closed */
+.blank { --d: clamp(140px, 16vw, 210px); transform: rotate(-14deg); border-radius: 15%; opacity: .92; }
+
+/* account */
+.pane--account { max-width: 580px; }
+.h2 { margin: var(--s6) 0 var(--s2); font: 800 22px/1.15 var(--f); font-stretch: 125%; letter-spacing: -.02em; }
+.games { list-style: none; margin: 0 0 var(--s6); padding: 0; }
+.games > li { display: grid; grid-template-columns: 58px 58px 1fr; gap: var(--s2) var(--s3); align-items: center; padding: var(--s3) 0; border-bottom: 2px solid var(--line); }
+.games time { color: var(--dim); font-size: 15px; }
+.rank { display: grid; place-content: center; text-align: center; width: 54px; height: 54px; border-radius: 50%; border: 2px solid var(--line); font-weight: 800; font-size: 16px; line-height: 1; }
+.rank small { font-size: 10.5px; font-weight: 600; color: var(--dim); margin-top: 2px; }
+.rank--1 { background: var(--mango); border-color: var(--mango); color: var(--ink); }
+.rank--1 small { color: var(--ink); }
+.order { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; counter-reset: o; }
+.order li { counter-increment: o; padding: 3px 9px 3px 4px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 5px; }
+.order li::before { content: counter(o); display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--line); font-size: 11px; font-weight: 700; }
+.order .is-me { background: var(--strong); color: var(--on-strong); border-color: var(--strong); font-weight: 700; }
+.order .is-me::before { background: var(--mango); color: var(--ink); }
+
+/* dialog, toast */
+.dialog { border: 0; padding: clamp(22px, 5vw, 36px); border-radius: var(--r3); background: var(--surface); color: var(--text); max-width: min(430px, calc(100vw - 32px)); }
+.dialog[open] { animation: pop .3s var(--pop); }
+.dialog::backdrop { background: rgba(13, 16, 48, .6); }
+.dialog p { color: var(--dim); }
+.toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: var(--s2); justify-items: center; }
+.toast { display: flex; align-items: center; gap: 10px; background: var(--strong); color: var(--on-strong); padding: 11px 18px 11px 14px; border-radius: 999px; font-weight: 700; font-size: 15px; white-space: nowrap; animation: pop .3s var(--pop); transition: opacity .3s, transform .3s; }
+.toast::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--mango); }
+.toast.is-leaving { opacity: 0; transform: scale(.9); }
+
+/* design system page */
+.pane--sys { max-width: 1040px; margin-top: 0; }
+.pane--sys > p { max-width: 40em; color: var(--dim); }
+.pane--sys h2 { margin: var(--s7) 0 var(--s4); padding-top: var(--s3); border-top: 2px solid var(--line); font: 800 22px/1.15 var(--f); font-stretch: 125%; letter-spacing: -.02em; }
+.swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s4); font-size: 14px; color: var(--dim); }
+.swatches li::before { content: ""; display: block; aspect-ratio: 1; max-width: 120px; border-radius: 22%; background: var(--c); border: 2px solid var(--line); margin-bottom: var(--s2); }
+.swatches b { display: block; color: var(--text); font-size: 16px; }
+.swatches code, .spec code { font: 500 13px/1.35 var(--f); color: var(--dim); }
+.spec { display: grid; gap: var(--s5); }
+.spec > div { display: grid; grid-template-columns: 180px 1fr; gap: var(--s4); align-items: baseline; }
+.t-wide { font: 800 clamp(34px, 5vw, 52px)/1.04 var(--f); font-stretch: 125%; letter-spacing: -.025em; }
+.t-num { font: 800 30px/1 var(--f); font-stretch: 125%; }
+.t-body { max-width: 34em; }
+.t-small { font-size: 14px; color: var(--dim); }
+.scale { display: flex; align-items: end; gap: var(--s4); flex-wrap: wrap; }
+.scale span { display: grid; gap: 6px; justify-items: center; font-size: 13px; color: var(--dim); }
+.scale span::before { content: ""; width: var(--w); height: var(--w); background: var(--primary); border-radius: 50%; }
+.kit { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; }
+.kit + .kit { margin-top: var(--s5); }
+.kit > div { flex: 1 1 260px; }
+.kit .die { --d: 48px; box-shadow: 0 0 0 2px var(--ink); }
+.kit .bidchip { animation: none; }
+
+@media (max-width: 860px) {
+  .split { grid-template-columns: 1fr; min-height: 0; }
+  .field { position: relative; height: auto; padding-bottom: var(--s6); }
+  .art { padding-top: var(--s4); }
+  .nav { position: absolute; top: 18px; right: 14px; color: var(--on-field); }
+  .nav .who i { background: var(--on-field); color: var(--field); }
+  html[data-screen="system"] .nav { color: var(--text); }
+  .pane { padding-top: var(--s5); margin-top: 0; }
+  .roomdie { width: min(74%, 300px); }
+  .toasts { top: 68px; }
+  .sixdie { --p: clamp(80px, 23vw, 110px); }
+  .spec > div { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="split">
+  <aside class="field">
+    <a class="mark" href="#landing" aria-label="36s, home">36s</a>
+
+    <div class="art" data-screen="landing">
+      <div class="demo" role="img" aria-label="A Round of 36s, replayed: Timur bids two fours, Malika raises to two sixes, Aziz raises to three sixes, you Check, only two sixes show, and Aziz takes a Penalty die.">
+        <p class="demo__cap" id="c-cap">Everyone rolls in secret.</p>
+        <ul class="seats" id="c-seats"></ul>
+      </div>
+    </div>
+
+    <div class="art" data-screen="join room">
+      <div class="codetiles" id="c-code" aria-label="Room code"></div>
+      <div class="roomdie" id="c-roomdie"></div>
+      <p class="art__cap only-joiner">Timur, Dana, Malika and Aziz are in.</p>
+      <p class="art__cap only-host">Nobody else is here yet. You're the Host.</p>
+    </div>
+
+    <div class="art" data-screen="closed">
+      <span class="die blank" data-die="0" aria-hidden="true"></span>
+    </div>
+
+    <div class="art" data-screen="signin account">
+      <dl class="sixdie">
+        <div><dd>42</dd><dt>Games</dt></div>
+        <div><dd>11</dd><dt>Wins</dt></div>
+        <div><dd>26%</dd><dt>Win rate</dt></div>
+        <div><dd>2.4</dd><dt>Average Placement</dt></div>
+        <div><dd>67</dd><dt>Checks won</dt></div>
+        <div><dd>23</dd><dt>Bluffs caught</dt></div>
+      </dl>
+      <p class="art__cap art__cap--six">Six numbers an Account keeps for you.</p>
+    </div>
+  </aside>
+
+  <main class="panel">
+    <nav class="nav">
+      <button class="iconbtn" data-action="theme" aria-label="Switch between light and dark">
+        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+      </button>
+      <a class="only-out" href="#signin">Sign in</a>
+      <a class="who only-in" href="#account"><i>D</i><span data-bind="account">Dana</span></a>
+    </nav>
+
+    <!-- LANDING -->
+    <section data-screen="landing" class="pane">
+      <h1 class="h1">Nobody sees your dice. Everybody hears your Bid.</h1>
+      <p class="lede">36s is a dice-bluffing game for a Room of friends. Bid on what's under every cup at once, Raise the Bid before you, or Check it and see who was lying.</p>
+      <button class="btn btn--primary btn--big btn--wide" data-action="create">Create a Room</button>
+      <form class="codeform" data-code-form novalidate>
+        <fieldset>
+          <legend>Join with a code</legend>
+          <div class="codeform__row">
+            <input class="cell" data-code-cell aria-label="Room code, letter 1" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 2" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 3" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="btn btn--line">Join</button>
+          </div>
+        </fieldset>
+        <p class="error" data-error role="alert"></p>
+      </form>
+      <p class="aside only-out"><a href="#signin">Sign in with Google</a> to keep your stats. You never have to.</p>
+    </section>
+
+    <!-- JOIN -->
+    <section data-screen="join" class="pane">
+      <div data-join-step="form">
+        <h1 class="h1">Pick a Nickname</h1>
+        <p class="lede">It's what the others see next to your dice in this Room.</p>
+        <form data-join-form novalidate>
+          <label for="c-nick">Your Nickname</label>
+          <input class="input" id="c-nick" data-nick-input maxlength="16" autocomplete="nickname" placeholder="What do they call you?">
+          <p class="hint only-prefilled">Filled in from your Account.</p>
+          <p class="error" data-error role="alert"></p>
+          <button class="btn btn--primary btn--big btn--wide">Join Room</button>
+        </form>
+        <p class="aside only-out">Want your stats kept? <a href="#signin">Sign in with Google</a>. You never have to.</p>
+      </div>
+      <div data-join-step="dupe">
+        <h1 class="h1">You're <span data-bind="nick">Dana 2</span> here.</h1>
+        <p class="lede">There's already a <span data-bind="nick-base">Dana</span> in this Room, so yours got a number.</p>
+        <div class="row">
+          <button class="btn btn--primary" data-action="enter-room"><span>Join as <span data-bind="nick">Dana 2</span></span></button>
+          <button class="btn btn--line" data-action="edit-nick">Edit</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLOSED -->
+    <section data-screen="closed" class="pane">
+      <h1 class="h1">This room has closed.</h1>
+      <p class="lede">A Room closes after 15 minutes with nobody in it. Ask your friends for the new code, or open one yourself.</p>
+      <div class="row">
+        <button class="btn btn--primary" data-action="create">Create a Room</button>
+        <a class="btn btn--line" href="#landing">Enter another code</a>
+      </div>
+    </section>
+
+    <!-- SIGN IN -->
+    <section data-screen="signin" class="pane">
+      <h1 class="h1">Keep your record.</h1>
+      <p class="lede">Sign in and your Nickname, stats and Game history follow you to any device. You never have to. Guests can play everything.</p>
+      <button class="btn btn--line btn--big btn--wide" data-action="google"><span data-g></span>Sign in with Google</button>
+      <p class="hint">Doesn't work inside some chat apps? Open in Safari or Chrome.</p>
+      <div class="dev">
+        <p><b>Development only.</b> Skip Google and sign in as a test Account.</p>
+        <button class="btn btn--line" data-action="dev-login">Dev login as Dana</button>
+      </div>
+    </section>
+
+    <!-- ACCOUNT -->
+    <section data-screen="account" class="pane pane--account">
+      <h1 class="h1" data-bind="account">Dana</h1>
+      <p class="dimtext">Signed in with Google as <span data-bind="email"></span></p>
+      <h2 class="h2">Recent Games</h2>
+      <ol class="games" id="c-history"></ol>
+      <button class="btn btn--line" data-action="logout">Log out</button>
+    </section>
+
+    <!-- ROOM (where this prototype stops) -->
+    <section data-screen="room" class="pane">
+      <h1 class="h1">You're in, <span data-bind="nick">Dana</span>.</h1>
+      <p class="lede">The game table is the next prototype. This one stops at the door.</p>
+      <div class="row">
+        <button class="btn btn--primary" data-action="copy-link">Copy Room link</button>
+        <a class="btn btn--line" href="#landing">Leave Room</a>
+      </div>
+    </section>
+
+    <!-- DESIGN SYSTEM -->
+    <section data-screen="system" class="pane pane--sys">
+      <a class="mark" href="#landing" aria-label="36s, home">36s</a>
+      <h1 class="h1" style="margin-top:24px">Pips</h1>
+      <p>A modern game box in daylight. Everything is built from the pip, a circle on a three-by-three grid. People are pips, stats are pips, and a Bid is written as a count and a die face. Each screen gets one flat colour field: cobalt for the game, mango for a Room, ink for records. Mango marks whose turn it is, coral is the Check.</p>
+
+      <h2>Colour</h2>
+      <ul class="swatches">
+        <li style="--c:#2B44E7"><b>Cobalt</b><code>#2B44E7</code><br>primary, game field</li>
+        <li style="--c:#FFB81C"><b>Mango</b><code>#FFB81C</code><br>Room field, focus, turn</li>
+        <li style="--c:#FF5647"><b>Coral</b><code>#FF5647</code><br>Check, Penalty die, errors</li>
+        <li style="--c:#0D1030"><b>Ink</b><code>#0D1030</code><br>text, pips, record field</li>
+        <li style="--c:#F2F3FA"><b>Chalk</b><code>#F2F3FA</code><br>page, light</li>
+        <li style="--c:#090B22"><b>Night</b><code>#090B22</code><br>page, dark</li>
+      </ul>
+
+      <h2>Type</h2>
+      <div class="spec">
+        <div><code>Archivo 800, width 125<br>34 to 52 / 1.04</code><span class="t-wide">Nobody sees your dice.</span></div>
+        <div><code>Archivo 800, width 125<br>20 to 30, numbers</code><span class="t-num">26%</span></div>
+        <div><code>Archivo 400, width 100<br>17 / 1.5</code><span class="t-body">Bid on what's under every cup at once, Raise the Bid before you, or Check it and see who was lying.</span></div>
+        <div><code>Archivo 400, width 100<br>14 / 1.5</code><span class="t-small">Doesn't work inside some chat apps? Open in Safari or Chrome.</span></div>
+      </div>
+
+      <h2>Spacing and corners</h2>
+      <div class="scale">
+        <span style="--w:4px">4</span><span style="--w:8px">8</span><span style="--w:12px">12</span><span style="--w:16px">16</span>
+        <span style="--w:24px">24</span><span style="--w:32px">32</span><span style="--w:48px">48</span><span style="--w:64px">64</span>
+      </div>
+      <p class="t-small" style="margin-top:16px">Corners: 16 on controls, 28 on dialogs, 22% on anything die-shaped, full circles for people and pips.</p>
+
+      <h2>Components</h2>
+      <div class="kit">
+        <button class="btn btn--primary">Create a Room</button>
+        <button class="btn btn--line">Join</button>
+        <button class="btn btn--danger">Check</button>
+        <button class="btn btn--line"><span data-g></span>Sign in with Google</button>
+        <button class="btn btn--primary" disabled>Join Room</button>
+      </div>
+      <div class="kit">
+        <span class="die" data-die="1"></span><span class="die" data-die="2"></span><span class="die" data-die="3"></span>
+        <span class="die" data-die="4"></span><span class="die" data-die="5"></span><span class="die" data-die="6"></span>
+        <span class="bidchip">3 <small>&times;</small><span class="die" data-die="6"></span></span>
+        <span class="bidchip bidchip--check">Check</span>
+      </div>
+      <div class="kit">
+        <div>
+          <label for="c-demo1">Your Nickname</label>
+          <input class="input" id="c-demo1" value="Dana">
+          <p class="hint">Filled in from your Account.</p>
+        </div>
+        <form class="is-error" onsubmit="return false" style="flex:1 1 260px">
+          <label for="c-demo2">Your Nickname</label>
+          <input class="input" id="c-demo2" placeholder="What do they call you?" style="animation:none">
+          <p class="error">Pick a Nickname first.</p>
+        </form>
+      </div>
+      <div class="kit">
+        <button class="btn btn--line" data-action="dialog-demo">Open a dialog</button>
+        <button class="btn btn--line" data-action="toast-demo">Show a toast</button>
+        <button class="btn btn--line" data-action="theme">Switch light and dark</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog class="dialog" id="logout-dialog" aria-labelledby="c-dlg-title">
+  <h2 class="h1" id="c-dlg-title" style="font-size:30px">Log out of 36s?</h2>
+  <p>Your stats and history stay with your Account. This device goes back to playing as a Guest.</p>
+  <div class="row">
+    <button class="btn btn--danger" data-action="logout-confirm">Log out</button>
+    <button class="btn btn--line" data-dialog-close>Stay signed in</button>
+  </div>
+</dialog>
+
+<script src="proto.js"></script>
+<script>
+{
+  const { $, $$, data, state, pips, dice, ordinal, fmtDate } = Proto;
+  const root = document.documentElement;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- the Round, replayed ----
+  const SEATS = [
+    { name: 'Timur', dice: [6, 2] },
+    { name: 'Malika', dice: [3, 6] },
+    { name: 'Aziz', dice: [4] },
+    { name: 'You', dice: [5, 1, 4], me: true },
+  ];
+  const seatsEl = $('#c-seats'), capEl = $('#c-cap');
+  const bid = (n, face) => `<span class="bidchip">${n} <small>&times;</small><span class="die" data-die="${face}"></span></span>`;
+  const cap = (text) => { capEl.textContent = text; capEl.classList.remove('is-new'); void capEl.offsetWidth; capEl.classList.add('is-new'); };
+  const deal = () => {
+    seatsEl.innerHTML = SEATS.map((s) => `
+      <li class="seat${s.me ? ' seat--me' : ''}">
+        <span class="av">${s.name[0]}</span><span class="seat__name">${s.name}</span>
+        <span class="seat__dice">${s.dice.map((n) => `<span class="die${s.me ? '' : ' is-down'}" data-die="${n}"></span>`).join('')}</span>
+        <span class="seat__say"></span>
+      </li>`).join('');
+    dice(seatsEl);
+  };
+  const say = (i, html, text) => {
+    $$('.seat', seatsEl).forEach((el, k) => el.classList.toggle('is-turn', k === i));
+    const slot = $$('.seat__say', seatsEl)[i];
+    slot.innerHTML = html; dice(slot);
+    cap(text);
+  };
+  const reveal = () => {
+    $$('.seat', seatsEl).forEach((el) => el.classList.remove('is-turn'));
+    $$('.seat__dice .die', seatsEl).forEach((d, k) => {
+      d.classList.remove('is-down');
+      d.classList.add('is-flip', d.dataset.die === '6' ? 'is-hit' : 'is-miss');
+      d.style.animationDelay = k * 60 + 'ms';
+    });
+  };
+  const penalty = () => {
+    const seat = $$('.seat', seatsEl)[2];
+    seat.classList.add('is-turn');
+    $('.seat__dice', seat).insertAdjacentHTML('beforeend', `<span class="die is-down is-new">${pips(0)}</span>`);
+  };
+  const STEPS = [
+    [() => { deal(); cap('Everyone rolls in secret.'); }, 1700],
+    [() => say(0, bid(2, 4), 'Timur opens with a Bid.'), 1700],
+    [() => say(1, bid(2, 6), 'Malika Raises.'), 1700],
+    [() => say(2, bid(3, 6), 'Aziz Raises to three sixes.'), 2100],
+    [() => say(3, '<span class="bidchip bidchip--check">Check</span>', "You don't buy it. Check."), 1900],
+    [() => { reveal(); cap('Only two sixes. Bluff caught.'); }, 2400],
+    [() => { penalty(); cap('Aziz takes a Penalty die.'); }, 3400],
+  ];
+  let step = 0, timer;
+  const tick = () => { const [run, wait] = STEPS[step]; run(); step = (step + 1) % STEPS.length; timer = setTimeout(tick, wait); };
+  const play = (on) => {
+    clearTimeout(timer);
+    if (!on) return;
+    step = 0;
+    if (calm) { STEPS.slice(0, 6).forEach(([run]) => run()); return; }
+    tick();
+  };
+
+  // ---- the Room as a die ----
+  const dieEl = $('#c-roomdie'), codeEl = $('#c-code');
+  const youHTML = (nick) => (nick
+    ? `<span class="pip pip--you">${nick[0].toUpperCase()}<small>${nick}</small></span>`
+    : '<span class="pip pip--empty">you</span>');
+  const drawRoom = (nick) => {
+    codeEl.innerHTML = [...state.code].map((ch) => `<span>${ch}</span>`).join('');
+    const corners = root.dataset.host ? [] : [0, 2, 6, 8];
+    dieEl.innerHTML = Array.from({ length: 9 }, (_, i) => {
+      const m = corners.indexOf(i);
+      if (m > -1) return `<span class="pip">${data.room[m][0]}<small>${data.room[m]}</small></span>`;
+      return i === 4 ? `<span data-you>${youHTML(nick)}</span>` : '<span></span>';
+    }).join('');
+    $('[data-you]', dieEl).style.display = 'grid';
+  };
+  let lastNick = '';
+  document.addEventListener('proto:nick', (e) => {
+    const slot = $('[data-you]', dieEl);
+    if (!slot) return;
+    const nick = e.detail;
+    // only re-pop the pip when it appears or changes initial, not on every keystroke
+    if (!!nick !== !!lastNick || nick[0] !== lastNick[0]) slot.innerHTML = youHTML(nick);
+    else if (nick) $('small', slot).textContent = nick;
+    lastNick = nick;
+  });
+
+  document.addEventListener('proto:screen', (e) => {
+    play(e.detail === 'landing');
+    if (e.detail === 'join') { lastNick = $('[data-nick-input]').value.trim(); drawRoom(lastNick); }
+    if (e.detail === 'room') drawRoom(state.nick);
+  });
+
+  $('#c-history').innerHTML = data.history.map((g) => `
+    <li>
+      <time datetime="${g.date}">${fmtDate(g.date)}</time>
+      <span class="rank rank--${g.place}">${ordinal(g.place)}<small>of ${g.order.length}</small></span>
+      <ol class="order">${g.order.map((n) => `<li${n === data.account.nick ? ' class="is-me"' : ''}>${n}</li>`).join('')}</ol>
+    </li>`).join('');
+}
+</script>
+</body>
+</html>

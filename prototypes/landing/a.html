@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en" data-default-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>36s prototype A, Back Room</title>
+<!-- PROTOTYPE, throwaway. Issue #13, variant A of three: "Back Room".
+     A felt table under one lamp. Ivory cards get dealt onto it, brass marks what you
+     can press, oxblood is for Checks and endings. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<style>
+:root {
+  /* palette */
+  --felt: #17503A;
+  --felt-deep: #0B2A1F;
+  --ivory: #F3EAD3;
+  --brass: #D4A84F;
+  --oxblood: #9A2633;
+  --pine: #10261C;
+
+  /* roles, dark (the default: lights low) */
+  --bg: var(--felt-deep);
+  --text: var(--ivory);
+  --text-dim: #A8BDAE;
+  --line: rgba(243, 234, 211, .22);
+  --card: var(--ivory);
+  --accent: var(--brass);
+  --on-accent: #1E1503;
+  --accent-text: var(--brass);
+  --danger: var(--oxblood);
+  --input: #FFFDF5;
+
+  /* spacing, radius, type */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 72px;
+  --r1: 8px; --r2: 14px; --r3: 22px;
+  --display: 'Bodoni Moda', Didot, 'Times New Roman', serif;
+  --ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --deal: cubic-bezier(.2, .9, .25, 1);
+}
+html[data-theme="light"] {
+  --bg: #DCE6D8;
+  --text: var(--pine);
+  --text-dim: #4C6557;
+  --line: rgba(16, 38, 28, .22);
+  --card: #FBF7EA;
+  --accent-text: #7B570B;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100dvh; color: var(--text);
+  font: 400 17px/1.55 var(--ui);
+  background: radial-gradient(120% 70% at 50% -8%, #23694D 0%, var(--felt) 28%, var(--felt-deep) 78%) fixed;
+  -webkit-font-smoothing: antialiased;
+}
+html[data-theme="light"] body { background: radial-gradient(120% 70% at 50% -8%, #F2F6EE 0%, var(--bg) 70%) fixed; }
+/* felt nap */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .5; mix-blend-mode: soft-light;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.top, main { position: relative; z-index: 1; }
+a { color: var(--accent-text); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; border-radius: 4px; }
+p { margin: 0; }
+
+/* Bodoni's hairlines vanish in digits and capitals at display sizes, so those use the sturdier small optical size.
+   !important because every later `font:` shorthand resets variation settings. */
+.roomcode, .input--code, .stats dd, .place, .t-number, .chip__dot, .order li::before { font-variation-settings: 'opsz' 14 !important; }
+
+/* header */
+.top { display: flex; align-items: center; justify-content: space-between; padding: var(--s4) clamp(16px, 4vw, 40px); }
+.mark { font: italic 600 30px/1 var(--display); color: var(--text); text-decoration: none; letter-spacing: -.01em; }
+.top nav { display: flex; align-items: center; gap: var(--s3); }
+.iconbtn { all: unset; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--text-dim); }
+.iconbtn:hover { color: var(--text); background: var(--line); }
+.iconbtn:focus-visible { outline: 2px solid var(--accent-text); }
+.navlink { font-weight: 600; font-size: 15px; padding: 10px 4px; }
+.chip { display: inline-flex; align-items: center; gap: var(--s2); padding: 5px 14px 5px 5px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; }
+.chip__dot { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 700 15px/1 var(--display); }
+
+/* screens */
+.screen { max-width: 760px; margin: 0 auto; padding: var(--s5) clamp(16px, 4vw, 40px) var(--s7); text-align: center; }
+.screen--wide { max-width: 980px; text-align: left; }
+
+/* landing: the mat */
+.mat { --text: var(--ivory); --text-dim: #A8BDAE; color: var(--text); padding: var(--s3) var(--s4) var(--s5); }
+html[data-theme="light"] .mat {
+  background: radial-gradient(110% 90% at 50% 0%, #23694D, var(--felt) 45%, #103C2B);
+  border-radius: var(--r3); padding-top: var(--s6);
+  box-shadow: inset 0 0 0 5px rgba(0, 0, 0, .14), 0 20px 40px -18px rgba(16, 38, 28, .5);
+}
+.whisper { color: var(--text-dim); font-size: 16px; }
+.bid { margin: 0; font: italic 500 clamp(58px, 12.5vw, 132px)/.95 var(--display); letter-spacing: -.02em; color: var(--text); }
+.tell { min-height: 1.6em; color: var(--text); font: italic 500 21px/1.3 var(--display); }
+
+.stage { all: unset; display: block; position: relative; width: 360px; max-width: 100%; height: 316px; margin: 0 auto var(--s2); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.stage:focus-visible { outline: 2px solid var(--brass); outline-offset: 4px; border-radius: var(--r2); }
+.stage__dice { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 11px; }
+.stage__dice .die {
+  --d: 50px; border-radius: 11px; color: var(--pine);
+  background: linear-gradient(145deg, #FFFAEC, #E2D5B5);
+  box-shadow: 0 3px 0 #B5A681, 0 9px 14px rgba(0, 0, 0, .4);
+}
+.stage__dice .die[data-die="6"] { color: var(--oxblood); }
+.stage__dice .die:nth-child(1) { transform: rotate(-10deg); }
+.stage__dice .die:nth-child(2) { transform: rotate(5deg) translateY(5px); }
+.stage__dice .die:nth-child(3) { transform: rotate(14deg); }
+.stage__shadow { position: absolute; left: 50%; bottom: -8px; width: 236px; height: 28px; margin-left: -118px; border-radius: 50%; background: rgba(0, 0, 0, .5); filter: blur(11px); transition: transform .55s var(--deal), opacity .55s; }
+.cup {
+  position: absolute; left: 50%; bottom: 0; width: 216px; height: 190px; margin-left: -108px;
+  clip-path: path('M38 14 Q40 0 56 0 H160 Q176 0 178 14 L216 176 Q218 190 204 190 H12 Q-2 190 0 176 Z');
+  background: linear-gradient(98deg, #561320 0%, #9A2633 34%, #BA4654 50%, #8A2130 70%, #4A0E18 100%);
+  transition: transform .55s var(--deal);
+  display: grid; place-items: center;
+}
+.cup::before { content: ""; position: absolute; top: 22px; left: 24%; right: 24%; border-top: 2px dashed rgba(243, 234, 211, .4); }
+.cup::after { content: ""; position: absolute; left: 0; right: 0; bottom: 16px; height: 12px; background: linear-gradient(#EBCB82, #B38A33); box-shadow: 0 -1px 0 rgba(0, 0, 0, .25), 0 1px 0 rgba(0, 0, 0, .3); }
+.cup em { font: italic 600 44px/1 var(--display); color: rgba(40, 6, 12, .55); text-shadow: 0 1px 0 rgba(255, 190, 190, .22); }
+.stage:hover .cup { transform: translateY(-7px) rotate(-1.5deg); }
+.stage.is-shaking .cup { animation: shake .46s linear; }
+.stage.is-up .cup { transform: translate(40px, -100px) rotate(13deg); }
+.stage.is-up .stage__shadow { transform: scale(.62); opacity: .45; }
+@keyframes shake {
+  20% { transform: translateX(-11px) rotate(-5deg); } 40% { transform: translateX(10px) rotate(4deg); }
+  60% { transform: translateX(-8px) rotate(-3deg); } 80% { transform: translateX(6px) rotate(2deg); }
+}
+
+/* landing: the door */
+.door { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: var(--s5); margin: var(--s6) auto 0; max-width: 640px; text-align: left; }
+.door > .btn { margin-top: 31px; }
+.door__or { align-self: start; color: var(--text-dim); font: italic 500 20px/1 var(--display); padding-top: 50px; }
+.pitch { max-width: 34em; margin: var(--s7) auto 0; font-size: 19px; color: var(--text); }
+.rules { list-style: none; counter-reset: r; margin: var(--s6) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s5); text-align: left; }
+.rules li { counter-increment: r; border-top: 1px solid var(--line); padding-top: var(--s3); color: var(--text-dim); font-size: 16px; }
+.rules li::before { content: counter(r); display: block; font: italic 500 34px/1.1 var(--display); color: var(--accent-text); }
+.rules b { display: block; color: var(--text); font-size: 18px; font-weight: 600; margin-bottom: 2px; }
+
+/* buttons */
+.btn {
+  appearance: none; border: 1px solid transparent; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 50px; padding: 0 22px; border-radius: var(--r1);
+  font: 600 16px/1 var(--ui); color: var(--text); background: none;
+  transition: transform .15s, filter .15s, background-color .15s;
+}
+.btn:active { transform: translateY(1px); }
+.btn--primary { background: linear-gradient(#E2BC69, #C89B3D); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 2px 0 #8C6A22, 0 10px 18px -8px rgba(0, 0, 0, .6); }
+.btn--primary:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.btn--ghost { border-color: color-mix(in srgb, currentColor 38%, transparent); }
+.btn--ghost:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.btn--danger { background: var(--danger); color: var(--ivory); }
+.btn--danger:hover { filter: brightness(1.15); }
+.btn--google { background: #fff; color: #1F1F1F; border-color: rgba(16, 38, 28, .3); }
+.btn--google:hover { background: #F6F6F2; }
+.btn--big { min-height: 58px; font-size: 18px; }
+.btn--wide { width: 100%; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.is-loading::after { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(1turn); } }
+
+/* fields */
+label { display: block; font-weight: 600; font-size: 15px; margin-bottom: var(--s2); }
+.input {
+  width: 100%; min-height: 50px; padding: 0 16px; border-radius: var(--r1);
+  border: 1px solid rgba(16, 38, 28, .35); background: var(--input); color: var(--pine);
+  font: 500 17px/1 var(--ui);
+}
+.input::placeholder { color: #8D9A90; }
+.input:focus { outline: 3px solid var(--brass); outline-offset: 1px; border-color: var(--pine); }
+.input--code { font: 700 24px/1 var(--display); letter-spacing: .32em; text-transform: uppercase; text-align: center; padding-left: calc(16px + .32em); }
+.input--code::placeholder { opacity: .5; }
+.codeform__row { display: grid; grid-template-columns: 1fr auto; gap: var(--s2); }
+.hint { font-size: 14px; color: var(--text-dim); margin-top: var(--s2); }
+.error { color: #FFB4B4; font-size: 14px; font-weight: 600; margin-top: var(--s2); }
+.error:empty { display: none; }
+form.is-error .input { border-color: var(--oxblood); animation: nudge .3s; }
+@keyframes nudge { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+/* cards: ivory, dealt onto the table */
+.card {
+  --text: var(--pine); --text-dim: #566B5F; --line: rgba(16, 38, 28, .2); --accent-text: #7B570B;
+  background: var(--card); color: var(--text); text-align: left;
+  max-width: 460px; margin: var(--s5) auto 0; padding: clamp(24px, 6vw, 40px); border-radius: var(--r3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 2px 5px rgba(0, 0, 0, .25), 0 28px 50px -14px rgba(0, 0, 0, .5);
+}
+.card .error { color: var(--oxblood); }
+[data-screen]:not([hidden]) > .card, .dialog[open] { animation: deal .6s var(--deal) both; }
+@keyframes deal { from { opacity: 0; transform: translate(70px, -90px) rotate(10deg); } }
+.over { color: var(--text-dim); font-size: 15px; }
+.roomcode { font: 700 clamp(48px, 14vw, 68px)/1.05 var(--display); letter-spacing: .16em; margin: 2px 0 var(--s2); }
+.who { color: var(--text-dim); margin-bottom: var(--s5); }
+.h2 { margin: 0 0 var(--s3); font: 600 clamp(32px, 7vw, 40px)/1.08 var(--display); letter-spacing: -.01em; }
+.h2 em { font-style: italic; color: var(--oxblood); }
+.card form { display: grid; }
+.card form .btn { margin-top: var(--s5); }
+.aside { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--line); font-size: 15px; color: var(--text-dim); }
+.row { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: var(--s5); }
+.card > p + .btn, .card p + .btn { margin-top: var(--s5); }
+.dev { margin-top: var(--s5); padding: var(--s4); border: 1px dashed rgba(16, 38, 28, .4); border-radius: var(--r2); font-size: 14px; color: var(--text-dim); display: grid; gap: var(--s3); }
+.dev b { color: var(--text); }
+.dev .btn { min-height: 42px; font-size: 15px; justify-self: start; }
+
+/* closed: the cup lies on its side */
+.tipped { position: relative; height: 104px; margin-bottom: var(--s4); }
+.tipped .cup { left: 76px; bottom: -44px; transform: scale(.48) rotate(104deg); }
+.tipped::after { content: ""; position: absolute; left: 14px; bottom: 6px; width: 150px; height: 14px; border-radius: 50%; background: rgba(16, 38, 28, .28); filter: blur(7px); }
+
+/* account: the ledger */
+.acct__head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--s4); margin-top: var(--s4); }
+.h1 { margin: 0; font: italic 500 clamp(52px, 10vw, 88px)/1 var(--display); letter-spacing: -.02em; }
+.dim { color: var(--text-dim); font-size: 15px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 var(--s5); margin: var(--s6) 0 var(--s5); }
+.stats div { border-top: 1px solid color-mix(in srgb, var(--accent-text) 55%, transparent); padding: var(--s3) 0 var(--s5); }
+.stats dt { color: var(--text-dim); font-size: 15px; }
+.stats dd { margin: 0; font: 500 clamp(40px, 7vw, 60px)/1.05 var(--display); font-variant-numeric: lining-nums; }
+.ledger { max-width: none; margin-top: 0; }
+.ledger h2 { margin: 0 0 var(--s3); font: 600 26px/1.1 var(--display); }
+.history { list-style: none; margin: 0; padding: 0; }
+.history li { display: grid; grid-template-columns: 64px 96px 1fr; gap: var(--s2) var(--s4); align-items: baseline; padding: var(--s3) 0; border-top: 1px solid var(--line); }
+.history time { color: var(--text-dim); font-size: 15px; }
+.place { font: 600 22px/1.1 var(--display); }
+.place small { font: 400 14px var(--ui); color: var(--text-dim); }
+.place--1 { color: var(--accent-text); }
+.order { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 15px; color: var(--text-dim); counter-reset: o; }
+.order li { all: unset; counter-increment: o; }
+.order li::before { content: counter(o) " "; font: italic 500 14px var(--display); color: var(--accent-text); }
+.order .me { color: var(--text); font-weight: 700; }
+.acct__foot { margin-top: var(--s6); }
+
+/* dialog, toast */
+.dialog { border: 0; padding: clamp(24px, 6vw, 36px); border-radius: var(--r3); background: var(--card); color: var(--pine); max-width: min(420px, calc(100vw - 32px)); box-shadow: 0 30px 60px -10px rgba(0, 0, 0, .6); --text: var(--pine); --text-dim: #566B5F; }
+.dialog::backdrop { background: rgba(5, 18, 13, .72); backdrop-filter: blur(3px); }
+.dialog p { color: var(--text-dim); }
+.dialog .btn--ghost { color: var(--pine); }
+.toasts { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: var(--s2); justify-items: center; }
+.toast { background: var(--ivory); color: var(--pine); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 15px; white-space: nowrap; box-shadow: 0 0 0 1px var(--brass), 0 12px 24px -6px rgba(0, 0, 0, .5); animation: drop .4s var(--deal) both; transition: opacity .35s, transform .35s; }
+.toast.is-leaving { opacity: 0; transform: translateY(-10px); }
+@keyframes drop { from { opacity: 0; transform: translateY(-24px) rotate(-3deg); } }
+
+/* design system page */
+.sys h1 { margin: var(--s4) 0 var(--s2); font: italic 500 clamp(44px, 8vw, 72px)/1 var(--display); }
+.sys > p { max-width: 40em; color: var(--text-dim); }
+.sys h2 { margin: var(--s7) 0 var(--s4); padding-top: var(--s3); border-top: 1px solid var(--line); font: 600 26px/1.1 var(--display); }
+.swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s4); }
+.swatches li { font-size: 14px; color: var(--text-dim); }
+.swatches li::before { content: ""; display: block; height: 84px; border-radius: var(--r2); background: var(--c); border: 1px solid var(--line); margin-bottom: var(--s2); }
+.swatches b { display: block; color: var(--text); font-size: 16px; }
+.swatches code, .spec code { font: 500 13px var(--ui); letter-spacing: .02em; }
+.spec { display: grid; gap: var(--s4); }
+.spec > div { display: grid; grid-template-columns: 170px 1fr; gap: var(--s4); align-items: baseline; }
+.spec code { color: var(--text-dim); }
+.t-display { font: italic 500 clamp(44px, 9vw, 96px)/.95 var(--display); letter-spacing: -.02em; }
+.t-title { font: 600 38px/1.08 var(--display); }
+.t-number { font: 500 56px/1 var(--display); }
+.t-body { font: 400 17px/1.55 var(--ui); max-width: 34em; }
+.t-small { font: 400 14px/1.45 var(--ui); color: var(--text-dim); }
+.scale { display: flex; align-items: end; gap: var(--s4); flex-wrap: wrap; }
+.scale span { display: grid; gap: 6px; justify-items: center; font-size: 13px; color: var(--text-dim); }
+.scale span::before { content: ""; width: var(--w); height: var(--w); background: var(--accent); border-radius: 3px; }
+.kit { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; }
+.kit + .kit { margin-top: var(--s4); }
+.kit .card { margin: 0; flex: 1 1 300px; animation: none; }
+.kit .die { --d: 46px; border-radius: 10px; color: var(--pine); background: linear-gradient(145deg, #FFFAEC, #E2D5B5); box-shadow: 0 3px 0 #B5A681; }
+.kit .die[data-die="6"] { color: var(--oxblood); }
+
+@media (max-width: 640px) {
+  .door { grid-template-columns: 1fr; gap: var(--s4); }
+  .door > .btn { margin-top: 0; }
+  .door__or { display: none; }
+  .rules { grid-template-columns: 1fr; gap: var(--s4); }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .history li { grid-template-columns: 64px 1fr; }
+  .history .order { grid-column: 1 / -1; }
+  .spec > div { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="mark" href="#landing" aria-label="36s, home">36s</a>
+  <nav>
+    <button class="iconbtn" data-action="theme" aria-label="Switch between light and dark">
+      <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+    </button>
+    <a class="navlink only-out" href="#signin">Sign in</a>
+    <a class="chip only-in" href="#account"><span class="chip__dot">D</span><span data-bind="account">Dana</span></a>
+  </nav>
+</header>
+
+<main>
+  <!-- LANDING -->
+  <section data-screen="landing" class="screen">
+    <div class="mat">
+      <p class="whisper">Timur bids</p>
+      <h1 class="bid">three sixes.</h1>
+      <button class="stage" aria-describedby="tell">
+        <span class="stage__dice"><span class="die" data-die="6"></span><span class="die" data-die="3"></span><span class="die" data-die="6"></span></span>
+        <span class="stage__shadow"></span>
+        <span class="cup"><em>36s</em></span>
+        <span class="sr">Lift your cup</span>
+      </button>
+      <p class="tell" id="tell" aria-live="polite">What's under your cup? Lift it.</p>
+    </div>
+
+    <div class="door">
+      <button class="btn btn--primary btn--big" data-action="create">Create a Room</button>
+      <span class="door__or">or</span>
+      <form class="codeform" data-code-form novalidate>
+        <label for="a-code">Join with a code</label>
+        <div class="codeform__row">
+          <input class="input input--code" id="a-code" data-code-input maxlength="4" placeholder="KQXT" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="btn btn--ghost">Join</button>
+        </div>
+        <p class="error" data-error role="alert"></p>
+      </form>
+    </div>
+
+    <p class="pitch">36s is a dice-bluffing game for a Room of friends. Nobody sees your dice. Everybody hears your Bid.</p>
+    <ol class="rules">
+      <li><b>Roll in secret</b>Everyone starts with one die under their own cup.</li>
+      <li><b>Bid, or Raise</b>Say how many of one face are on the whole table. The next Player Raises it or Checks it.</li>
+      <li><b>Check</b>Cups up. Whoever was wrong takes a Penalty die. Take your sixth and you're Knocked out.</li>
+    </ol>
+  </section>
+
+  <!-- JOIN -->
+  <section data-screen="join" class="screen">
+    <div class="card">
+      <div data-join-step="form">
+        <p class="over only-joiner">You're joining Room</p>
+        <p class="over only-host">Your Room is open</p>
+        <p class="roomcode" data-bind="code">KQXT</p>
+        <p class="who only-joiner">Timur, Dana, Malika and Aziz are at the table.</p>
+        <p class="who only-host">Nobody else is here yet. You're the Host.</p>
+        <form data-join-form novalidate>
+          <label for="a-nick">Your Nickname</label>
+          <input class="input" id="a-nick" data-nick-input maxlength="16" autocomplete="nickname" placeholder="What do they call you?">
+          <p class="hint only-prefilled">Filled in from your Account.</p>
+          <p class="error" data-error role="alert"></p>
+          <button class="btn btn--primary btn--wide">Join Room</button>
+        </form>
+        <p class="aside only-out">Want your stats kept? <a href="#signin">Sign in with Google</a>. You never have to.</p>
+      </div>
+      <div data-join-step="dupe">
+        <p class="over">There's already a <span data-bind="nick-base">Dana</span> at this table.</p>
+        <h1 class="h2">You're <em data-bind="nick">Dana 2</em> here.</h1>
+        <div class="row">
+          <button class="btn btn--primary" data-action="enter-room"><span>Join as <span data-bind="nick">Dana 2</span></span></button>
+          <button class="btn btn--ghost" data-action="edit-nick">Edit</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLOSED -->
+  <section data-screen="closed" class="screen">
+    <div class="card">
+      <div class="tipped" aria-hidden="true"><span class="cup"></span></div>
+      <h1 class="h2">This room has closed.</h1>
+      <p>A Room closes after 15 minutes with nobody in it. Ask your friends for the new code, or open one yourself.</p>
+      <div class="row">
+        <button class="btn btn--primary" data-action="create">Create a Room</button>
+        <a class="btn btn--ghost" href="#landing">Enter another code</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIGN IN -->
+  <section data-screen="signin" class="screen">
+    <div class="card">
+      <h1 class="h2">Keep your record.</h1>
+      <p>Sign in and your Nickname, stats and Game history follow you to any device. You never have to. Guests can play everything.</p>
+      <button class="btn btn--google btn--wide" data-action="google"><span data-g></span>Sign in with Google</button>
+      <p class="hint">Doesn't work inside some chat apps? Open in Safari or Chrome.</p>
+      <div class="dev">
+        <p><b>Development only.</b> Skip Google and sign in as a test Account.</p>
+        <button class="btn btn--ghost" data-action="dev-login">Dev login as Dana</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section data-screen="account" class="screen screen--wide">
+    <div class="acct__head">
+      <div>
+        <h1 class="h1" data-bind="account">Dana</h1>
+        <p class="dim">Signed in with Google as <span data-bind="email"></span></p>
+      </div>
+    </div>
+    <dl class="stats">
+      <div><dt>Games</dt><dd>42</dd></div>
+      <div><dt>Wins</dt><dd>11</dd></div>
+      <div><dt>Win rate</dt><dd>26%</dd></div>
+      <div><dt>Average Placement</dt><dd>2.4</dd></div>
+      <div><dt>Checks won</dt><dd>67</dd></div>
+      <div><dt>Bluffs caught</dt><dd>23</dd></div>
+    </dl>
+    <div class="card ledger">
+      <h2>Recent Games</h2>
+      <ol class="history" id="a-history"></ol>
+    </div>
+    <p class="acct__foot"><button class="btn btn--ghost" data-action="logout">Log out</button></p>
+  </section>
+
+  <!-- ROOM (where this prototype stops) -->
+  <section data-screen="room" class="screen">
+    <div class="card">
+      <p class="over">Room <span data-bind="code">KQXT</span></p>
+      <h1 class="h2">You're in, <em data-bind="nick">Dana</em>.</h1>
+      <p>The game table is the next prototype. This one stops at the door.</p>
+      <div class="row">
+        <button class="btn btn--primary" data-action="copy-link">Copy Room link</button>
+        <a class="btn btn--ghost" href="#landing">Leave Room</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN SYSTEM -->
+  <section data-screen="system" class="screen screen--wide sys">
+    <h1>Back Room</h1>
+    <p>A felt table under one lamp. Ivory cards get dealt onto it, brass marks what you can press, and oxblood is kept for Checks and endings. Dark is the home theme. Light is the same table with the house lights on.</p>
+
+    <h2>Colour</h2>
+    <ul class="swatches">
+      <li style="--c:#17503A"><b>Baize</b><code>#17503A</code><br>the table</li>
+      <li style="--c:#0B2A1F"><b>Deep baize</b><code>#0B2A1F</code><br>page, dark</li>
+      <li style="--c:#DCE6D8"><b>Celadon</b><code>#DCE6D8</code><br>page, light</li>
+      <li style="--c:#F3EAD3"><b>Ivory</b><code>#F3EAD3</code><br>cards, dice, text</li>
+      <li style="--c:#D4A84F"><b>Brass</b><code>#D4A84F</code><br>what you can press</li>
+      <li style="--c:#9A2633"><b>Oxblood</b><code>#9A2633</code><br>Check, sixes, danger</li>
+      <li style="--c:#10261C"><b>Pine</b><code>#10261C</code><br>ink on ivory</li>
+    </ul>
+
+    <h2>Type</h2>
+    <div class="spec">
+      <div><code>Bodoni Moda Italic 500<br>58 to 132 / 0.95</code><span class="t-display">three sixes.</span></div>
+      <div><code>Bodoni Moda 600<br>32 to 40 / 1.08</code><span class="t-title">This room has closed.</span></div>
+      <div><code>Bodoni Moda 500<br>40 to 60, numbers</code><span class="t-number">26%</span></div>
+      <div><code>Hanken Grotesk 400<br>17 / 1.55</code><span class="t-body">Say how many of one face are on the whole table. The next Player Raises it or Checks it.</span></div>
+      <div><code>Hanken Grotesk 400<br>14 / 1.45</code><span class="t-small">Doesn't work inside some chat apps? Open in Safari or Chrome.</span></div>
+    </div>
+
+    <h2>Spacing and corners</h2>
+    <div class="scale">
+      <span style="--w:4px">4</span><span style="--w:8px">8</span><span style="--w:12px">12</span><span style="--w:16px">16</span>
+      <span style="--w:24px">24</span><span style="--w:32px">32</span><span style="--w:48px">48</span><span style="--w:72px">72</span>
+    </div>
+    <p class="t-small" style="margin-top:16px">Corners: 8 on controls, 14 on insets, 22 on cards and dialogs.</p>
+
+    <h2>Components</h2>
+    <div class="kit">
+      <button class="btn btn--primary">Create a Room</button>
+      <button class="btn btn--ghost">Join</button>
+      <button class="btn btn--danger">Check</button>
+      <button class="btn btn--google"><span data-g></span>Sign in with Google</button>
+      <button class="btn btn--primary" disabled>Join Room</button>
+    </div>
+    <div class="kit">
+      <span class="die" data-die="1"></span><span class="die" data-die="2"></span><span class="die" data-die="3"></span>
+      <span class="die" data-die="4"></span><span class="die" data-die="5"></span><span class="die" data-die="6"></span>
+    </div>
+    <div class="kit">
+      <div class="card">
+        <label for="a-demo1">Your Nickname</label>
+        <input class="input" id="a-demo1" value="Dana">
+        <p class="hint">Filled in from your Account.</p>
+      </div>
+      <div class="card">
+        <form class="is-error" onsubmit="return false">
+          <label for="a-demo2">Your Nickname</label>
+          <input class="input" id="a-demo2" placeholder="What do they call you?">
+          <p class="error">Pick a Nickname first.</p>
+        </form>
+      </div>
+    </div>
+    <div class="kit">
+      <button class="btn btn--ghost" data-action="dialog-demo">Open a dialog</button>
+      <button class="btn btn--ghost" data-action="toast-demo">Show a toast</button>
+      <button class="btn btn--ghost" data-action="theme">Switch light and dark</button>
+    </div>
+  </section>
+</main>
+
+<dialog class="dialog" id="logout-dialog" aria-labelledby="a-dlg-title">
+  <h2 class="h2" id="a-dlg-title">Log out of 36s?</h2>
+  <p>Your stats and history stay with your Account. This device goes back to playing as a Guest.</p>
+  <div class="row">
+    <button class="btn btn--danger" data-action="logout-confirm">Log out</button>
+    <button class="btn btn--ghost" data-dialog-close>Stay signed in</button>
+  </div>
+</dialog>
+
+<script src="proto.js"></script>
+<script>
+{
+  const { $, $$, data, fillDie, ordinal, fmtDate } = Proto;
+
+  // the cup: every tap shakes, rolls and lifts
+  const stage = $('.stage'), tell = $('#tell'), dice = $$('.die', stage);
+  const LINES = [
+    'Not a six in sight. Smells like a bluff.',
+    'One six. The other two would have to be out there.',
+    'Two sixes. Suddenly it sounds plausible.',
+    'All three, right here. Raise.',
+  ];
+  let busy = false;
+  stage.addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    const wasUp = stage.classList.contains('is-up');
+    stage.classList.remove('is-up');
+    setTimeout(() => {
+      stage.classList.add('is-shaking');
+      const roll = dice.map(() => (Math.random() < .42 ? 6 : 1 + Math.floor(Math.random() * 5)));
+      dice.forEach((d, i) => fillDie(d, roll[i]));
+      setTimeout(() => {
+        stage.classList.remove('is-shaking');
+        stage.classList.add('is-up');
+        tell.textContent = LINES[roll.filter((n) => n === 6).length];
+        busy = false;
+      }, 480);
+    }, wasUp ? 460 : 0);
+  });
+
+  $('#a-history').innerHTML = data.history.map((g) => `
+    <li>
+      <time datetime="${g.date}">${fmtDate(g.date)}</time>
+      <span class="place place--${g.place}">${ordinal(g.place)} <small>of ${g.order.length}</small></span>
+      <ol class="order">${g.order.map((n) => `<li${n === data.account.nick ? ' class="me"' : ''}>${n}</li>`).join('')}</ol>
+    </li>`).join('');
+}
+</script>
+</body>
+</html>

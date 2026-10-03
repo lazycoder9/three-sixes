@@ -1,0 +1,79 @@
+/* PROTOTYPE, throwaway. Shared by the three variants of issue #13.
+   Only structure and the prototype bar live here. Every look lives in a.html, b.html, c.html. */
+
+/* state hooks set by proto.js on <html> */
+[hidden] { display: none !important; }
+html[data-auth="in"] .only-out,
+html[data-auth="out"] .only-in { display: none !important; }
+html:not([data-prefilled]) .only-prefilled { display: none !important; }
+html[data-host="1"] .only-joiner,
+html:not([data-host="1"]) .only-host { display: none !important; }
+html[data-join="form"] [data-join-step="dupe"],
+html[data-join="dupe"] [data-join-step="form"] { display: none !important; }
+
+body { padding-bottom: 76px !important; }
+
+.sr {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+/* a die face is a 3x3 grid of pips; variants colour it and size it with --d */
+.die {
+  --d: 48px;
+  display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); flex: none;
+  width: var(--d); height: var(--d); padding: calc(var(--d) * .13); box-sizing: border-box;
+}
+.die i { border-radius: 50%; margin: 9%; }
+.die i.on { background: currentColor; }
+
+/* a 3D die: .cube > .cube__tilt > .cube__body > six .cube__face.die */
+.cube {
+  display: inline-block; width: var(--s, 64px); height: var(--s, 64px);
+  perspective: calc(var(--s, 64px) * 5);
+}
+.cube__tilt, .cube__body {
+  display: block; position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+}
+.cube__tilt { transform: rotateX(var(--tx, -18deg)) rotateY(var(--ty, 24deg)); }
+.cube__body {
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform var(--roll, 1.3s) cubic-bezier(.2, .75, .25, 1);
+}
+.cube__face { position: absolute; inset: 0; --h: calc(var(--s, 64px) / 2); --d: var(--s, 64px); }
+.cube .f1 { transform: translateZ(var(--h)); }
+.cube .f6 { transform: rotateY(180deg) translateZ(var(--h)); }
+.cube .f3 { transform: rotateY(90deg) translateZ(var(--h)); }
+.cube .f4 { transform: rotateY(-90deg) translateZ(var(--h)); }
+.cube .f2 { transform: rotateX(90deg) translateZ(var(--h)); }
+.cube .f5 { transform: rotateX(-90deg) translateZ(var(--h)); }
+
+/* the prototype bar: deliberately plain so nobody mistakes it for the design */
+.pbar {
+  position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+  z-index: 9999; display: flex; align-items: center; gap: 2px;
+  padding: 4px; border-radius: 999px; max-width: calc(100vw - 12px);
+  background: #151515; color: #fff;
+  font: 500 13px/1 system-ui, -apple-system, sans-serif; letter-spacing: 0;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .4), 0 0 0 1px rgba(255, 255, 255, .16);
+}
+.pbar button {
+  all: unset; box-sizing: border-box; cursor: pointer; white-space: nowrap;
+  padding: 9px 11px; border-radius: 999px; min-width: 34px; text-align: center;
+}
+.pbar button:hover { background: #363636; }
+.pbar button:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.pbar__label { padding: 0 4px; white-space: nowrap; }
+.pbar__label b { font-weight: 700; }
+.pbar__sep { width: 1px; height: 18px; background: #4a4a4a; margin: 0 3px; flex: none; }
+.pbar__menu {
+  position: absolute; right: 0; bottom: calc(100% + 8px);
+  display: grid; min-width: 200px; padding: 6px; border-radius: 14px;
+  background: #151515; box-shadow: 0 8px 28px rgba(0, 0, 0, .4), 0 0 0 1px rgba(255, 255, 255, .16);
+}
+.pbar__menu button { border-radius: 9px; text-align: left; padding: 10px 12px; }
+@media (max-width: 520px) {
+  .pbar__name { display: none; }
+  .pbar button { padding: 9px 8px; }
+}

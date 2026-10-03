@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en" data-default-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three Sixes prototype F, Sticker Sheet</title>
+<!-- PROTOTYPE, throwaway. Issue #13, round two, variant F: "Sticker Sheet".
+     Variant B's red, black, white and yellow, with the hard edges taken off. Everything is a sticker:
+     round corners, a slight tilt, a soft shadow. A name tag for your Nickname, a shop sign for a closed Room,
+     and chunky dice that bounce.
+     Name treatment tried here: a numeral and a word, "3 Sixes". -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700&family=Rammetto+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<style>
+:root {
+  /* palette */
+  --red: #E0352B;
+  --red-deep: #B4241B;
+  --ink: #1F1717;
+  --white: #fff;
+  --yellow: #FFC93C;
+  --blush: #FFE7E1;
+
+  /* roles, light: the red sheet */
+  --bg: var(--red);
+  --rays: rgba(255, 255, 255, .06);
+  --text: #fff;
+  --text-soft: rgba(255, 255, 255, .9);
+  --sticker: #fff;
+  --on-sticker: var(--ink);
+  --sticker-dim: #6E5A57;
+  --ring: transparent;
+  --cell: var(--blush);
+  --shadow: rgba(100, 8, 4, .5);
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 72px;
+  --r1: 14px; --r2: 22px; --r3: 32px;
+  --display: 'Rammetto One', 'Cooper Black', system-ui, sans-serif;
+  --ui: 'Figtree', system-ui, sans-serif;
+  --boing: cubic-bezier(.3, 1.7, .5, 1);
+}
+html[data-theme="dark"] {
+  /* the same sheet after dark */
+  --bg: #2A0E0C;
+  --rays: rgba(224, 53, 43, .13);
+  --text: #FFF3EC;
+  --text-soft: rgba(255, 243, 236, .86);
+  --sticker: #42201D;
+  --on-sticker: #FFF3EC;
+  --sticker-dim: #D9BAB3;
+  --ring: rgba(255, 243, 236, .9);
+  --cell: #5A2D29;
+  --shadow: rgba(0, 0, 0, .65);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100dvh; overflow-x: clip; color: var(--text); font: 500 18px/1.5 var(--ui); -webkit-font-smoothing: antialiased;
+  background: repeating-conic-gradient(from 0deg at 72% 340px, var(--rays) 0 7deg, transparent 7deg 14deg), var(--bg);
+}
+/* print grain, so the red is not flat */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .28; mix-blend-mode: multiply;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.top, main { position: relative; z-index: 1; }
+p { margin: 0; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; border-radius: 8px; }
+
+/* dice: chunky, white, soft corners */
+.die { background: linear-gradient(150deg, #fff 30%, #F1E4E0); color: var(--ink); border-radius: 21%; box-shadow: inset 0 0 0 calc(var(--d) * .03) rgba(31, 23, 23, .12); }
+
+/* header */
+.top { display: flex; align-items: center; justify-content: space-between; padding: var(--s3) clamp(16px, 4vw, 48px); }
+.mark { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font: 400 26px/1 var(--display); color: var(--text); min-height: 44px; }
+.mark b { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--yellow); color: var(--ink); font-weight: 400; font-size: 25px; transform: rotate(-8deg); box-shadow: 0 4px 8px -3px var(--shadow); }
+.top nav { display: flex; align-items: center; gap: var(--s3); font-weight: 700; font-size: 16px; }
+.top nav a { padding: 10px 4px; }
+.iconbtn { all: unset; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
+.iconbtn:hover { background: rgba(255, 255, 255, .16); }
+.iconbtn:focus-visible { outline: 3px solid var(--yellow); }
+.me { display: inline-flex; align-items: center; gap: var(--s2); text-decoration: none; }
+.face { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--c, var(--yellow)); color: var(--ink); font: 400 16px/1 var(--display); box-shadow: 0 0 0 3px #fff; }
+
+/* pills */
+.pill {
+  appearance: none; border: 0; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 54px; padding: 0 26px; border-radius: 999px;
+  background: var(--yellow); color: var(--ink); font: 400 18px/1 var(--display);
+  box-shadow: 0 10px 16px -7px var(--shadow), inset 0 -4px 0 rgba(0, 0, 0, .12);
+  transition: transform .2s var(--boing), filter .15s;
+}
+.pill:hover { transform: rotate(-2deg) scale(1.04); }
+.pill:active { transform: scale(.94, .9); transition-duration: .06s; }
+.pill--white { background: #fff; }
+.pill--ink { background: var(--ink); color: #fff; }
+.pill--red { background: var(--red); color: #fff; }
+.pill--plain { font: 700 17px/1 var(--ui); background: #fff; color: #1F1F1F; box-shadow: 0 0 0 2px rgba(31, 23, 23, .18), 0 10px 16px -9px var(--shadow); }
+.pill--big { min-height: 66px; font-size: 22px; padding: 0 36px; }
+.pill--wide { width: 100%; }
+.pill:disabled { opacity: .55; cursor: default; transform: none; }
+.pill.is-loading::after { content: ""; width: 10px; height: 10px; border-radius: 3px; background: currentColor; animation: flipflop .5s ease-in-out infinite alternate; }
+@keyframes flipflop { to { transform: translateY(-8px) rotate(180deg); } }
+
+/* stickers */
+.sticker { background: var(--sticker); color: var(--on-sticker); border-radius: var(--r3); padding: clamp(20px, 4.5vw, 34px); box-shadow: 0 0 0 3px var(--ring), 0 18px 28px -14px var(--shadow); }
+[data-screen]:not([hidden]) > .sticker, [data-screen]:not([hidden]) > .nametag, .dialog[open] { animation: slap .45s var(--boing) both; }
+@keyframes slap { from { opacity: 0; transform: scale(.8) rotate(6deg); } }
+
+/* fields */
+label, legend { display: block; padding: 0; font-weight: 700; font-size: 16px; margin-bottom: var(--s2); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.input { width: 100%; min-height: 56px; padding: 0 18px; border: 0; border-radius: var(--r1); background: var(--cell); color: var(--on-sticker); font: 600 19px/1 var(--ui); }
+.input::placeholder { color: var(--sticker-dim); opacity: .8; }
+.input:focus { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.hint { font-size: 15px; color: var(--sticker-dim); margin-top: var(--s2); }
+.error { font-size: 15px; font-weight: 700; color: var(--red); margin-top: var(--s2); }
+html[data-theme="dark"] .error { color: #FF8F84; }
+.error:empty { display: none; }
+form.is-error .cells, form.is-error .input, form.is-error.nametag__body { animation: nudge .3s; }
+@keyframes nudge { 25% { transform: translateX(-6px) rotate(-1deg); } 75% { transform: translateX(6px) rotate(1deg); } }
+.cells { display: flex; align-items: center; gap: var(--s2); }
+.cell { flex: 1 1 0; min-width: 0; max-width: 60px; height: 62px; padding: 0; border: 0; border-radius: 16px; background: var(--cell); color: var(--on-sticker); text-align: center; text-transform: uppercase; font: 400 28px/1 var(--display); }
+.cell:focus { outline: 3px solid var(--ink); outline-offset: 0; background: var(--yellow); color: var(--ink); }
+html[data-theme="dark"] .cell:focus { outline-color: #fff; }
+.cell.is-filled:not(:focus) { background: var(--red); color: #fff; animation: pop .3s var(--boing); }
+@keyframes pop { from { transform: scale(.55) rotate(-12deg); } }
+.cells .pill { margin-left: auto; min-height: 62px; }
+
+/* type */
+.screen { max-width: 1160px; margin: 0 auto; padding: var(--s3) clamp(16px, 4vw, 48px) var(--s7); }
+.screen--narrow { max-width: 540px; }
+.shout { margin: 0; font: 400 clamp(52px, 8.6vw, 124px)/.95 var(--display); letter-spacing: -.01em; text-shadow: 0 .05em 0 var(--red-deep); }
+html[data-theme="dark"] .shout { text-shadow: 0 .05em 0 #000; }
+.reply { display: inline-block; margin: var(--s3) 0 0 clamp(0px, 5vw, 80px); padding: .08em .45em .14em; border-radius: .5em .5em .5em .12em; background: var(--yellow); color: var(--ink); font: 400 clamp(34px, 5.2vw, 72px)/1.05 var(--display); transform: rotate(-3deg); box-shadow: 0 14px 20px -10px var(--shadow); }
+[data-screen]:not([hidden]) .reply { animation: slap .5s .55s var(--boing) both; }
+.h1 { margin: 0 0 var(--s3); font: 400 clamp(32px, 6vw, 44px)/1.08 var(--display); }
+.lede { margin-top: var(--s5); max-width: 29em; font-size: 20px; font-weight: 600; color: var(--text-soft); }
+.soft { color: var(--sticker-dim); }
+
+/* landing */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(16px, 4vw, 56px); align-items: center; padding-top: var(--s4); }
+.hero__dice { text-align: center; }
+.pile { all: unset; cursor: pointer; display: inline-flex; --s: clamp(70px, 10.5vw, 128px); gap: calc(var(--s) * .34); padding: calc(var(--s) * .55) calc(var(--s) * .3) calc(var(--s) * .4); -webkit-tap-highlight-color: transparent; }
+.pile:focus-visible { outline: 3px solid var(--yellow); border-radius: var(--r3); }
+.slot { position: relative; display: grid; }
+.slot::before { content: ""; position: absolute; left: 2%; right: -16%; bottom: -22%; height: 34%; border-radius: 50%; background: rgba(90, 0, 0, .5); filter: blur(8px); }
+html[data-theme="dark"] .slot::before { background: rgba(0, 0, 0, .7); }
+.slot:nth-child(1) { transform: rotate(-9deg) translateY(10%); }
+.slot:nth-child(2) { transform: rotate(6deg) translateY(-22%); }
+.slot:nth-child(3) { transform: rotate(-3deg) translateY(14%); }
+.slot:nth-child(2) .cube { --ty: -22deg; }
+.slot:nth-child(3) .cube { --ty: 32deg; --tx: -24deg; }
+.cube.is-rolling { animation: bounce 1.25s cubic-bezier(.3, .5, .5, 1); }
+.slot:has(.is-rolling)::before { animation: shade 1.25s cubic-bezier(.3, .5, .5, 1); }
+@keyframes bounce {
+  0% { translate: 0 0; scale: 1 1; } 6% { scale: 1.08 .88; } 24% { translate: 0 -62%; scale: .96 1.05; } 46% { translate: 0 0; scale: 1.1 .86; }
+  62% { translate: 0 -20%; scale: 1 1; } 78% { translate: 0 0; scale: 1.05 .94; } 88% { translate: 0 -5%; scale: 1 1; } 100% { translate: 0 0; scale: 1 1; }
+}
+@keyframes shade { 24% { transform: scale(.55); opacity: .4; } 46% { transform: none; opacity: 1; } 62% { transform: scale(.85); opacity: .75; } 78% { transform: none; opacity: 1; } }
+.bubble { position: relative; display: inline-block; max-width: 20em; background: #fff; color: var(--ink); padding: 10px 20px; border-radius: 22px; font: 700 19px/1.25 var(--ui); transform: rotate(1.5deg); box-shadow: 0 14px 20px -10px var(--shadow); }
+.bubble::before { content: ""; position: absolute; left: 50%; top: -9px; width: 20px; height: 20px; margin-left: -10px; background: #fff; transform: rotate(45deg); border-radius: 4px; }
+.bubble.is-new { animation: pop2 .4s var(--boing); }
+@keyframes pop2 { from { transform: rotate(-4deg) scale(.7); } }
+.taphint { margin-top: var(--s3); font-size: 15px; font-weight: 700; color: var(--text-soft); }
+
+.door { display: grid; grid-template-columns: auto minmax(0, 420px); gap: var(--s5); align-items: center; margin-top: var(--s6); }
+.door .sticker { padding: var(--s4) var(--s5) var(--s5); transform: rotate(1deg); }
+.steps { list-style: none; margin: var(--s8) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s5); }
+.steps li { background: var(--sticker); color: var(--sticker-dim); border-radius: var(--r2); padding: var(--s5); font-size: 17px; box-shadow: 0 0 0 3px var(--ring), 0 16px 24px -14px var(--shadow); transition: transform .25s var(--boing); }
+.steps li:nth-child(1) { transform: rotate(-2deg); } .steps li:nth-child(2) { transform: rotate(1.2deg) translateY(10px); } .steps li:nth-child(3) { transform: rotate(-1deg); }
+.steps li:hover { transform: rotate(0) scale(1.03); }
+.steps b { display: block; margin: var(--s3) 0 var(--s1); color: var(--on-sticker); font: 400 24px/1.15 var(--display); }
+.num { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--red); color: #fff; font: 400 20px/1 var(--display); }
+
+/* join: a name tag */
+.roomline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin: var(--s4) 0 var(--s5); font-weight: 700; }
+.codepill { display: inline-block; background: var(--yellow); color: var(--ink); padding: 6px 18px 8px; border-radius: 999px; font: 400 26px/1 var(--display); letter-spacing: .1em; transform: rotate(-3deg); box-shadow: 0 10px 14px -8px var(--shadow); }
+.faces { display: inline-flex; }
+.faces .face + .face { margin-left: -9px; }
+.nametag { background: #fff; color: var(--ink); border-radius: var(--r3); overflow: hidden; transform: rotate(-1.5deg); box-shadow: 0 0 0 6px #fff, 0 22px 30px -14px var(--shadow); }
+.nametag__top { background: var(--red); color: #fff; text-align: center; padding: var(--s3) var(--s4) var(--s3); line-height: 1; }
+.nametag__top b { display: block; font: 400 clamp(38px, 9vw, 54px)/1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.nametag__top span { font-weight: 700; font-size: 17px; }
+.nametag__body { padding: var(--s5) var(--s4) var(--s5); text-align: center; }
+.nametag__input { width: 100%; border: 0; background: transparent; text-align: center; color: var(--ink); font: 400 clamp(30px, 8vw, 44px)/1.2 var(--display); padding: var(--s2) 0; border-radius: var(--r1); }
+.nametag__input::placeholder { color: #C9B5B1; }
+.nametag__input:focus { outline: 3px dashed var(--red); outline-offset: 2px; }
+.nametag__name { font: 400 clamp(34px, 9vw, 48px)/1.2 var(--display); padding: var(--s2) 0; }
+.nametag .hint, .nametag .error { margin-top: var(--s1); }
+.under { margin-top: var(--s5); display: grid; gap: var(--s4); }
+.aside { font-size: 16px; font-weight: 600; color: var(--text-soft); }
+.row { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: var(--s5); }
+.sticker > p + .pill { margin-top: var(--s5); }
+.dev { margin-top: var(--s5); padding: var(--s4); border: 3px dashed color-mix(in srgb, var(--on-sticker) 30%, transparent); border-radius: var(--r2); font-size: 15px; color: var(--sticker-dim); display: grid; gap: var(--s3); justify-items: start; }
+.dev b { color: var(--on-sticker); }
+.dev .pill { min-height: 44px; font-size: 15px; }
+
+/* closed: a shop sign on a string */
+.sign { position: relative; width: min(100%, 330px); margin: 52px auto var(--s6); transform-origin: 50% -46px; }
+[data-screen]:not([hidden]) .sign { animation: swing 1.6s ease-out both; }
+@keyframes swing { 0% { transform: rotate(13deg); } 22% { transform: rotate(-9deg); } 44% { transform: rotate(6deg); } 64% { transform: rotate(-3deg); } 82% { transform: rotate(1.5deg); } 100% { transform: rotate(0); } }
+.sign__string { position: absolute; left: 19%; top: -46px; width: 62%; height: 46px; overflow: visible; }
+.sign::after { content: ""; position: absolute; left: 50%; top: -54px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--yellow); box-shadow: 0 3px 5px rgba(0, 0, 0, .3); }
+.sign__face { background: #fff; color: var(--red); border-radius: var(--r2); padding: var(--s3); box-shadow: 0 18px 26px -12px var(--shadow); }
+.sign__face span { display: block; border: 4px solid var(--red); border-radius: 14px; padding: var(--s3) var(--s3) var(--s4); text-align: center; font: 400 clamp(44px, 12vw, 64px)/1 var(--display); letter-spacing: .03em; text-transform: uppercase; }
+.sign__face small { display: block; font: 700 15px/1.2 var(--ui); letter-spacing: 0; text-transform: none; margin-bottom: 4px; color: var(--ink); }
+.center { text-align: center; }
+.center .row { justify-content: center; }
+.center .lede { margin: var(--s3) auto 0; }
+
+/* account */
+.name { margin: var(--s3) 0 0; font: 400 clamp(64px, 12vw, 150px)/.95 var(--display); text-shadow: 0 .05em 0 var(--red-deep); }
+html[data-theme="dark"] .name { text-shadow: 0 .05em 0 #000; }
+.badges { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--s4); margin: var(--s6) 0 var(--s7); }
+.badges div { aspect-ratio: 1; display: grid; place-content: center; text-align: center; gap: 2px; border-radius: 50%; background: var(--sticker); color: var(--on-sticker); padding: 10%; box-shadow: 0 0 0 3px var(--ring), 0 16px 22px -12px var(--shadow); transition: transform .25s var(--boing); }
+.badges div:nth-child(odd) { transform: rotate(-4deg); } .badges div:nth-child(even) { transform: rotate(3deg) translateY(8px); }
+.badges div:hover { transform: scale(1.07) rotate(0); }
+.badges dd { margin: 0; font: 400 clamp(28px, 3.6vw, 46px)/1 var(--display); color: var(--red); }
+html[data-theme="dark"] .badges dd { color: var(--yellow); }
+.badges dt { font-size: clamp(12px, 1.15vw, 14px); font-weight: 700; line-height: 1.15; }
+.sheet h2 { margin: 0 0 var(--s2); font: 400 26px/1.1 var(--display); }
+.games { list-style: none; margin: 0; padding: 0; }
+.games > li { display: grid; grid-template-columns: 62px 64px 1fr; gap: var(--s2) var(--s4); align-items: center; padding: var(--s3) 0; border-top: 2px dashed color-mix(in srgb, var(--on-sticker) 16%, transparent); }
+.games time { color: var(--sticker-dim); font-size: 15px; font-weight: 600; }
+.rank { display: grid; place-content: center; text-align: center; width: 58px; height: 58px; border-radius: 50%; background: var(--cell); font: 400 18px/1 var(--display); }
+.rank small { font: 700 11px/1 var(--ui); color: var(--sticker-dim); margin-top: 2px; }
+.rank--1 { background: var(--yellow); color: var(--ink); transform: rotate(-8deg); }
+.rank--1 small { color: var(--ink); }
+.order { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 15px; font-weight: 600; counter-reset: o; }
+.order li { counter-increment: o; padding: 3px 12px 3px 10px; border-radius: 999px; background: var(--cell); }
+.order li::before { content: counter(o) ". "; color: var(--sticker-dim); }
+.order .is-me { background: var(--red); color: #fff; }
+.order .is-me::before { color: rgba(255, 255, 255, .8); }
+.foot { margin-top: var(--s6); }
+
+/* dialog, toast */
+.dialog { border: 0; padding: clamp(22px, 5vw, 36px); border-radius: var(--r3); background: #fff; color: var(--ink); max-width: min(430px, calc(100vw - 32px)); box-shadow: 0 30px 50px -14px rgba(0, 0, 0, .6); }
+.dialog::backdrop { background: rgba(70, 6, 3, .62); }
+.dialog p { color: #6E5A57; }
+.toasts { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: var(--s2); justify-items: center; }
+.toast { background: var(--yellow); color: var(--ink); padding: 10px 22px; border-radius: 999px; font: 400 17px/1.2 var(--display); white-space: nowrap; transform: rotate(-2deg); box-shadow: 0 0 0 4px #fff, 0 14px 20px -8px var(--shadow); animation: slap .4s var(--boing); transition: opacity .3s, transform .3s; }
+.toast.is-leaving { opacity: 0; transform: scale(.8); }
+
+/* design system page */
+.sys { margin-top: var(--s4); animation: none !important; }
+.sys > p { max-width: 40em; color: var(--sticker-dim); }
+.sys h2 { margin: var(--s7) 0 var(--s4); font: 400 26px/1.1 var(--display); }
+.swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: var(--s4); font-size: 15px; color: var(--sticker-dim); }
+.swatches li::before { content: ""; display: block; width: 92px; height: 92px; border-radius: 50%; background: var(--c); margin-bottom: var(--s3); box-shadow: 0 0 0 4px #fff, 0 12px 16px -8px rgba(60, 0, 0, .5); }
+.swatches b { display: block; color: var(--on-sticker); font-size: 17px; }
+.swatches code, .spec code { font: 600 14px/1.35 var(--ui); }
+.spec { display: grid; gap: var(--s5); }
+.spec > div { display: grid; grid-template-columns: 170px 1fr; gap: var(--s4); align-items: baseline; }
+.spec code { color: var(--sticker-dim); }
+.t-shout { font: 400 clamp(44px, 7vw, 84px)/.95 var(--display); color: var(--red); }
+.t-head { font: 400 36px/1.08 var(--display); }
+.t-body { max-width: 34em; }
+.t-small { font-size: 15px; color: var(--sticker-dim); }
+.scale { display: flex; align-items: end; gap: var(--s4); flex-wrap: wrap; }
+.scale span { display: grid; gap: 6px; justify-items: center; font-size: 14px; font-weight: 700; color: var(--sticker-dim); }
+.scale span::before { content: ""; width: var(--w); height: var(--w); background: var(--red); border-radius: 28%; }
+.kit { display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center; }
+.kit + .kit { margin-top: var(--s5); }
+.kit > div { flex: 1 1 260px; }
+.kit .die { --d: 48px; box-shadow: 0 0 0 2px rgba(31, 23, 23, .15), 0 8px 10px -6px rgba(60, 0, 0, .5); }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 0; }
+  .pile { --s: clamp(64px, 19vw, 110px); }
+  .door { grid-template-columns: minmax(0, 1fr); }
+  .door > .pill { justify-self: stretch; }
+  .steps { grid-template-columns: 1fr; margin-top: var(--s7); }
+  .badges { grid-template-columns: repeat(3, 1fr); max-width: 520px; }
+  .spec > div { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (max-width: 520px) {
+  .games > li { grid-template-columns: 62px 1fr; }
+  .games .order { grid-column: 1 / -1; }
+  .badges { gap: var(--s3); }
+  .badges dt { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="mark" href="#landing" aria-label="Three Sixes, home"><b>3</b>Sixes</a>
+  <nav>
+    <button class="iconbtn" data-action="theme" aria-label="Switch between light and dark">
+      <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+    </button>
+    <a class="only-out" href="#signin">Sign in</a>
+    <a class="me only-in" href="#account"><span class="face">D</span><span data-bind="account">Dana</span></a>
+  </nav>
+</header>
+
+<main>
+  <!-- LANDING -->
+  <section data-screen="landing" class="screen">
+    <div class="hero">
+      <div>
+        <h1 class="shout">Three sixes?</h1>
+        <span class="reply">Prove it.</span>
+        <p class="lede">Three Sixes is a dice-bluffing game for a Room full of friends. Roll in secret, Bid on everyone's dice at once, and Check anyone who's pushing their luck.</p>
+      </div>
+      <div class="hero__dice">
+        <button class="pile" aria-label="Roll the dice" aria-describedby="f-cap">
+          <span class="slot"><span data-cube></span></span>
+          <span class="slot"><span data-cube></span></span>
+          <span class="slot"><span data-cube></span></span>
+        </button>
+        <div><p class="bubble" id="f-cap" aria-live="polite">Three sixes. The Bid this game is named after.</p></div>
+        <p class="taphint">Tap the dice to roll.</p>
+      </div>
+    </div>
+
+    <div class="door">
+      <button class="pill pill--big" data-action="create">Create a Room</button>
+      <form class="sticker" data-code-form novalidate>
+        <fieldset>
+          <legend>Join with a code</legend>
+          <div class="cells">
+            <input class="cell" data-code-cell aria-label="Room code, letter 1" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 2" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 3" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <input class="cell" data-code-cell aria-label="Letter 4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="pill pill--ink">Join</button>
+          </div>
+        </fieldset>
+        <p class="error" data-error role="alert"></p>
+      </form>
+    </div>
+
+    <ol class="steps">
+      <li><span class="num">1</span><b>Roll in secret</b>Everyone starts with one die under their own cup.</li>
+      <li><span class="num">2</span><b>Bid, or Raise</b>Say how many of one face are on the whole table. The next Player Raises it or Checks it.</li>
+      <li><span class="num">3</span><b>Check</b>Cups up. Whoever was wrong takes a Penalty die. Take your sixth and you're Knocked out.</li>
+    </ol>
+  </section>
+
+  <!-- JOIN -->
+  <section data-screen="join" class="screen screen--narrow">
+    <p class="roomline only-joiner">
+      <span class="codepill" data-bind="code">KQXT</span>
+      <span class="faces"><span class="face" style="--c:#FFC93C">T</span><span class="face" style="--c:#FFE7E1">D</span><span class="face" style="--c:#FFC93C">M</span><span class="face" style="--c:#FFE7E1">A</span></span>
+      Timur, Dana, Malika and Aziz are in.
+    </p>
+    <p class="roomline only-host"><span class="codepill" data-bind="code">KQXT</span> Your Room is open. You're the Host.</p>
+
+    <div class="nametag">
+      <div class="nametag__top"><b>Hello</b><span>my name is</span></div>
+      <form class="nametag__body" id="f-join" data-join-form data-join-step="form" novalidate>
+        <label class="sr" for="f-nick">Your Nickname</label>
+        <input class="nametag__input" id="f-nick" data-nick-input maxlength="16" autocomplete="nickname" placeholder="Your Nickname">
+        <p class="hint only-prefilled">Filled in from your Account.</p>
+        <p class="error" data-error role="alert"></p>
+      </form>
+      <div class="nametag__body" data-join-step="dupe">
+        <p class="nametag__name" data-bind="nick">Dana 2</p>
+      </div>
+    </div>
+
+    <div class="under" data-join-step="form">
+      <button class="pill pill--big pill--wide" form="f-join">Join Room</button>
+      <p class="aside only-out">Want your stats kept? <a href="#signin">Sign in with Google</a>. You never have to.</p>
+    </div>
+    <div class="under" data-join-step="dupe">
+      <h1 class="h1" style="margin:0">You're <span data-bind="nick">Dana 2</span> here.</h1>
+      <p class="aside">There's already a <span data-bind="nick-base">Dana</span> in this Room, so yours got a number.</p>
+      <div class="row" style="margin-top:0">
+        <button class="pill" data-action="enter-room"><span>Join as <span data-bind="nick">Dana 2</span></span></button>
+        <button class="pill pill--white" data-action="edit-nick">Edit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLOSED -->
+  <section data-screen="closed" class="screen screen--narrow center">
+    <div class="sign" aria-hidden="true">
+      <svg class="sign__string" viewBox="0 0 200 46" preserveAspectRatio="none"><path d="M100 2 4 46M100 2l96 44" stroke="#fff" stroke-width="3" fill="none" vector-effect="non-scaling-stroke"/></svg>
+      <div class="sign__face"><span><small>Sorry, we're</small>Closed</span></div>
+    </div>
+    <h1 class="h1">This room has closed.</h1>
+    <p class="lede">A Room closes after 15 minutes with nobody in it. Ask your friends for the new code, or open one yourself.</p>
+    <div class="row">
+      <button class="pill" data-action="create">Create a Room</button>
+      <a class="pill pill--white" href="#landing">Enter another code</a>
+    </div>
+  </section>
+
+  <!-- SIGN IN -->
+  <section data-screen="signin" class="screen screen--narrow">
+    <div class="sticker" style="transform:rotate(-1deg);margin-top:16px">
+      <h1 class="h1">Keep your record.</h1>
+      <p class="soft">Sign in and your Nickname, stats and Game history follow you to any device. You never have to. Guests can play everything.</p>
+      <button class="pill pill--plain pill--big pill--wide" data-action="google"><span data-g></span>Sign in with Google</button>
+      <p class="hint">Doesn't work inside some chat apps? Open in Safari or Chrome.</p>
+      <div class="dev">
+        <p><b>Development only.</b> Skip Google and sign in as a test Account.</p>
+        <button class="pill pill--ink" data-action="dev-login">Dev login as Dana</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section data-screen="account" class="screen">
+    <h1 class="name" data-bind="account">Dana</h1>
+    <p class="aside">Signed in with Google as <span data-bind="email"></span></p>
+    <dl class="badges">
+      <div><dd>42</dd><dt>Games</dt></div>
+      <div><dd>11</dd><dt>Wins</dt></div>
+      <div><dd>26%</dd><dt>Win rate</dt></div>
+      <div><dd>2.4</dd><dt>Average Placement</dt></div>
+      <div><dd>67</dd><dt>Checks won</dt></div>
+      <div><dd>23</dd><dt>Bluffs caught</dt></div>
+    </dl>
+    <div class="sticker sheet" style="animation:none">
+      <h2>Recent Games</h2>
+      <ol class="games" id="f-history"></ol>
+    </div>
+    <p class="foot"><button class="pill pill--white" data-action="logout">Log out</button></p>
+  </section>
+
+  <!-- ROOM (where this prototype stops) -->
+  <section data-screen="room" class="screen screen--narrow">
+    <div class="sticker" style="transform:rotate(-1deg);margin-top:16px">
+      <span class="codepill" data-bind="code" style="margin-bottom:16px">KQXT</span>
+      <h1 class="h1">You're in, <span data-bind="nick">Dana</span>.</h1>
+      <p class="soft">The game table is the next prototype. This one stops at the door.</p>
+      <div class="row">
+        <button class="pill" data-action="copy-link">Copy Room link</button>
+        <a class="pill pill--plain" href="#landing">Leave Room</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN SYSTEM -->
+  <section data-screen="system" class="screen">
+    <div class="sticker sys">
+      <h1 class="h1" style="font-size:clamp(44px,8vw,72px)">Sticker Sheet</h1>
+      <p>Variant B's red, black, white and yellow with the hard edges taken off. Everything is a sticker with round corners, a slight tilt and a soft shadow. Yellow is what you press. Things bounce when they arrive and squash when you press them. Dark is the same sheet after dark, with red moved from the background into the accents.</p>
+
+      <h2>Colour</h2>
+      <ul class="swatches">
+        <li style="--c:#E0352B"><b>Red</b><code>#E0352B</code><br>the sheet, light</li>
+        <li style="--c:#2A0E0C"><b>Night red</b><code>#2A0E0C</code><br>the sheet, dark</li>
+        <li style="--c:#FFC93C"><b>Yellow</b><code>#FFC93C</code><br>what you press, first place</li>
+        <li style="--c:#FFFFFF"><b>White</b><code>#FFFFFF</code><br>stickers, dice</li>
+        <li style="--c:#FFE7E1"><b>Blush</b><code>#FFE7E1</code><br>fields on a sticker</li>
+        <li style="--c:#1F1717"><b>Ink</b><code>#1F1717</code><br>text, pips</li>
+      </ul>
+
+      <h2>Type</h2>
+      <div class="spec">
+        <div><code>Rammetto One 400<br>52 to 124 / 0.95</code><span class="t-shout">Three sixes?</span></div>
+        <div><code>Rammetto One 400<br>32 to 44 / 1.08</code><span class="t-head">This room has closed.</span></div>
+        <div><code>Figtree 500<br>18 / 1.5</code><span class="t-body">Say how many of one face are on the whole table. The next Player Raises it or Checks it.</span></div>
+        <div><code>Figtree 500<br>15 / 1.5</code><span class="t-small">Doesn't work inside some chat apps? Open in Safari or Chrome.</span></div>
+      </div>
+
+      <h2>Spacing and corners</h2>
+      <div class="scale">
+        <span style="--w:4px">4</span><span style="--w:8px">8</span><span style="--w:12px">12</span><span style="--w:16px">16</span>
+        <span style="--w:24px">24</span><span style="--w:32px">32</span><span style="--w:48px">48</span><span style="--w:72px">72</span>
+      </div>
+      <p class="t-small" style="margin-top:16px">Corners: 14 on fields, 22 on small stickers, 32 on big ones, full pills for anything you press. Stickers sit one to three degrees off level.</p>
+
+      <h2>Components</h2>
+      <div class="kit">
+        <button class="pill">Create a Room</button>
+        <button class="pill pill--ink">Join</button>
+        <button class="pill pill--red">Check</button>
+        <button class="pill pill--plain"><span data-g></span>Sign in with Google</button>
+        <button class="pill" disabled>Join Room</button>
+      </div>
+      <div class="kit">
+        <span class="die" data-die="1"></span><span class="die" data-die="2"></span><span class="die" data-die="3"></span>
+        <span class="die" data-die="4"></span><span class="die" data-die="5"></span><span class="die" data-die="6"></span>
+        <span class="codepill">KQXT</span>
+        <span class="faces"><span class="face" style="--c:#FFC93C">T</span><span class="face" style="--c:#FFE7E1">D</span></span>
+      </div>
+      <div class="kit">
+        <div>
+          <label for="f-demo1">Your Nickname</label>
+          <input class="input" id="f-demo1" value="Dana">
+          <p class="hint">Filled in from your Account.</p>
+        </div>
+        <div>
+          <label for="f-demo2">Your Nickname</label>
+          <input class="input" id="f-demo2" placeholder="What do they call you?">
+          <p class="error">Pick a Nickname first.</p>
+        </div>
+      </div>
+      <div class="kit">
+        <button class="pill pill--ink" data-action="dialog-demo">Open a dialog</button>
+        <button class="pill pill--ink" data-action="toast-demo">Show a toast</button>
+        <button class="pill pill--ink" data-action="theme">Switch light and dark</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog class="dialog" id="logout-dialog" aria-labelledby="f-dlg-title">
+  <h2 class="h1" id="f-dlg-title">Log out?</h2>
+  <p>Your stats and history stay with your Account. This device goes back to playing as a Guest.</p>
+  <div class="row">
+    <button class="pill pill--red" data-action="logout-confirm">Log out</button>
+    <button class="pill pill--plain" data-dialog-close>Stay signed in</button>
+  </div>
+</dialog>
+
+<script src="proto.js"></script>
+<script>
+{
+  const { $, $$, data, setCube, rollAll, ordinal, fmtDate } = Proto;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // the dice land on three sixes once, to spell the name. After that every roll is honest.
+  const pile = $('.pile'), cap = $('#f-cap');
+  const up = (s) => s[0].toUpperCase() + s.slice(1);
+  const line = (r) =>
+    r.count === 3 && r.face === 6 ? 'Three sixes. For real this time.'
+    : r.count === 3 ? `${up(r.words)}. Honest, for once.`
+    : r.count === 2 ? `${up(r.words)}. You could say three.`
+    : 'No pair. Bluff anyway.';
+  const say = (text) => { cap.textContent = text; cap.classList.remove('is-new'); void cap.offsetWidth; cap.classList.add('is-new'); };
+  let busy = false;
+  pile.addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    const r = rollAll(pile);
+    setTimeout(() => { say(line(r)); busy = false; }, calm ? 0 : 1600);
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    const cubes = $$('.cube', pile);
+    if (calm) return cubes.forEach((c) => setCube(c, 6));
+    cubes.forEach((c, i) => setCube(c, [2, 5, 3][i]));
+    setTimeout(() => rollAll(pile, [6, 6, 6]), 400);
+  });
+
+  $('#f-history').innerHTML = data.history.map((g) => `
+    <li>
+      <time datetime="${g.date}">${fmtDate(g.date)}</time>
+      <span class="rank rank--${g.place}">${ordinal(g.place)}<small>of ${g.order.length}</small></span>
+      <ol class="order">${g.order.map((n) => `<li${n === data.account.nick ? ' class="is-me"' : ''}>${n}</li>`).join('')}</ol>
+    </li>`).join('');
+}
+</script>
+</body>
+</html>

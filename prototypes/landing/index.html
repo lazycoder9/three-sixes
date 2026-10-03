@@ -1,0 +1,37 @@
+<!doctype html>
+<!--
+  PROTOTYPE, throwaway. Issue #13: "Prototype the landing page".
+
+  Three variants of every screen outside a Room (landing, join, sign in, account,
+  design system), switchable from the floating bar at the bottom or with the
+  left/right arrow keys.
+
+    index.html?variant=a   Back Room     (a.html)
+    index.html?variant=b   Loaded Dice   (b.html)
+    index.html?variant=c   Pips          (c.html)
+
+  Round two, after feedback on A to C:
+
+    index.html?variant=d   Game Night    (d.html)   wood table, real-looking dice
+    index.html?variant=e   Score Pad     (e.html)   paper and pencil
+    index.html?variant=f   Sticker Sheet (f.html)   B's red palette, softened
+
+  Round three, D picked as the best and made cozier. G is the verdict (see the resolution on issue #13)
+  and is what this file opens by default:
+
+    index.html?variant=g   Kitchen Table (g.html)   D's wood and dice, plus paper, pencil and handwriting from E
+
+  Run: open this file, or serve the folder to try it on a phone:
+    python3 -m http.server 3666 -d prototypes/landing
+
+  Nothing is real. State lives in memory and in the URL (?theme=, ?auth=, #screen).
+-->
+<meta charset="utf-8">
+<title>Three Sixes prototype</title>
+<script>
+  const p = new URLSearchParams(location.search);
+  const v = (p.get('variant') || 'g').toLowerCase();
+  p.delete('variant');
+  const q = p.toString();
+  location.replace((/^[a-g]$/.test(v) ? v : 'g') + '.html' + (q ? '?' + q : '') + location.hash);
+</script>
