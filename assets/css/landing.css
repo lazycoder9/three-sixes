@@ -11,6 +11,14 @@
   gap: var(--spacing-5);
   justify-items: start;
 }
+.code-error {
+  margin: 0 0 var(--spacing-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+.is-error .tiles {
+  animation: nudge 0.3s;
+}
 .hero__paper {
   position: relative;
   max-width: 470px;

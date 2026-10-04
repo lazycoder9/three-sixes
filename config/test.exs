@@ -7,6 +7,8 @@ config :three_sixes, ThreeSixes.Repo,
 
 config :three_sixes, :dice, ThreeSixes.Dice.Scripted
 
+config :three_sixes, :max_rooms, 500
+
 config :three_sixes, ThreeSixesWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pUTNIFvSlKSaBh+eDNB2D+NIr3WYZ1ckf7iQyxhbMS6Q6CTDXlS/ycyPVSa6U+lN",

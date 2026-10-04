@@ -5,12 +5,13 @@ defmodule ThreeSixesWeb.Endpoint do
     store: :cookie,
     key: "_three_sixes_key",
     signing_salt: "nDRQ7uTx",
-    same_site: "Lax"
+    same_site: "Lax",
+    max_age: 365 * 24 * 60 * 60
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
 
   plug Plug.Static,
     at: "/",

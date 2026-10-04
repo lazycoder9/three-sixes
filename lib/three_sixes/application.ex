@@ -12,6 +12,10 @@ defmodule ThreeSixes.Application do
        repos: Application.fetch_env!(:three_sixes, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:three_sixes, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ThreeSixes.PubSub},
+      {Registry, keys: :unique, name: ThreeSixes.Rooms.Registry},
+      {DynamicSupervisor,
+       name: ThreeSixes.Rooms.Supervisor,
+       max_children: Application.get_env(:three_sixes, :max_rooms, 5_000)},
       ThreeSixesWeb.Endpoint
     ]
 

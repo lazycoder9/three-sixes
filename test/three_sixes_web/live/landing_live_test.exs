@@ -4,6 +4,11 @@ defmodule ThreeSixesWeb.LandingLiveTest do
   import Phoenix.LiveViewTest
 
   alias ThreeSixes.Dice.Scripted
+  alias ThreeSixes.Rooms
+
+  setup do
+    on_exit(&close_every_room/0)
+  end
 
   test "the landing page pitches the game and lands its dice on three sixes", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
@@ -40,6 +45,84 @@ defmodule ThreeSixesWeb.LandingLiveTest do
     view |> element("#dice") |> render_click()
     assert faces(view) == ~w(6 6 6)
     assert caption(view) == "Three sixes. For real this time!"
+  end
+
+  test "Create a Room opens a Room and lands on its join step as the Host", %{conn: conn} do
+    conn = init_test_session(conn, %{"guest_id" => "timur"})
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    {:ok, room, _html} =
+      view |> element("button", "Create a Room") |> render_click() |> follow_redirect(conn)
+
+    assert has_element?(room, "p", "your Room is open")
+  end
+
+  test "Create a Room with every Room open says so and stays on the page", %{conn: conn} do
+    fill_every_room()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view |> element("button", "Create a Room") |> render_click()
+
+    assert has_element?(
+             view,
+             "#flash-error",
+             "Every Room is busy right now. Try again in a few minutes."
+           )
+
+    assert has_element?(view, "button", "Create a Room")
+  end
+
+  test "Create a Room for a Guest with five Rooms open says so and stays on the page",
+       %{conn: conn} do
+    for _room <- 1..5, do: {:ok, _code} = Rooms.create("guest:timur", "198.51.100.1")
+    {:ok, view, _html} = conn |> init_test_session(%{"guest_id" => "timur"}) |> live(~p"/")
+
+    view |> element("button", "Create a Room") |> render_click()
+
+    assert has_element?(
+             view,
+             "#flash-error",
+             "You can't open more Rooms right now. Try again in a few minutes."
+           )
+
+    assert has_element?(view, "button", "Create a Room")
+  end
+
+  describe "Join with a code" do
+    test "fewer than four letters is refused above the tiles", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> form("#join-code", %{code: ["k", "q", "x", ""]}) |> render_submit()
+
+      assert has_element?(
+               view,
+               "#join-code legend + [role=alert]",
+               "A Room code is four letters."
+             )
+
+      assert has_element?(view, "#join-code [role=alert] + #code-tiles")
+    end
+
+    test "four letters, in any case, go to that Room", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert {:error, {:live_redirect, %{to: "/r/KQXT"}}} =
+               view |> form("#join-code", %{code: ["k", "Q", "x", "t"]}) |> render_submit()
+    end
+  end
+
+  defp fill_every_room do
+    %{active: open} = DynamicSupervisor.count_children(ThreeSixes.Rooms.Supervisor)
+
+    for room <- open..(Application.fetch_env!(:three_sixes, :max_rooms) - 1)//1 do
+      {:ok, _code} = Rooms.create("guest:#{room}", "#{room}")
+    end
+  end
+
+  defp close_every_room do
+    for {_id, pid, _type, _modules} <-
+          DynamicSupervisor.which_children(ThreeSixes.Rooms.Supervisor),
+        do: DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, pid)
   end
 
   defp select(view, selector) do

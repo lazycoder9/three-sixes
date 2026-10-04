@@ -1,0 +1,290 @@
+.screen--narrow {
+  max-width: 520px;
+  padding-top: var(--spacing-6);
+}
+.screen--narrow > .paper {
+  transform: rotate(-0.8deg);
+}
+
+.room-code {
+  margin: 10px 0 6px;
+}
+.gone {
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--spacing-2);
+  margin: calc(var(--spacing-rule) - 4px) 0;
+  min-height: calc(var(--spacing-rule) * 2);
+}
+.who .token + .token {
+  margin-left: -12px;
+}
+
+.gap {
+  height: var(--spacing-rule);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-rule);
+}
+
+.hl {
+  background: linear-gradient(
+    100deg,
+    transparent 1%,
+    var(--color-highlighter) 3% 97%,
+    transparent 99%
+  );
+  padding: 0 0.2em;
+  border-radius: 4px 12px 6px 10px;
+}
+/* The struck Nickname is drawn from an attribute so the sentence reads "You're Dana 2 here." */
+.paper s[data-nickname] {
+  margin-left: 0.25em;
+  color: var(--color-graphite-faint);
+  text-decoration-color: var(--color-tomato);
+  text-decoration-thickness: 3px;
+}
+.paper s[data-nickname]::before {
+  content: attr(data-nickname);
+}
+.paper h1:has(s[data-nickname]) {
+  overflow-wrap: anywhere;
+}
+
+.roombar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: 60px;
+  padding: var(--spacing-2) clamp(12px, 3vw, 28px);
+}
+.roombar .logo {
+  gap: 6px;
+  font-size: 26px;
+}
+.roombar .logo small {
+  font-size: 20px;
+}
+.roombar .logo .die {
+  --d: 28px;
+}
+.roombar__code {
+  gap: 4px;
+  margin: 0 auto 0 var(--spacing-2);
+}
+.roombar__code .letter-tile {
+  width: 26px;
+  height: 28px;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 28px;
+  box-shadow:
+    0 2px 0 var(--color-birch-edge),
+    0 6px 8px -4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--spacing-6);
+  align-items: start;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: var(--spacing-4) clamp(12px, 3vw, 28px) var(--spacing-7);
+}
+.lobby > .paper {
+  transform: rotate(-0.6deg);
+}
+.lobby h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: var(--spacing-rule);
+}
+.lobby__side {
+  display: grid;
+  gap: var(--spacing-5);
+  justify-items: start;
+}
+.lobby__label {
+  margin-bottom: var(--spacing-2);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.people {
+  list-style: none;
+  margin: calc(var(--spacing-rule) * 0.5) 0 0;
+  padding: 0;
+}
+.people li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: calc(var(--spacing-rule) * 2);
+}
+.people__name {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.host-tag {
+  margin-left: 6px;
+  color: var(--color-tomato);
+  font: 700 20px/1 var(--font-scrawl);
+}
+
+.copy-link {
+  position: relative;
+}
+.copy-link__done {
+  font: 700 24px/1.1 var(--font-scrawl);
+  overflow-wrap: anywhere;
+}
+.lobby .copy-link__done {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  margin-top: var(--spacing-1);
+}
+
+.dialog {
+  --color-tile: var(--color-birch);
+  --color-tile-edge: var(--color-birch-edge);
+  width: min(400px, calc(100vw - 28px));
+  margin: auto;
+  border: 0;
+  padding: clamp(20px, 5vw, 30px);
+  background: var(--color-note);
+  color: var(--color-graphite);
+  font: 400 20px/var(--spacing-rule) var(--font-hand);
+  box-shadow: 0 30px 40px -16px rgba(0, 0, 0, 0.7);
+}
+.dialog:popover-open {
+  animation: stick 0.3s var(--ease-press);
+}
+.dialog::backdrop {
+  background: rgba(28, 16, 9, 0.62);
+}
+.dialog h2 {
+  margin: 0 0 var(--spacing-2);
+  font: 700 34px/var(--spacing-rule) var(--font-scrawl);
+  letter-spacing: -0.01em;
+}
+.dialog .stack {
+  display: grid;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-4);
+}
+.dialog .stack .block {
+  justify-content: flex-start;
+  width: 100%;
+}
+.dialog .row {
+  margin-top: var(--spacing-4);
+}
+@keyframes stick {
+  from {
+    opacity: 0;
+    transform: rotate(4deg) translateY(-14px);
+  }
+}
+
+@media (min-width: 901px) {
+  body:has(.roombar) {
+    display: flex;
+    flex-direction: column;
+  }
+  body:has(.roombar) .table-main {
+    flex: 1;
+    display: grid;
+    grid-template-rows: 2fr auto 3fr;
+  }
+  .lobby {
+    grid-row: 2;
+  }
+}
+
+@media (min-width: 1000px) {
+  .people {
+    columns: 2;
+    column-gap: var(--spacing-6);
+  }
+  .people li {
+    break-inside: avoid;
+  }
+  .lobby {
+    padding-bottom: var(--spacing-4);
+  }
+}
+
+/* A crowded list keeps its size, or zooming it up would push it off the bottom of the window. */
+@media (min-width: 1200px) and (min-height: 760px) {
+  .roombar,
+  .dialog {
+    zoom: 1.05;
+  }
+  .lobby:not(.lobby--crowded) {
+    zoom: 1.1;
+  }
+}
+@media (min-width: 1400px) and (min-height: 860px) {
+  .roombar,
+  .dialog {
+    zoom: 1.1;
+  }
+  .lobby:not(.lobby--crowded) {
+    zoom: 1.25;
+  }
+}
+@media (min-width: 1700px) and (min-height: 1000px) {
+  .roombar,
+  .dialog {
+    zoom: 1.25;
+  }
+  .lobby:not(.lobby--crowded) {
+    zoom: 1.5;
+  }
+}
+
+@media (max-width: 760px) {
+  .lobby {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-5);
+  }
+  .lobby__side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--spacing-4) var(--spacing-5);
+  }
+  .lobby__side .letter-tile {
+    width: 40px;
+    height: 43px;
+    border-radius: 7px;
+    font-size: 22px;
+    line-height: 43px;
+  }
+  .roombar .logo {
+    font-size: 22px;
+  }
+  .roombar .logo .die {
+    --d: 24px;
+  }
+}
