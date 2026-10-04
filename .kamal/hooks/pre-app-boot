@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+# ADR 0001: two live containers would each run the same Rooms, so the old one stops first.
+exec kamal app stop --hosts "$KAMAL_HOSTS" ${KAMAL_DESTINATION:+--destination "$KAMAL_DESTINATION"}

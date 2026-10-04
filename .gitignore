@@ -25,3 +25,6 @@ notes
 
 # Agent worktrees (each is a separate checkout).
 .claude/worktrees/
+
+/.kamal/secrets*
+!/.kamal/secrets.example
