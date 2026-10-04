@@ -8,7 +8,7 @@ axes, the finding format, the outcome lines and the stop rule live there and now
 skill is the procedure that runs it. Read the standard once, in full, before step 0.
 
 You are the orchestrator. Reviewers and fix agents run as sub-agents through the Agent tool with
-`model: opus`, one job per agent, and never spawn agents of their own. Round 1 adds a second
+`subagent_type: opus-high`, one job per agent, and never spawn agents of their own. Round 1 adds a second
 reviewer on Codex (`codex exec`, step 1). Everything they write goes to files;
 you read files, not transcripts.
 
@@ -49,7 +49,7 @@ you read files, not transcripts.
      `REVIEW_DIR/prompts/round-1-<opus|codex>-all.md` and the report schema, and pins the diff to
      the merge base and the head.
    - **Launch both in one message**, after the gate is green and the journey is walked.
-     - Opus: one Agent call, `model: opus`, `run_in_background: true`, prompt "Your whole brief is
+     - Opus: one Agent call, `subagent_type: opus-high`, `run_in_background: true`, prompt "Your whole brief is
        the file REVIEW_DIR/prompts/round-1-opus-all.md. Read it in full and follow it exactly."
      - Sol: one background Bash call:
 
@@ -100,7 +100,7 @@ you read files, not transcripts.
    its tag; the disposition reads it. No issue is filed. Done when `round-1.md` exists. Later rounds
    skip this step: `round-N.md` for N > 1 is the previous re-review's findings, renumbered.
 
-2. **Fix round N** (standard, step 2). Spawn one agent, `model: opus`, with this prompt:
+2. **Fix round N** (standard, step 2). Spawn one agent, `subagent_type: opus-high`, with this prompt:
 
    ```
    You are the fix agent for review round N on branch <BRANCH> in <WORKTREE>. Land the fixes and
@@ -159,7 +159,7 @@ you read files, not transcripts.
 
 3. **Re-review round N** (standard, step 3). Opus alone. Measure the fix diff first:
    `git diff --shortstat <round start>...<round end>`. Then spawn two agents in one message, both
-   `model: opus`, `run_in_background: true`:
+   `subagent_type: opus-high`, `run_in_background: true`:
    - **The verifier.** Its prompt:
      "You are the verifier of review round N on branch <BRANCH> in <WORKTREE>. Read the code and
      run git reads only; edit nothing and spawn nothing. The findings are REVIEW_DIR/round-N.md,
@@ -188,7 +188,7 @@ you read files, not transcripts.
 
 4. **Comment cut** (standard, step 4). Once, after the last fix round lands (after round 1 when
    no fix round ran), never beside an agent still editing the same files. Record the start sha,
-   then spawn one agent, `model: opus`, with this prompt:
+   then spawn one agent, `subagent_type: opus-high`, with this prompt:
 
    ```
    You are the comment-cut agent for branch <BRANCH> in <WORKTREE>. Change comments only: doc

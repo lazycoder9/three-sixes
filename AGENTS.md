@@ -15,7 +15,7 @@ is gitignored, not in `docs/`, which holds only durable, still-true documents.
 
 ## Critical
 
-- **Model policy: Opus runs the work, Sonnet explores and makes simple changes, Fable only when the owner approves.** The main session plans, splits the work, briefs sub-agents and reviews what they return. Every spawn names its model explicitly. Use `opus` for code changes that need judgment, reviews and fix rounds, and `sonnet` for read-only exploration and simple changes with nothing left to decide. Sub-agents do not spawn sub-agents of their own. Review round 1 also runs a second reviewer on Codex `gpt-6.1-sol`; when Codex is out of credits, Opus reviews alone.
+- **Model policy: every sub-agent is Opus at high effort; Fable only when the owner approves.** The main session plans, splits the work, briefs sub-agents and reviews what they return. Every spawn uses the `opus-high` agent type (`.claude/agents/opus-high.md`), which pins Opus at high effort; a bare `model: opus` runs at the session's default effort. Sub-agents do not spawn sub-agents of their own. Review round 1 also runs a second reviewer on Codex `gpt-6.1-sol`; when Codex is out of credits, Opus reviews alone.
 
 ## Workflow
 

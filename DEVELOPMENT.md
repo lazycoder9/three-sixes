@@ -10,7 +10,7 @@ Rules and implementation patterns for Three Sixes.
   files expected, each product decision the issue leaves open with the option taken, and the
   neighbours of each change (docs/CODE_REVIEW.md, Spec axis), in or out and why. It is the brief
   a build agent receives.
-- The main session orchestrates and reads diffs; sub-agents build each slice, opus or sonnet
+- The main session orchestrates and reads diffs; sub-agents build each slice, on `opus-high`
   (AGENTS.md, "Model policy"). Every slice starts with a failing test at a seam from the plan,
   in the layer "Testing" below assigns.
 - The PR body (the `pr` skill) carries the evidence and is what reviewers read; the review loop
