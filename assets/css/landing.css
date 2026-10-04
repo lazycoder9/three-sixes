@@ -31,6 +31,7 @@
   gap: calc(var(--s) * 0.4);
   padding: calc(var(--s) * 0.62) calc(var(--s) * 0.2) calc(var(--s) * 0.5);
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .pile:focus-visible {
   outline: 3px solid var(--color-mustard);

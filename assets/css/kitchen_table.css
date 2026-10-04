@@ -687,14 +687,30 @@
     justify-items: center;
   }
   .toast {
+    position: relative;
     cursor: pointer;
     background: var(--color-note);
     color: var(--color-graphite);
-    padding: 5px 18px 7px;
+    padding: 5px 48px 7px 18px;
     transform: rotate(-2deg);
     font: 700 27px/1.1 var(--font-scrawl);
     box-shadow: 0 12px 16px -8px rgba(0, 0, 0, 0.55);
     animation: place 0.3s var(--ease-press);
+  }
+  .toast__dismiss {
+    all: unset;
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+  }
+  .toast__dismiss:focus-visible {
+    outline: 3px solid var(--color-graphite);
+    outline-offset: 0;
   }
   @keyframes place {
     from {
@@ -710,6 +726,12 @@
   }
   .logo {
     font-size: 30px;
+  }
+}
+
+@media (max-width: 359px) {
+  .letter-tile {
+    width: 42px;
   }
 }
 

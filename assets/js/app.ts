@@ -30,7 +30,10 @@ const liveSocket = new LiveSocket("/live", Socket, {
 // Show progress bar on live navigation and form submits
 const mustard = getComputedStyle(document.documentElement).getPropertyValue("--color-mustard");
 topbar.config({ barColors: { 0: mustard }, shadowColor: "rgba(0, 0, 0, .3)" });
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+window.addEventListener("phx:page-loading-start", (_info) => {
+  if (!reducedMotion.matches) topbar.show(300);
+});
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
 // connect if there are any LiveViews on the page

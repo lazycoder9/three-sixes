@@ -4,6 +4,7 @@ defmodule ThreeSixesWeb.CoreComponents do
   toasts, and the show/hide JS commands.
   """
   use Phoenix.Component
+  use Gettext, backend: ThreeSixesWeb.Gettext
 
   alias Phoenix.LiveView.JS
 
@@ -37,6 +38,7 @@ defmodule ThreeSixesWeb.CoreComponents do
     >
       <p :if={@title}>{@title}</p>
       <p>{msg}</p>
+      <button type="button" class="toast__dismiss" aria-label={gettext("Dismiss")}>×</button>
     </div>
     """
   end
