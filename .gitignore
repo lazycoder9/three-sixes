@@ -1,0 +1,5 @@
+# Working notes: plans, handoffs, review rounds (docs/ holds the durable documents).
+notes
+
+# Agent worktrees (each is a separate checkout).
+.claude/worktrees/
