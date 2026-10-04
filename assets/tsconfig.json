@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "phoenix_html": ["../deps/phoenix_html"],
+      "phoenix_live_view": ["../deps/phoenix_live_view"]
+    },
+    "allowJs": true,
+    "checkJs": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["bun"]
+  },
+  "include": ["js/**/*"]
+}
