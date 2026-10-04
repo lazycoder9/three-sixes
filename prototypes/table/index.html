@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-variant="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Three Sixes prototype: the game table</title>
+<!--
+  PROTOTYPE, throwaway. Issue #7: "Prototype the game table".
+
+  Verdict: layout 4, "Table and seat". See the resolution on issue #7. It opens by default.
+
+  Four layouts of everything inside a Room, on the "Kitchen Table" design system from issue #13,
+  switchable with ?variant= , the bar at the bottom, or the [ and ] keys:
+
+    ?variant=1   Round table   seats in a ring, the Bid in the middle, two dials to Bid
+    ?variant=2   The pad       the table as one notebook page, a grid of Bids to pick from
+    ?variant=3   Your seat     your dice big, the others in a strip, one-tap Raises
+    ?variant=4   Table and seat   1 and 3 merged, then tuned from feedback. Opens by default.
+                               The ring and the in-place count from 1, your page of dice from 3,
+                               a short picker (what is left at the Bid's count, and one more), hotkeys,
+                               and sizes worked out from the window.
+
+  A real Game runs underneath (engine.js): the locked ruleset, bots that Bid and Check, Away, the Host
+  vote, Reactions. Switching layout keeps the same Game going, so you can compare one moment three ways.
+  "Screens" in the bar jumps to any state. ?scene= ?seats= ?host= ?theme= make a state shareable.
+
+  Run: open this file, or serve the folder to try it on a phone:
+    python3 -m http.server 3666 -d prototypes/table
+
+  Nothing is real. State lives in memory in this tab.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Caveat:wght@600;700&family=Figtree:wght@500;600;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="kitchen.css">
+<link rel="stylesheet" href="variants.css">
+</head>
+<body>
+
+<svg class="defs" width="0" height="0" aria-hidden="true">
+  <defs><filter id="rough" x="-6%" y="-10%" width="112%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2.4"/></filter></defs>
+</svg>
+
+<header class="roombar">
+  <span class="mark" aria-label="Three Sixes">3 <small>&times;</small> <span class="die"><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i></span></span>
+  <span class="roombar__code"><span class="tiles" aria-label="Room code KQXT"><span class="lettertile">K</span><span class="lettertile">Q</span><span class="lettertile">X</span><span class="lettertile">T</span></span></span>
+  <span class="roombar__gap"></span>
+  <div class="rxbar" id="rxbar" aria-label="Send a Reaction"></div>
+  <button class="roundbtn roombar__rx" data-act="react" aria-label="Send a Reaction">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c1.1 1.6 2.4 2.3 4 2.3s2.9-.7 4-2.3M9 9.6v.6M15 9.6v.6"/></svg>
+  </button>
+  <button class="roundbtn" data-act="menu" aria-label="Room menu">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+  </button>
+</header>
+<div class="rxtray sticky" id="rxtray" hidden></div>
+
+<div id="banners" aria-live="polite"></div>
+<div class="spec" id="watching"></div>
+<main id="stage"></main>
+
+<div id="rxlayer" aria-hidden="true"></div>
+<div class="toasts" role="status"></div>
+
+<dialog class="dialog" id="menu-dialog" aria-labelledby="menu-title">
+  <h2 id="menu-title">Room KQXT</h2>
+  <div class="stack">
+    <button class="block" data-act="copy">Copy Room link</button>
+    <button class="block" data-act="sit" id="menu-sit">Sit out the next Game</button>
+    <button class="block" data-act="sound" id="menu-sound">Sound is on</button>
+    <button class="block" data-act="theme">Light or dark</button>
+    <button class="block block--white" data-act="signin"><span data-g></span>Sign in with Google</button>
+  </div>
+  <small id="menu-turnhint">The table will wait while you sign in.</small>
+  <small>Doesn't work inside some chat apps? Open in Safari or Chrome.</small>
+  <div class="row">
+    <button class="block block--dark" data-act="leave">Leave Room</button>
+    <button class="block" data-dialog-close>Close</button>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="leave-dialog" aria-labelledby="leave-title">
+  <h2 id="leave-title">Leave the Room?</h2>
+  <p>You'll be Knocked out of this Game, and the Round in play is voided.</p>
+  <div class="row">
+    <button class="block block--dark" data-act="leave-yes">Leave Room</button>
+    <button class="block" data-dialog-close>Stay</button>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="seat-dialog"><div id="seat-dialog-body"></div></dialog>
+<dialog class="dialog dialog--paper" id="bid-dialog" aria-label="Pick another Bid"><div id="bid-dialog-body"></div></dialog>
+
+<script src="engine.js"></script>
+<script src="ui.js"></script>
+<script src="v1.js"></script>
+<script src="v2.js"></script>
+<script src="v3.js"></script>
+<script src="v4.js"></script>
+</body>
+</html>
