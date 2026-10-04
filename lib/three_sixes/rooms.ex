@@ -5,18 +5,22 @@ defmodule ThreeSixes.Rooms do
 
   @code_attempts 10
 
-  @spec create(Room.person_id()) :: {:ok, String.t()} | {:error, :busy}
-  def create(host_id), do: create(host_id, @code_attempts)
+  @spec create(Room.person_id(), String.t()) :: {:ok, String.t()} | {:error, :busy | :too_many}
+  def create(host_id, address), do: create(host_id, address, @code_attempts)
 
-  defp create(_host_id, 0), do: {:error, :busy}
+  defp create(_host_id, _address, 0), do: {:error, :busy}
 
-  defp create(host_id, attempts) do
+  defp create(host_id, address, attempts) do
     code = RoomCode.random()
 
-    case DynamicSupervisor.start_child(ThreeSixes.Rooms.Supervisor, {Server, {code, host_id}}) do
+    case DynamicSupervisor.start_child(
+           ThreeSixes.Rooms.Supervisor,
+           {Server, {code, host_id, address}}
+         ) do
       {:ok, _pid} -> {:ok, code}
-      {:error, {:already_started, _pid}} -> create(host_id, attempts - 1)
+      {:error, {:already_started, _pid}} -> create(host_id, address, attempts - 1)
       {:error, :max_children} -> {:error, :busy}
+      {:error, :too_many} -> {:error, :too_many}
     end
   end
 

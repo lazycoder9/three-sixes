@@ -32,13 +32,21 @@ defmodule ThreeSixesWeb.LandingLive do
   end
 
   def handle_event("create", _params, socket) do
-    case Rooms.create(socket.assigns.person_id) do
+    case Rooms.create(socket.assigns.person_id, socket.assigns.client_address) do
       {:ok, code} ->
         {:noreply, push_navigate(socket, to: ~p"/r/#{code}")}
 
       {:error, :busy} ->
         {:noreply,
          put_flash(socket, :error, "Every Room is busy right now. Try again in a few minutes.")}
+
+      {:error, :too_many} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "You can't open more Rooms right now. Try again in a few minutes."
+         )}
     end
   end
 

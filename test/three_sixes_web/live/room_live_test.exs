@@ -5,8 +5,16 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   alias ThreeSixes.Rooms
 
+  setup do
+    on_exit(fn ->
+      for {_id, pid, _type, _modules} <-
+            DynamicSupervisor.which_children(ThreeSixes.Rooms.Supervisor),
+          do: DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, pid)
+    end)
+  end
+
   test "the Host's join step shows the Room code and that nobody else is here", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
 
     {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
 
@@ -17,7 +25,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "two people join one Room and each sees the other appear", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, timur, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
     {:ok, dana, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
 
@@ -38,7 +46,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   test "beside the list are the Room code in tiles and Copy Room link with the Room's address",
        %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
     enter(view, "Timur")
 
@@ -49,7 +57,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   test "once in, the Room bar shows the logo, the Room code and a menu with Copy Room link and Light or dark",
        %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
     assert has_element?(view, "header.top")
     refute has_element?(view, "header.roombar")
@@ -78,7 +86,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   describe "a Nickname already in the Room, regardless of case" do
     setup %{conn: conn} do
-      {:ok, code} = Rooms.create("guest:timur")
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
       {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
       {:ok, view, _html} = live(guest(conn, "other"), ~p"/r/#{code}")
       enter(view, "dana")
@@ -104,7 +112,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "a Join as with no number offered is ignored and the Room stays open", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, timur, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
     enter(timur, "Timur")
     {:ok, dana, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
@@ -118,7 +126,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "an empty Nickname is refused under the line", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "dana"), ~p"/r/#{code}")
 
     enter(view, "   ")
@@ -128,7 +136,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "a Nickname over 16 characters is refused, and so is a 31st person", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "late"), ~p"/r/#{code}")
 
     enter(view, "Alexandra Kowalsk")
@@ -140,7 +148,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "a code with no open Room shows the closed screen with both ways out", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     close(code)
     conn = guest(conn, "dana")
 
@@ -156,7 +164,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "someone already in the Room who reloads goes straight in", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, first, _html} = live(guest(conn, "dana"), ~p"/r/#{code}")
     enter(first, "Dana")
 
@@ -168,7 +176,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   describe "the Nickname remembered on the device" do
     test "fills the line", %{conn: conn} do
-      {:ok, code} = Rooms.create("guest:timur")
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
 
       {:ok, view, _html} =
         conn
@@ -180,7 +188,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     end
 
     test "is the one the person wrote, kept once they are in", %{conn: conn} do
-      {:ok, code} = Rooms.create("guest:timur")
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
       {:ok, _view} = Rooms.enter(code, "guest:other", "Dana")
       {:ok, view, _html} = live(guest(conn, "dana"), ~p"/r/#{code}")
 
@@ -192,7 +200,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "a Room that stops while someone is in it shows them the closed screen", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
     enter(view, "Timur")
 
@@ -202,7 +210,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
   end
 
   test "a code written in lowercase goes to the Room's own address", %{conn: conn} do
-    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              live(guest(conn, "dana"), "/r/#{String.downcase(code)}")

@@ -6,6 +6,11 @@ defmodule ThreeSixes.RoomsTest do
   alias ThreeSixes.Rooms.Server
 
   @host "guest:host"
+  @address "203.0.113.7"
+
+  setup do
+    on_exit(&close_every_room/0)
+  end
 
   defp join_from_another_process(code, person_id) do
     test = self()
@@ -29,7 +34,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "creating a Room opens it under its code with the creator as Host" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
 
     assert RoomCode.valid?(code)
     assert is_pid(Rooms.whereis(code))
@@ -39,7 +44,7 @@ defmodule ThreeSixes.RoomsTest do
   test "with every Room open, creating one is refused as busy" do
     for code <- fill_every_room(), do: open_until_exit(code)
 
-    assert Rooms.create(@host) == {:error, :busy}
+    assert Rooms.create(@host, @address) == {:error, :busy}
   end
 
   test "creating gives up as busy after ten codes that are all taken" do
@@ -47,16 +52,37 @@ defmodule ThreeSixes.RoomsTest do
     taken = for _attempt <- 1..10, do: RoomCode.random()
 
     for code <- taken do
-      DynamicSupervisor.start_child(ThreeSixes.Rooms.Supervisor, {Server, {code, @host}})
+      DynamicSupervisor.start_child(
+        ThreeSixes.Rooms.Supervisor,
+        {Server, {code, "guest:" <> code, code}}
+      )
+
       open_until_exit(code)
     end
 
     :rand.seed(:exsss, {17, 17, 17})
-    assert Rooms.create(@host) == {:error, :busy}
+    assert Rooms.create(@host, @address) == {:error, :busy}
+  end
+
+  test "a Guest's sixth open Room is refused, and allowed again once one of the five closes" do
+    codes = for _room <- 1..5, do: elem(Rooms.create(@host, @address), 1)
+
+    assert Rooms.create(@host, "198.51.100.1") == {:error, :too_many}
+
+    codes |> hd() |> close()
+
+    assert {:ok, _code} = Rooms.create(@host, @address)
+  end
+
+  test "twenty Guests on one address open twenty Rooms and a twenty-first is refused" do
+    for guest <- 1..20, do: assert({:ok, _code} = Rooms.create("guest:#{guest}", @address))
+
+    assert Rooms.create("guest:new", @address) == {:error, :too_many}
+    assert {:ok, _code} = Rooms.create("guest:new", "198.51.100.1")
   end
 
   test "joining a code with no open Room is closed" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     :ok = GenServer.stop(Rooms.whereis(code))
 
     assert Rooms.join(code, @host) == {:error, :closed}
@@ -64,7 +90,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "after a person enters, every joined process gets its own view, the one who entered included" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     {:ok, _view} = Rooms.join(code, @host)
     dana = join_from_another_process(code, "guest:dana")
 
@@ -78,7 +104,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "an enter that changes nothing sends nothing" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     {:ok, _view} = Rooms.join(code, @host)
     {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
     assert_receive {:room_view, _view}
@@ -90,7 +116,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "a process that joins twice is monitored once and gets one view per change" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     {:ok, _view} = Rooms.join(code, @host)
     {:ok, _view} = Rooms.join(code, @host)
 
@@ -102,7 +128,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "a joined process that dies is forgotten and the others still get updates" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     {:ok, _view} = Rooms.join(code, @host)
     timur = join_from_another_process(code, "guest:timur")
     ref = Process.monitor(timur)
@@ -116,7 +142,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "a Room nobody has joined closes on its timeout" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     room = Rooms.whereis(code)
     ref = Process.monitor(room)
 
@@ -127,7 +153,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "a Room with someone joined ignores the timeout" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     room = Rooms.whereis(code)
     timeout = close_timeout(room)
     {:ok, _view} = Rooms.join(code, @host)
@@ -139,7 +165,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "after join, leave, rejoin and leave, only the last leave's timeout closes the Room" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     room = Rooms.whereis(code)
     ref = Process.monitor(room)
 
@@ -156,7 +182,7 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   test "a join that arrives just behind the timeout finds the Room closed" do
-    {:ok, code} = Rooms.create(@host)
+    {:ok, code} = Rooms.create(@host, @address)
     room = Rooms.whereis(code)
     :ok = :sys.suspend(room)
     send(room, close_timeout(room))
@@ -191,10 +217,29 @@ defmodule ThreeSixes.RoomsTest do
     %{active: open} = DynamicSupervisor.count_children(ThreeSixes.Rooms.Supervisor)
     max_rooms = Application.fetch_env!(:three_sixes, :max_rooms)
 
-    for _room <- open..(max_rooms - 1)//1 do
-      {:ok, code} = Rooms.create(@host)
+    for room <- open..(max_rooms - 1)//1 do
+      {:ok, code} = Rooms.create("guest:#{room}", "#{room}")
       code
     end
+  end
+
+  defp close(code) do
+    pid = Rooms.whereis(code)
+    :ok = GenServer.stop(pid)
+    wait_until_unregistered(code)
+  end
+
+  defp wait_until_unregistered(code) do
+    if Rooms.whereis(code) do
+      Process.sleep(1)
+      wait_until_unregistered(code)
+    end
+  end
+
+  defp close_every_room do
+    for {_id, pid, _type, _modules} <-
+          DynamicSupervisor.which_children(ThreeSixes.Rooms.Supervisor),
+        do: DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, pid)
   end
 
   defp open_until_exit(code) do

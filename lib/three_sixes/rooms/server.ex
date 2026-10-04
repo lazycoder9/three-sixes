@@ -4,17 +4,26 @@ defmodule ThreeSixes.Rooms.Server do
   alias ThreeSixes.Room
 
   @close_after :timer.minutes(15)
+  @open_per_guest 5
+  @open_per_address 20
 
-  @spec start_link({String.t(), Room.person_id()}) :: GenServer.on_start()
-  def start_link({code, host_id}),
-    do: GenServer.start_link(__MODULE__, {code, host_id}, name: via(code))
+  @spec start_link({String.t(), Room.person_id(), String.t()}) :: GenServer.on_start()
+  def start_link({code, host_id, address}) do
+    GenServer.start_link(__MODULE__, {code, host_id, address},
+      name: {:via, Registry, {ThreeSixes.Rooms.Registry, code, {host_id, address}}}
+    )
+  end
 
   @spec via(String.t()) :: GenServer.name()
   def via(code), do: {:via, Registry, {ThreeSixes.Rooms.Registry, code}}
 
   @impl true
-  def init({code, host_id}) do
-    {:ok, schedule_close(%{room: Room.new(code, host_id), joined: %{}, close_timer: nil})}
+  def init({code, host_id, address}) do
+    if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
+      {:stop, :too_many}
+    else
+      {:ok, schedule_close(%{room: Room.new(code, host_id), joined: %{}, close_timer: nil})}
+    end
   end
 
   @impl true
@@ -54,6 +63,9 @@ defmodule ThreeSixes.Rooms.Server do
     do: %{state | close_timer: :erlang.start_timer(@close_after, self(), :close)}
 
   defp schedule_close(state), do: state
+
+  defp open(creator),
+    do: Registry.count_select(ThreeSixes.Rooms.Registry, [{{:_, :_, creator}, [], [true]}])
 
   defp send_views(state) do
     for {pid, person_id} <- state.joined do
