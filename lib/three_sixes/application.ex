@@ -13,7 +13,9 @@ defmodule ThreeSixes.Application do
       {DNSCluster, query: Application.get_env(:three_sixes, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ThreeSixes.PubSub},
       {Registry, keys: :unique, name: ThreeSixes.Rooms.Registry},
-      {DynamicSupervisor, name: ThreeSixes.Rooms.Supervisor},
+      {DynamicSupervisor,
+       name: ThreeSixes.Rooms.Supervisor,
+       max_children: Application.get_env(:three_sixes, :max_rooms, 5_000)},
       ThreeSixesWeb.Endpoint
     ]
 

@@ -4,6 +4,7 @@ defmodule ThreeSixesWeb.LandingLiveTest do
   import Phoenix.LiveViewTest
 
   alias ThreeSixes.Dice.Scripted
+  alias ThreeSixes.Rooms
 
   test "the landing page pitches the game and lands its dice on three sixes", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
@@ -52,6 +53,21 @@ defmodule ThreeSixesWeb.LandingLiveTest do
     assert has_element?(room, "p", "your Room is open")
   end
 
+  test "Create a Room with every Room open says so and stays on the page", %{conn: conn} do
+    fill_every_room()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view |> element("button", "Create a Room") |> render_click()
+
+    assert has_element?(
+             view,
+             "#flash-error",
+             "Every Room is busy right now. Try again in a minute."
+           )
+
+    assert has_element?(view, "button", "Create a Room")
+  end
+
   describe "Join with a code" do
     test "fewer than four letters is refused above the tiles", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
@@ -72,6 +88,16 @@ defmodule ThreeSixesWeb.LandingLiveTest do
 
       assert {:error, {:live_redirect, %{to: "/r/KQXT"}}} =
                view |> form("#join-code", %{code: ["k", "Q", "x", "t"]}) |> render_submit()
+    end
+  end
+
+  defp fill_every_room do
+    %{active: open} = DynamicSupervisor.count_children(ThreeSixes.Rooms.Supervisor)
+
+    for _room <- open..(Application.fetch_env!(:three_sixes, :max_rooms) - 1)//1 do
+      {:ok, code} = Rooms.create("guest:host")
+      pid = Rooms.whereis(code)
+      on_exit(fn -> DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, pid) end)
     end
   end
 

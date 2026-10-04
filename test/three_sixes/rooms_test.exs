@@ -1,8 +1,9 @@
 defmodule ThreeSixes.RoomsTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
+  alias ThreeSixes.Rooms.Server
 
   @host "guest:host"
 
@@ -33,6 +34,25 @@ defmodule ThreeSixes.RoomsTest do
     assert RoomCode.valid?(code)
     assert is_pid(Rooms.whereis(code))
     assert {:ok, %{code: ^code, host?: true, me: nil, people: []}} = Rooms.join(code, @host)
+  end
+
+  test "with every Room open, creating one is refused as busy" do
+    for code <- fill_every_room(), do: open_until_exit(code)
+
+    assert Rooms.create(@host) == {:error, :busy}
+  end
+
+  test "creating gives up as busy after ten codes that are all taken" do
+    :rand.seed(:exsss, {17, 17, 17})
+    taken = for _attempt <- 1..10, do: RoomCode.random()
+
+    for code <- taken do
+      DynamicSupervisor.start_child(ThreeSixes.Rooms.Supervisor, {Server, {code, @host}})
+      open_until_exit(code)
+    end
+
+    :rand.seed(:exsss, {17, 17, 17})
+    assert Rooms.create(@host) == {:error, :busy}
   end
 
   test "joining a code with no open Room is closed" do
@@ -93,5 +113,20 @@ defmodule ThreeSixes.RoomsTest do
 
     assert_receive {:room_view, %{people: [%{nickname: "Dana"}]}}
     assert Process.info(Rooms.whereis(code), :monitors) == {:monitors, [process: self()]}
+  end
+
+  defp fill_every_room do
+    %{active: open} = DynamicSupervisor.count_children(ThreeSixes.Rooms.Supervisor)
+    max_rooms = Application.fetch_env!(:three_sixes, :max_rooms)
+
+    for _room <- open..(max_rooms - 1)//1 do
+      {:ok, code} = Rooms.create(@host)
+      code
+    end
+  end
+
+  defp open_until_exit(code) do
+    pid = Rooms.whereis(code)
+    on_exit(fn -> DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, pid) end)
   end
 end

@@ -55,8 +55,14 @@ defmodule ThreeSixesWeb.RoomLive do
 
   @impl true
   def handle_event("create", _params, socket) do
-    {:ok, code} = Rooms.create(socket.assigns.person_id)
-    {:noreply, push_navigate(socket, to: ~p"/r/#{code}")}
+    case Rooms.create(socket.assigns.person_id) do
+      {:ok, code} ->
+        {:noreply, push_navigate(socket, to: ~p"/r/#{code}")}
+
+      {:error, :busy} ->
+        {:noreply,
+         put_flash(socket, :error, "Every Room is busy right now. Try again in a minute.")}
+    end
   end
 
   def handle_event("enter", %{"nickname" => nickname}, socket) do

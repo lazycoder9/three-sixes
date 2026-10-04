@@ -3,13 +3,20 @@ defmodule ThreeSixes.Rooms do
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms.Server
 
-  @spec create(Room.person_id()) :: {:ok, String.t()}
-  def create(host_id) do
+  @code_attempts 10
+
+  @spec create(Room.person_id()) :: {:ok, String.t()} | {:error, :busy}
+  def create(host_id), do: create(host_id, @code_attempts)
+
+  defp create(_host_id, 0), do: {:error, :busy}
+
+  defp create(host_id, attempts) do
     code = RoomCode.random()
 
     case DynamicSupervisor.start_child(ThreeSixes.Rooms.Supervisor, {Server, {code, host_id}}) do
       {:ok, _pid} -> {:ok, code}
-      {:error, {:already_started, _pid}} -> create(host_id)
+      {:error, {:already_started, _pid}} -> create(host_id, attempts - 1)
+      {:error, :max_children} -> {:error, :busy}
     end
   end
 
