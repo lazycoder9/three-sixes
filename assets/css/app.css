@@ -6,7 +6,6 @@
 @source "../css";
 @source "../js";
 @source "../../lib/three_sixes_web";
-/* "block" is the wooden block component, not the display utility. */
 @source not inline("block");
 
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);

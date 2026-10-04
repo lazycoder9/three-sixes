@@ -43,7 +43,6 @@ window.addEventListener("three-sixes:copy", ((event: CustomEvent<{ text: string 
   const status = (event.target as Element).closest(".copy-link")?.querySelector("[role=status]");
   if (!status) return;
   const copied = "Room link copied";
-  // Outside a secure context there is no clipboard, so the link stays on screen to copy by hand.
   Promise.resolve()
     .then(() => navigator.clipboard.writeText(event.detail.text))
     .then(

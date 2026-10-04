@@ -5,7 +5,6 @@ defmodule ThreeSixesWeb.RoomLive do
   alias ThreeSixes.Rooms
 
   @token_colors [:tomato, :teal, :ochre, :walnut]
-  # Past this many people, room.css stops zooming the lobby up so the list stays in the window.
   @fits_zoomed 16
 
   @impl true
