@@ -7,11 +7,18 @@
     <.live_title default="Three Sixes">
       {assigns[:page_title]}
     </.live_title>
+    <.theme_script />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Caveat:wght@600;700&family=Figtree:wght@500;600;700&family=Patrick+Hand&display=swap"
+    />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
-  <body>
+  <body class="wood">
     {@inner_content}
   </body>
 </html>

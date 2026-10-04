@@ -1,9 +1,11 @@
 defmodule ThreeSixesWeb.Router do
   use ThreeSixesWeb, :router
 
-  # LiveView patches style attributes into the page, so inline styles stay allowed.
+  # LiveView patches style attributes into the page, so inline styles stay allowed. The hash
+  # admits the root layout's theme script, which must run before first paint.
   @content_security_policy %{
     "content-security-policy" => "default-src 'self'; \
+    script-src 'self' 'sha256-hvBZbzh0mBfsdico/2s0tgvLOiL47b8vtjbN1J+RNnQ='; \
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
     font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; \
     frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
@@ -26,7 +28,7 @@ defmodule ThreeSixesWeb.Router do
   scope "/", ThreeSixesWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", LandingLive
   end
 
   # Enable LiveDashboard in development
@@ -47,6 +49,12 @@ defmodule ThreeSixesWeb.Router do
 
     pipeline :dev_tools do
       plug :put_secure_browser_headers, @dev_tools_content_security_policy
+    end
+
+    scope "/dev", ThreeSixesWeb do
+      pipe_through :browser
+
+      live "/kit", KitLive
     end
 
     scope "/dev" do

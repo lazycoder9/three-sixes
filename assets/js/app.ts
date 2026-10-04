@@ -5,6 +5,7 @@ import { Socket } from "phoenix";
 import { LiveSocket, type LiveSocketInstanceInterface } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/three_sixes";
 import topbar from "../vendor/topbar";
+import { ThemeSwitch } from "./hooks/theme_switch";
 
 interface LiveReloader {
   enableServerLogs(): void;
@@ -23,11 +24,12 @@ const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribut
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { ...colocatedHooks },
+  hooks: { ...colocatedHooks, ThemeSwitch },
 });
 
 // Show progress bar on live navigation and form submits
-topbar.config({ barColors: { 0: "#29d" }, shadowColor: "rgba(0, 0, 0, .3)" });
+const mustard = getComputedStyle(document.documentElement).getPropertyValue("--color-mustard");
+topbar.config({ barColors: { 0: mustard }, shadowColor: "rgba(0, 0, 0, .3)" });
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 

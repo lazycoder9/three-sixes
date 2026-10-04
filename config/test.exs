@@ -10,6 +10,8 @@ config :three_sixes, ThreeSixes.Repo,
   pool_size: 5,
   pool: Ecto.Adapters.SQL.Sandbox
 
+config :three_sixes, :dice, ThreeSixes.Dice.Scripted
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :three_sixes, ThreeSixesWeb.Endpoint,

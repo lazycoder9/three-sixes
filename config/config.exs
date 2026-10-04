@@ -13,6 +13,8 @@ config :three_sixes,
 
 config :three_sixes, ThreeSixes.Repo, journal_mode: :wal
 
+config :three_sixes, :dice, ThreeSixes.Dice.Crypto
+
 # Configures the endpoint
 config :three_sixes, ThreeSixesWeb.Endpoint,
   url: [host: "localhost"],

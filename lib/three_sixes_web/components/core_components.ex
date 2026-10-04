@@ -1,10 +1,9 @@
 defmodule ThreeSixesWeb.CoreComponents do
   @moduledoc """
-  The generated Phoenix building blocks the layouts use: flash notices, Heroicons
-  and the show/hide JS commands.
+  The generated Phoenix building blocks the layouts use: flash notices as sticky-note
+  toasts, and the show/hide JS commands.
   """
   use Phoenix.Component
-  use Gettext, backend: ThreeSixesWeb.Gettext
 
   alias Phoenix.LiveView.JS
 
@@ -33,49 +32,12 @@ defmodule ThreeSixesWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="fixed top-4 right-4 z-50"
+      class="toast"
       {@rest}
     >
-      <div class="flex w-80 sm:w-96 gap-3 rounded border bg-white p-3 text-wrap text-black">
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
-        </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
-        </button>
-      </div>
+      <p :if={@title}>{@title}</p>
+      <p>{msg}</p>
     </div>
-    """
-  end
-
-  @doc """
-  Renders a [Heroicon](https://heroicons.com).
-
-  Heroicons come in three styles – outline, solid, and mini.
-  By default, the outline style is used, but solid and mini may
-  be applied by using the `-solid` and `-mini` suffix.
-
-  You can customize the size and colors of the icons by setting
-  width, height, and background color classes.
-
-  Icons are extracted from the `deps/heroicons` directory and bundled within
-  your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
-
-  ## Examples
-
-      <.icon name="hero-x-mark" />
-      <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
-  """
-  attr :name, :string, required: true
-  attr :class, :string, default: "size-4"
-
-  def icon(%{name: "hero-" <> _} = assigns) do
-    ~H"""
-    <span class={[@name, @class]} />
     """
   end
 

@@ -1,0 +1,19 @@
+.kit-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+}
+.kit-panel {
+  padding: var(--spacing-6) clamp(16px, 4vw, 44px) var(--spacing-7);
+  display: grid;
+  gap: var(--spacing-6);
+  align-content: start;
+}
+.kit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-5);
+  align-items: center;
+}
+.kit-row--paper > * {
+  flex: 1 1 240px;
+}

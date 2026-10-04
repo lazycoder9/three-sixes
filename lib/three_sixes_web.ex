@@ -86,6 +86,7 @@ defmodule ThreeSixesWeb do
       import Phoenix.HTML
       # Core UI components
       import ThreeSixesWeb.CoreComponents
+      import ThreeSixesWeb.KitchenComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

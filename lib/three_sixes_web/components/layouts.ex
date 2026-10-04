@@ -1,63 +1,56 @@
 defmodule ThreeSixesWeb.Layouts do
-  @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
-  """
   use ThreeSixesWeb, :html
 
-  # Embed all files in layouts/* within this module.
-  # The default root.html.heex file contains the HTML
-  # skeleton of your application, namely HTML headers
-  # and other static content.
   embed_templates "layouts/*"
 
-  @doc """
-  Renders your app layout.
+  @external_resource theme_script_path = Path.expand("../../../assets/js/theme_boot.js", __DIR__)
+  @theme_script theme_script_path |> File.read!() |> String.trim_trailing()
 
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
-      </Layouts.app>
-
-  """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
-
-  attr :current_scope, :map,
-    default: nil,
-    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-
+  attr :flash, :map, required: true
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
+    <header class="top">
+      <.logo />
+      <nav aria-label="Page settings">
+        <button
+          id="theme-switch"
+          type="button"
+          class="round-button"
+          phx-hook="ThemeSwitch"
+          aria-label="Switch between light and dark"
+        >
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor" />
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main class="table-main">
+      {render_slot(@inner_block)}
     </main>
 
     <.flash_group flash={@flash} />
     """
   end
 
-  @doc """
-  Shows the flash group with standard titles and content.
+  def theme_script(assigns) do
+    # The theme must be set before first paint. The tag is built whole so the formatter cannot
+    # add whitespace inside it, which would change its CSP hash.
+    assigns = assign(assigns, :tag, {:safe, ["<script>", @theme_script, "</script>"]})
 
-  ## Examples
+    ~H"{@tag}"
+  end
 
-      <.flash_group flash={@flash} />
-  """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
+  attr :flash, :map, required: true
+  attr :id, :string, default: "flash-group"
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div id={@id} class="toasts" aria-live="polite">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -70,7 +63,6 @@ defmodule ThreeSixesWeb.Layouts do
         hidden
       >
         {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
@@ -82,7 +74,6 @@ defmodule ThreeSixesWeb.Layouts do
         hidden
       >
         {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
     </div>
     """

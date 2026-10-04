@@ -57,13 +57,6 @@ defmodule ThreeSixes.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:heroicons,
-       github: "tailwindlabs/heroicons",
-       tag: "v2.2.0",
-       sparse: "optimized",
-       app: false,
-       compile: false,
-       depth: 1},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -115,7 +108,7 @@ defmodule ThreeSixes.MixProject do
         "cmd --cd assets bun run lint",
         "cmd --cd assets bun run fmt:check",
         "cmd --cd assets bun --bun run typecheck",
-        "cmd --cd assets bun test js --pass-with-no-tests",
+        "cmd --cd assets bun test js",
         "test --warnings-as-errors"
       ]
     ]
