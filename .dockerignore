@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Elixir/Phoenix
+_build/
+deps/
+*.ez
+*.beam
+priv/plts/
+priv/static/assets/
+priv/static/cache_manifest.json
+
+# Node
+assets/node_modules/
+
+# Database files
+*.db
+*.db-*
+
+# Agents and working notes
+.claude/
+notes/
+
+# OS
+.DS_Store
+
+# Docker
+Dockerfile*
+
+# Kamal
+.kamal/
+
+# Documentation
+docs/
+*.md
+
+# Test
+test/
+cover/
+tmp/

@@ -1,0 +1,54 @@
+service: three-sixes
+image: lazycoder9/three-sixes
+
+servers:
+  web:
+    hosts:
+      - 52.59.191.240
+    options:
+      stop-timeout: 30
+
+proxy:
+  ssl: true
+  host: three-sixes.usebotify.app
+  app_port: 4000
+  healthcheck:
+    path: /health
+    interval: 3
+    timeout: 30
+
+registry:
+  server: ghcr.io
+  username: lazycoder9
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+env:
+  secret:
+    - SECRET_KEY_BASE
+    - DATABASE_PATH
+    - GOOGLE_CLIENT_ID
+    - GOOGLE_CLIENT_SECRET
+  clear:
+    PHX_HOST: three-sixes.usebotify.app
+    PORT: "4000"
+    # Kamal's container hostnames start with the server's IP, which breaks short node names.
+    RELEASE_DISTRIBUTION: name
+    RELEASE_NODE: three_sixes@127.0.0.1
+
+volumes:
+  - "three_sixes_data:/data"
+
+builder:
+  arch: amd64
+  local: false
+  remote: ssh://botify-builder
+
+ssh:
+  user: ec2-user
+  keys:
+    - ~/.ssh/aws-personal.pem
+
+aliases:
+  console: 'app exec --primary --interactive --reuse "bin/three_sixes remote"'
+  shell: 'app exec --primary --interactive --reuse "sh"'
