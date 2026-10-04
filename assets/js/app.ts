@@ -18,10 +18,12 @@ declare global {
   }
 }
 
+const NICKNAME_KEY = "three-sixes:nickname";
+
 const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribute("content");
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: { _csrf_token: csrfToken },
+  params: () => ({ _csrf_token: csrfToken, nickname: localStorage.getItem(NICKNAME_KEY) }),
   hooks: { ...colocatedHooks, ThemeSwitch },
 });
 
@@ -32,6 +34,10 @@ window.addEventListener("phx:page-loading-start", (_info) => {
   if (!reducedMotion.matches) topbar.show(300);
 });
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+
+window.addEventListener("phx:remember-nickname", ((event: CustomEvent<{ nickname: string }>) => {
+  localStorage.setItem(NICKNAME_KEY, event.detail.nickname);
+}) as EventListener);
 
 liveSocket.connect();
 

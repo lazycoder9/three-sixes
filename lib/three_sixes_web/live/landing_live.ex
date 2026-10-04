@@ -2,6 +2,8 @@ defmodule ThreeSixesWeb.LandingLive do
   use ThreeSixesWeb, :live_view
 
   alias ThreeSixes.Dice
+  alias ThreeSixes.RoomCode
+  alias ThreeSixes.Rooms
   alias ThreeSixesWeb.RollCaption
 
   @tumbles_in_from [2, 5, 3]
@@ -12,7 +14,8 @@ defmodule ThreeSixesWeb.LandingLive do
      assign(socket,
        faces: [6, 6, 6],
        rolls: 0,
-       caption: "Three sixes. The Bid this game is named after."
+       caption: "Three sixes. The Bid this game is named after.",
+       code_error: nil
      )}
   end
 
@@ -26,6 +29,21 @@ defmodule ThreeSixesWeb.LandingLive do
        rolls: socket.assigns.rolls + 1,
        caption: RollCaption.for_faces(faces)
      )}
+  end
+
+  def handle_event("create", _params, socket) do
+    {:ok, code} = Rooms.create(socket.assigns.person_id)
+    {:noreply, push_navigate(socket, to: ~p"/r/#{code}")}
+  end
+
+  def handle_event("join", %{"code" => letters}, socket) when is_list(letters) do
+    code = letters |> Enum.join() |> RoomCode.normalize()
+
+    if String.length(code) == 4 do
+      {:noreply, push_navigate(socket, to: ~p"/r/#{code}")}
+    else
+      {:noreply, assign(socket, code_error: "A Room code is four letters.")}
+    end
   end
 
   @impl true
@@ -42,17 +60,53 @@ defmodule ThreeSixesWeb.LandingLive do
               Three Sixes is a dice-bluffing game for a Room of friends. Everyone hides their dice, then Bids on what's under every cup at once.
             </p>
             <div class="door">
-              <.block variant={:tomato} size={:big}>Create a Room</.block>
-              <fieldset>
-                <legend class="legend">Join with a code</legend>
-                <div class="tiles">
-                  <.letter_tile_input aria-label="Room code, letter 1" maxlength="1" />
-                  <.letter_tile_input aria-label="Letter 2" maxlength="1" />
-                  <.letter_tile_input aria-label="Letter 3" maxlength="1" />
-                  <.letter_tile_input aria-label="Letter 4" maxlength="1" />
-                  <.block>Join</.block>
-                </div>
-              </fieldset>
+              <.block variant={:tomato} size={:big} phx-click="create">Create a Room</.block>
+              <form id="join-code" class={@code_error && "is-error"} phx-submit="join">
+                <fieldset>
+                  <legend class="legend">Join with a code</legend>
+                  <div id="code-tiles" class="tiles" phx-hook=".CodeTiles">
+                    <.letter_tile_input name="code[]" aria-label="Room code, letter 1" />
+                    <.letter_tile_input name="code[]" aria-label="Letter 2" />
+                    <.letter_tile_input name="code[]" aria-label="Letter 3" />
+                    <.letter_tile_input name="code[]" aria-label="Letter 4" />
+                    <.block type="submit">Join</.block>
+                  </div>
+                </fieldset>
+                <p :if={@code_error} class="code-error" role="alert">{@code_error}</p>
+              </form>
+              <script :type={Phoenix.LiveView.ColocatedHook} name=".CodeTiles">
+                export default {
+                  mounted() {
+                    const tiles = () => [...this.el.querySelectorAll("input")];
+
+                    this.el.addEventListener("input", (event) => {
+                      const cells = tiles();
+                      const i = cells.indexOf(event.target);
+                      const letters = event.target.value.replace(/[^a-z]/gi, "").toUpperCase();
+
+                      if (letters.length > 1) {
+                        [...letters].slice(0, 4 - i).forEach((letter, k) => (cells[i + k].value = letter));
+                        cells[Math.min(i + letters.length, 3)].focus();
+                      } else {
+                        event.target.value = letters;
+                        if (letters && cells[i + 1]) cells[i + 1].focus();
+                      }
+                    });
+
+                    this.el.addEventListener("keydown", (event) => {
+                      if (event.key !== "Backspace" || event.target.value) return;
+                      const cells = tiles();
+                      const previous = cells[cells.indexOf(event.target) - 1];
+                      if (!previous) return;
+                      event.preventDefault();
+                      previous.value = "";
+                      previous.focus();
+                    });
+
+                    this.el.addEventListener("focusin", (event) => event.target.select?.());
+                  },
+                };
+              </script>
             </div>
           </div>
 

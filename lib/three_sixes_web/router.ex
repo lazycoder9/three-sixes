@@ -14,6 +14,7 @@ defmodule ThreeSixesWeb.Router do
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
+    plug ThreeSixesWeb.Guest
     plug :fetch_live_flash
     plug :put_root_layout, html: {ThreeSixesWeb.Layouts, :root}
     plug :protect_from_forgery
@@ -28,7 +29,10 @@ defmodule ThreeSixesWeb.Router do
   scope "/", ThreeSixesWeb do
     pipe_through :browser
 
-    live "/", LandingLive
+    live_session :default, on_mount: [{ThreeSixesWeb.Guest, :default}] do
+      live "/", LandingLive
+      live "/r/:code", RoomLive
+    end
   end
 
   if Application.compile_env(:three_sixes, :dev_routes) do

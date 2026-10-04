@@ -42,6 +42,33 @@ defmodule ThreeSixesWeb.LandingLiveTest do
     assert caption(view) == "Three sixes. For real this time!"
   end
 
+  test "Create a Room opens a Room and lands on its join step as the Host", %{conn: conn} do
+    conn = init_test_session(conn, %{"guest_id" => "timur"})
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    {:ok, room, _html} =
+      view |> element("button", "Create a Room") |> render_click() |> follow_redirect(conn)
+
+    assert has_element?(room, "p", "your Room is open")
+  end
+
+  describe "Join with a code" do
+    test "fewer than four letters is refused under the tiles", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> form("#join-code", %{code: ["k", "q", "x", ""]}) |> render_submit()
+
+      assert has_element?(view, "#join-code [role=alert]", "A Room code is four letters.")
+    end
+
+    test "four letters, in any case, go to that Room", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert {:error, {:live_redirect, %{to: "/r/KQXT"}}} =
+               view |> form("#join-code", %{code: ["k", "Q", "x", "t"]}) |> render_submit()
+    end
+  end
+
   defp select(view, selector) do
     view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.to_list()
   end

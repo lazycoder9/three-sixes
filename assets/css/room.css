@@ -1,0 +1,72 @@
+.screen--narrow {
+  max-width: 520px;
+  padding-top: var(--spacing-6);
+}
+.screen--narrow > .paper {
+  transform: rotate(-0.8deg);
+}
+
+.room-code {
+  margin: 10px 0 6px;
+}
+.gone {
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--spacing-2);
+  margin: calc(var(--spacing-rule) - 4px) 0;
+  min-height: calc(var(--spacing-rule) * 2);
+}
+.who .token + .token {
+  margin-left: -12px;
+}
+
+.gap {
+  height: var(--spacing-rule);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-rule);
+}
+
+.hl {
+  background: linear-gradient(
+    100deg,
+    transparent 1%,
+    var(--color-highlighter) 3% 97%,
+    transparent 99%
+  );
+  padding: 0 0.2em;
+  border-radius: 4px 12px 6px 10px;
+}
+/* The struck Nickname is drawn from an attribute so the sentence reads "You're Dana 2 here." */
+.paper s[data-nickname] {
+  margin-left: 0.25em;
+  color: var(--color-graphite-faint);
+  text-decoration-color: var(--color-tomato);
+  text-decoration-thickness: 3px;
+}
+.paper s[data-nickname]::before {
+  content: attr(data-nickname);
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.people li {
+  min-height: var(--spacing-rule);
+}
+.host-tag {
+  margin-left: 6px;
+  color: var(--color-tomato);
+  font: 700 20px/1 var(--font-scrawl);
+}
