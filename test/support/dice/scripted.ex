@@ -1,8 +1,4 @@
 defmodule ThreeSixes.Dice.Scripted do
-  @moduledoc """
-  A test scripts its rolls here, and the processes it starts, such as its LiveViews, find
-  them through `$callers`.
-  """
   @behaviour ThreeSixes.Dice
 
   use Agent

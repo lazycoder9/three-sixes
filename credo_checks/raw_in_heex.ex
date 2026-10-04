@@ -1,9 +1,5 @@
 defmodule ThreeSixes.CredoChecks.RawInHeex do
-  @moduledoc """
-  Detects calls to `raw/1` inside HEEx templates.
-
-  Kept outside `lib/` because Credo is not a runtime dependency.
-  """
+  @moduledoc "Kept outside `lib/` because Credo is not a runtime dependency."
 
   use Credo.Check,
     base_priority: :high,

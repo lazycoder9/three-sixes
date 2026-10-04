@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Advisory: names source files over the threshold that this branch makes longer. Always exits 0;
-# length alone is fine, unexamined growth is not.
+# Advisory only: length alone is fine, unexamined growth is not.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -48,7 +48,6 @@
   --color-pencil-shade: #D99A1B;
   --color-pencil-wood: #EBCDA4;
 
-  /* Roles: [data-theme="dark"] below gives each one its evening value. */
   --color-table: var(--color-oak);
   --color-ink: var(--color-espresso);
   --color-ink-dim: var(--color-espresso-dim);
@@ -234,7 +233,7 @@
       0 3px 0 var(--color-tile-edge),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
-  /* Reaches past the 42px disc so the touch target is at least 44px. */
+  /* Grows the touch target to the 44px minimum. */
   .round-button::before {
     content: "";
     position: absolute;
@@ -518,7 +517,6 @@
         )
         0 calc(var(--spacing-rule) * 0.5 + 8px),
       var(--color-sheet);
-    /* the bites left by the spiral binding */
     -webkit-mask: radial-gradient(circle 5px at 50% 0, transparent 96%, black) 0 0 / 19px 100%;
     mask: radial-gradient(circle 5px at 50% 0, transparent 96%, black) 0 0 / 19px 100%;
   }

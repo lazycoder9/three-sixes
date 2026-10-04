@@ -1,28 +1,16 @@
 defmodule ThreeSixesWeb.CoreComponents do
-  @moduledoc """
-  The generated Phoenix building blocks the layouts use: flash notices as sticky-note
-  toasts, and the show/hide JS commands.
-  """
   use Phoenix.Component
   use Gettext, backend: ThreeSixesWeb.Gettext
 
   alias Phoenix.LiveView.JS
 
-  @doc """
-  Renders flash notices.
-
-  ## Examples
-
-      <.flash kind={:info} flash={@flash} />
-      <.flash kind={:info} phx-mounted={show("#flash")}>Welcome Back!</.flash>
-  """
-  attr :id, :string, doc: "the optional id of flash container"
-  attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
+  attr :id, :string
+  attr :flash, :map, default: %{}
   attr :title, :string, default: nil
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
-  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
+  attr :kind, :atom, values: [:info, :error]
+  attr :rest, :global
 
-  slot :inner_block, doc: "the optional inner block that renders the flash message"
+  slot :inner_block
 
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
@@ -42,8 +30,6 @@ defmodule ThreeSixesWeb.CoreComponents do
     </div>
     """
   end
-
-  ## JS Commands
 
   def show(js \\ %JS{}, selector) do
     JS.show(js,

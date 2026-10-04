@@ -1,8 +1,4 @@
 defmodule ThreeSixes.CredoChecks.CaseOnBoolean do
-  @moduledoc """
-  Rejects `case` expressions whose only patterns are the boolean literals.
-  """
-
   use Credo.Check,
     base_priority: :normal,
     category: :refactor,

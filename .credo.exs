@@ -16,22 +16,17 @@
       color: true,
       checks: %{
         enabled: [
-          ## Consistency Checks
           {Credo.Check.Consistency.ExceptionNames, []},
           {Credo.Check.Consistency.LineEndings, []},
           {Credo.Check.Consistency.ParameterPatternMatching, []},
           {Credo.Check.Consistency.SpaceAroundOperators, []},
           {Credo.Check.Consistency.SpaceInParentheses, []},
           {Credo.Check.Consistency.TabsOrSpaces, []},
-
-          ## Design Checks
           {Credo.Check.Design.AliasUsage,
            [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 2]},
           {Credo.Check.Design.SkipTestWithoutComment, []},
           {Credo.Check.Design.TagFIXME, []},
           {Credo.Check.Design.TagTODO, []},
-
-          ## Readability Checks
           {Credo.Check.Readability.FunctionNames, []},
           {Credo.Check.Readability.LargeNumbers, []},
           {Credo.Check.Readability.MaxLineLength, [priority: :low, max_length: 120]},
@@ -51,8 +46,6 @@
           {Credo.Check.Readability.UnnecessaryAliasExpansion, []},
           {Credo.Check.Readability.VariableNames, []},
           {Credo.Check.Readability.WithSingleClause, []},
-
-          ## Refactoring Opportunities
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
           {Credo.Check.Refactor.CyclomaticComplexity, []},
@@ -74,8 +67,6 @@
           {Credo.Check.Refactor.UnlessWithElse, []},
           {Credo.Check.Refactor.UtcNowTruncate, []},
           {Credo.Check.Refactor.WithClauses, []},
-
-          ## Warnings
           {Credo.Check.Warning.ApplicationConfigInModuleAttribute, []},
           {Credo.Check.Warning.BoolOperationOnSameValues, []},
           {Credo.Check.Warning.Dbg, []},
@@ -103,20 +94,14 @@
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
           {Credo.Check.Warning.WrongTestFilename, []},
-
-          ## Tests
           {Jump.CredoChecks.TestHasNoAssertions, []},
           {Jump.CredoChecks.VacuousTest, [library_modules: [Ecto, Jason, Phoenix, Plug]]},
           {Jump.CredoChecks.WeakAssertion, []},
-
-          ## Processes
           {OeditusCredo.Check.Warning.UnmanagedTask, [exclude_test_files: true]},
           {OeditusCredo.Check.Warning.BlockingInPlug, []},
           {OeditusCredo.Check.Warning.MissingHandleAsync, []},
           {OeditusCredo.Check.Warning.SwallowingException, []},
           {OeditusCredo.Check.Warning.SyncOverAsync, []},
-
-          ## Local checks
           {ThreeSixes.CredoChecks.CaseOnBoolean, []},
           {ThreeSixes.CredoChecks.RawInHeex, []}
         ],

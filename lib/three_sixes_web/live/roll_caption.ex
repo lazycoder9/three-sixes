@@ -2,9 +2,6 @@ defmodule ThreeSixesWeb.RollCaption do
   @counts ~w(one two three)
   @faces ~w(one two three four five six)
 
-  @doc """
-  Reads a roll of three dice back as the best Bid it truthfully supports.
-  """
   def for_faces(faces) do
     case best_bid(faces) do
       {3, 6} -> "Three sixes. For real this time!"

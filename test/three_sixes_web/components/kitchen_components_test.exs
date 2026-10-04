@@ -4,7 +4,6 @@ defmodule ThreeSixesWeb.KitchenComponentsTest do
   import Phoenix.LiveViewTest
   import ThreeSixesWeb.KitchenComponents
 
-  # Cells of the 3 by 3 grid, read left to right and top to bottom.
   @pips %{
     1 => [4],
     2 => [2, 6],
