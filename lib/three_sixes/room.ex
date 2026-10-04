@@ -19,7 +19,9 @@ defmodule ThreeSixes.Room do
   def new(code, host_id), do: %__MODULE__{code: code, host_id: host_id}
 
   @spec enter(t(), person_id(), String.t()) ::
-          {:ok, t()} | {:taken, String.t()} | {:error, :blank | :too_long | :full}
+          {:ok, t()}
+          | {:taken, held :: String.t(), suggestion :: String.t()}
+          | {:error, :blank | :too_long | :full}
   def enter(room, person_id, nickname) do
     cond do
       member?(room, person_id) -> {:ok, room}
@@ -32,7 +34,7 @@ defmodule ThreeSixes.Room do
     with {:ok, nickname} <- clean(nickname) do
       case holder(room, nickname) do
         nil -> {:ok, %{room | members: room.members ++ [%{id: person_id, nickname: nickname}]}}
-        holder -> {:taken, suggestion(room, holder.nickname)}
+        holder -> {:taken, holder.nickname, suggestion(room, holder.nickname)}
       end
     end
   end

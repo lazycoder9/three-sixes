@@ -39,6 +39,24 @@ window.addEventListener("phx:remember-nickname", ((event: CustomEvent<{ nickname
   localStorage.setItem(NICKNAME_KEY, event.detail.nickname);
 }) as EventListener);
 
+window.addEventListener("three-sixes:copy", ((event: CustomEvent<{ text: string }>) => {
+  const status = (event.target as Element).closest(".copy-link")?.querySelector("[role=status]");
+  if (!status) return;
+  const copied = "Room link copied";
+  // Outside a secure context there is no clipboard, so the link stays on screen to copy by hand.
+  Promise.resolve()
+    .then(() => navigator.clipboard.writeText(event.detail.text))
+    .then(
+      () => {
+        status.textContent = copied;
+        setTimeout(() => {
+          if (status.textContent === copied) status.textContent = "";
+        }, 3000);
+      },
+      () => (status.textContent = event.detail.text),
+    );
+}) as EventListener);
+
 liveSocket.connect();
 
 window.liveSocket = liveSocket;

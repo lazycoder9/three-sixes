@@ -5,6 +5,8 @@ defmodule ThreeSixesWeb.RoomLive do
   alias ThreeSixes.Rooms
 
   @token_colors [:tomato, :teal, :ochre, :walnut]
+  # Past this many people, room.css stops zooming the lobby up so the list stays in the window.
+  @fits_zoomed 16
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -27,6 +29,7 @@ defmodule ThreeSixesWeb.RoomLive do
         nickname: "",
         edited?: false,
         wanted: nil,
+        held: nil,
         suggestion: nil,
         error: nil
       )
@@ -77,8 +80,8 @@ defmodule ThreeSixesWeb.RoomLive do
         |> assign(view: view, suggestion: nil, error: nil)
         |> push_event("remember-nickname", %{nickname: socket.assigns.wanted})
 
-      {:taken, suggestion} ->
-        assign(socket, suggestion: suggestion, error: nil)
+      {:taken, held, suggestion} ->
+        assign(socket, held: held, suggestion: suggestion, error: nil)
 
       {:error, :blank} ->
         assign(socket, suggestion: nil, error: "Pick a Nickname first.")
@@ -98,6 +101,14 @@ defmodule ThreeSixesWeb.RoomLive do
     do: {:noreply, join(socket)}
 
   @impl true
+  def render(%{view: %{me: me}} = assigns) when is_binary(me) do
+    ~H"""
+    <Layouts.room flash={@flash} code={@view.code}>
+      <.lobby view={@view} />
+    </Layouts.room>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
@@ -106,18 +117,17 @@ defmodule ThreeSixesWeb.RoomLive do
         <.notebook_page>
           <.room_code :if={!@view} code={@code} />
           <.taken
-            :if={@view && !@view.me && @suggestion}
-            wanted={@wanted}
+            :if={@view && @suggestion}
+            held={@held}
             suggestion={@suggestion}
           />
           <.join_step
-            :if={@view && !@view.me && !@suggestion}
+            :if={@view && !@suggestion}
             view={@view}
             nickname={@nickname}
             edited?={@edited?}
             error={@error}
           />
-          <.in_the_room :if={@view && @view.me} view={@view} />
         </.notebook_page>
       </section>
     </Layouts.app>
@@ -190,14 +200,14 @@ defmodule ThreeSixesWeb.RoomLive do
     """
   end
 
-  attr :wanted, :string, required: true
+  attr :held, :string, required: true
   attr :suggestion, :string, required: true
 
   defp taken(assigns) do
     ~H"""
-    <p class="faint">there's already a {@wanted} in this Room</p>
+    <p class="faint">there's already a {@held} in this Room</p>
     <h1>
-      You're<s aria-hidden="true" data-nickname={@wanted}></s> <span class="hl">{@suggestion}</span>
+      You're<s aria-hidden="true" data-nickname={@held}></s> <span class="hl">{@suggestion}</span>
       here.
     </h1>
     <div class="row">
@@ -209,14 +219,31 @@ defmodule ThreeSixesWeb.RoomLive do
 
   attr :view, :map, required: true
 
-  defp in_the_room(assigns) do
+  defp lobby(assigns) do
     ~H"""
-    <h1>You're in, {@view.me}.</h1>
-    <ul id="people" class="people">
-      <li :for={person <- @view.people}>
-        {person.nickname} <span :if={person.host?} class="host-tag">Host</span>
-      </li>
-    </ul>
+    <div id="lobby" class={["lobby", crowded?(@view) && "lobby--crowded"]}>
+      <.notebook_page>
+        <h1>Who's playing</h1>
+        <ul id="people" class="people">
+          <li :for={person <- @view.people} id={"person-#{person.n}"}>
+            <.token initial={initial(person.nickname)} color={token_color(person.n)} />
+            <span class="people__name">
+              {if person.me?, do: "You", else: person.nickname}
+              <span :if={person.host?} class="host-tag">Host</span>
+            </span>
+          </li>
+        </ul>
+      </.notebook_page>
+      <div class="lobby__side">
+        <div>
+          <p class="lobby__label">Room code</p>
+          <div class="tiles">
+            <.letter_tile :for={letter <- String.graphemes(@view.code)} letter={letter} />
+          </div>
+        </div>
+        <Layouts.copy_room_link id="lobby-copied" code={@view.code} />
+      </div>
+    </div>
     """
   end
 
@@ -228,6 +255,8 @@ defmodule ThreeSixesWeb.RoomLive do
     {others, [last]} = people |> Enum.map(& &1.nickname) |> Enum.split(-1)
     "#{Enum.join(others, ", ")} and #{last} are in this Room."
   end
+
+  defp crowded?(view), do: length(view.people) > @fits_zoomed
 
   defp initial(nickname), do: nickname |> String.first() |> String.upcase()
 

@@ -64,7 +64,7 @@ defmodule ThreeSixes.RoomsTest do
     assert_receive {:room_view, _view}
 
     assert {:ok, %{me: "Dana"}} = Rooms.enter(code, "guest:dana", "Dana")
-    assert {:taken, "Dana 2"} = Rooms.enter(code, "guest:other", "dana")
+    assert {:taken, "Dana", "Dana 2"} = Rooms.enter(code, "guest:other", "dana")
     assert {:error, :blank} = Rooms.enter(code, "guest:other", " ")
     refute_receive {:room_view, _view}
   end

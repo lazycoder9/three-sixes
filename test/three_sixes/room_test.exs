@@ -34,10 +34,10 @@ defmodule ThreeSixes.RoomTest do
     assert {:ok, _} = Room.enter(room(), "guest:dana", "  " <> String.duplicate("a", 16) <> "  ")
   end
 
-  test "a Nickname taken regardless of case gets the next number as a suggestion" do
+  test "a Nickname taken regardless of case names who holds it and suggests the next number" do
     room = enter!(room(), "guest:dana", "Dana")
 
-    assert Room.enter(room, "guest:other", "dana") == {:taken, "Dana 2"}
+    assert Room.enter(room, "guest:other", "dana") == {:taken, "Dana", "Dana 2"}
     refute Room.member?(room, "guest:other")
   end
 
@@ -47,7 +47,7 @@ defmodule ThreeSixes.RoomTest do
       |> enter!("guest:dana", "Dana")
       |> enter!("guest:dana2", "dana 2")
 
-    assert Room.enter(room, "guest:other", "DANA") == {:taken, "Dana 3"}
+    assert Room.enter(room, "guest:other", "DANA") == {:taken, "Dana", "Dana 3"}
   end
 
   test "a suggestion for a long Nickname cuts the name so the whole fits 16 characters" do
@@ -55,14 +55,15 @@ defmodule ThreeSixes.RoomTest do
     sixteen = "Alexandrovichkas"
     room = room() |> enter!("guest:a", fifteen) |> enter!("guest:b", sixteen)
 
-    assert Room.enter(room, "guest:c", fifteen) == {:taken, "Alexandrovichk 2"}
-    assert Room.enter(room, "guest:c", sixteen) == {:taken, "Alexandrovichk 2"}
+    assert Room.enter(room, "guest:c", fifteen) == {:taken, fifteen, "Alexandrovichk 2"}
+    assert Room.enter(room, "guest:c", sixteen) == {:taken, sixteen, "Alexandrovichk 2"}
   end
 
   test "the cut drops the space it would leave before the number" do
     room = enter!(room(), "guest:a", "Dana Kowalska Jo")
 
-    assert Room.enter(room, "guest:b", "dana kowalska jo") == {:taken, "Dana Kowalska 2"}
+    assert Room.enter(room, "guest:b", "dana kowalska jo") ==
+             {:taken, "Dana Kowalska Jo", "Dana Kowalska 2"}
   end
 
   test "a member who enters again keeps their Nickname and nothing changes" do

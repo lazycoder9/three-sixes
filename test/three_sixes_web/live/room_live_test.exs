@@ -25,14 +25,55 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     assert has_element?(dana, "p", "Nobody is here yet.")
 
     enter(timur, "Timur")
-    assert has_element?(timur, "h1", "You're in, Timur.")
+    assert has_element?(timur, "#lobby h1", "Who's playing")
+    assert people(timur) == ["T You Host"]
     assert has_element?(dana, ".who", "Timur is in this Room.")
     assert has_element?(dana, ".who .token", "T")
 
     enter(dana, "Dana")
-    assert has_element?(dana, "h1", "You're in, Dana.")
-    assert people(dana) == ["Timur Host", "Dana"]
-    assert people(timur) == ["Timur Host", "Dana"]
+    assert has_element?(dana, "#lobby h1", "Who's playing")
+    assert people(dana) == ["T Timur Host", "D You"]
+    assert people(timur) == ["T You Host", "D Dana"]
+  end
+
+  test "beside the list are the Room code in tiles and Copy Room link with the Room's address",
+       %{conn: conn} do
+    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
+    enter(view, "Timur")
+
+    assert has_element?(view, "#lobby p", "Room code")
+    assert code_tiles(view, "#lobby") == String.graphemes(code)
+    assert copies(view, "#lobby button") == "http://localhost:4002/r/#{code}"
+  end
+
+  test "once in, the Room bar shows the logo, the Room code and a menu with Copy Room link and Light or dark",
+       %{conn: conn} do
+    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
+    assert has_element?(view, "header.top")
+    refute has_element?(view, "header.roombar")
+
+    enter(view, "Timur")
+
+    refute has_element?(view, "header.top")
+    assert has_element?(view, ~s(header.roombar a[aria-label="Three Sixes, home"] .die))
+    assert code_tiles(view, "header.roombar") == String.graphemes(code)
+
+    assert has_element?(
+             view,
+             ~s(header.roombar button[popovertarget="room-menu"][aria-label="Room menu"])
+           )
+
+    assert has_element?(view, "#room-menu[popover] h2", "Room #{code}")
+    assert copies(view, "#room-menu button") == "http://localhost:4002/r/#{code}"
+    assert has_element?(view, ~s(#room-menu button[phx-hook="ThemeSwitch"]), "Light or dark")
+
+    assert has_element?(
+             view,
+             ~s(#room-menu button[popovertarget="room-menu"][popovertargetaction="hide"]),
+             "Close"
+           )
   end
 
   describe "a Nickname already in the Room, regardless of case" do
@@ -45,13 +86,13 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     end
 
     test "gets the next number, and Join as takes it", %{view: view} do
-      assert has_element?(view, "p", "there's already a dana in this Room")
+      assert has_element?(view, "p", "there's already a Dana in this Room")
+      assert has_element?(view, "h1 s[data-nickname='Dana']")
       assert has_element?(view, "h1", "You're Dana 2 here.")
 
       view |> element("button", "Join as Dana 2") |> render_click()
 
-      assert has_element?(view, "h1", "You're in, Dana 2.")
-      assert people(view) == ["Dana", "Dana 2"]
+      assert people(view) == ["D Dana", "D You"]
     end
 
     test "Edit goes back to the form with the number filled in", %{view: view} do
@@ -107,7 +148,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
     {:ok, reloaded, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
 
-    assert has_element?(reloaded, "h1", "You're in, Dana.")
+    assert people(reloaded) == ["D You"]
     refute has_element?(reloaded, "#join-form")
   end
 
@@ -180,11 +221,25 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   defp guest(conn, guest_id), do: init_test_session(conn, %{"guest_id" => guest_id})
 
-  defp code_tiles(view) do
+  defp code_tiles(view, within \\ "[aria-label='Room code']") do
     view
     |> render()
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("[aria-label='Room code'] .letter-tile")
+    |> LazyHTML.query("#{within} .letter-tile")
     |> Enum.map(&LazyHTML.text/1)
+  end
+
+  defp copies(view, selector) do
+    [click] =
+      view
+      |> element(selector, "Copy Room link")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.attribute("phx-click")
+
+    [["dispatch", %{"event" => "three-sixes:copy", "detail" => %{"text" => text}}]] =
+      JSON.decode!(click)
+
+    text
   end
 end

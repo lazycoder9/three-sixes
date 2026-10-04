@@ -18,7 +18,7 @@ defmodule ThreeSixes.Rooms do
 
   @spec enter(String.t(), Room.person_id(), String.t()) ::
           {:ok, Room.view()}
-          | {:taken, String.t()}
+          | {:taken, held :: String.t(), suggestion :: String.t()}
           | {:error, :blank | :too_long | :full | :closed}
   def enter(code, person_id, nickname), do: call(code, {:enter, person_id, nickname})
 

@@ -37,6 +37,66 @@ defmodule ThreeSixesWeb.Layouts do
     """
   end
 
+  attr :id, :string, required: true
+  attr :code, :string, required: true
+
+  def copy_room_link(assigns) do
+    ~H"""
+    <div class="copy-link">
+      <.block phx-click={JS.dispatch("three-sixes:copy", detail: %{text: url(~p"/r/#{@code}")})}>
+        Copy Room link
+      </.block>
+      <p id={@id} class="copy-link__done" role="status" phx-update="ignore"></p>
+    </div>
+    """
+  end
+
+  attr :flash, :map, required: true
+  attr :code, :string, required: true
+  slot :inner_block, required: true
+
+  def room(assigns) do
+    ~H"""
+    <header class="roombar">
+      <.logo />
+      <span class="tiles roombar__code" aria-label={"Room code #{@code}"}>
+        <.letter_tile :for={letter <- String.graphemes(@code)} letter={letter} />
+      </span>
+      <button type="button" class="round-button" popovertarget="room-menu" aria-label="Room menu">
+        <svg
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.6"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M5 7h14M5 12h14M5 17h14" />
+        </svg>
+      </button>
+    </header>
+
+    <div id="room-menu" class="dialog" popover role="dialog" aria-labelledby="room-menu-title">
+      <h2 id="room-menu-title">Room {@code}</h2>
+      <div class="stack">
+        <.copy_room_link id="menu-copied" code={@code} />
+        <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
+      </div>
+      <div class="row">
+        <.block popovertarget="room-menu" popovertargetaction="hide">Close</.block>
+      </div>
+    </div>
+
+    <main class="table-main">
+      {render_slot(@inner_block)}
+    </main>
+
+    <.flash_group flash={@flash} />
+    """
+  end
+
   def theme_script(assigns) do
     # The theme must be set before first paint. The tag is built whole so the formatter cannot
     # add whitespace inside it, which would change its CSP hash.

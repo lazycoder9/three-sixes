@@ -33,7 +33,7 @@ defmodule ThreeSixesWeb.KitchenComponents do
   attr :wide, :boolean, default: false
   attr :type, :string, default: "button"
   attr :class, :any, default: nil
-  attr :rest, :global, include: ~w(disabled form name value)
+  attr :rest, :global, include: ~w(disabled form name value popovertarget popovertargetaction)
   slot :inner_block, required: true
 
   def block(assigns) do
