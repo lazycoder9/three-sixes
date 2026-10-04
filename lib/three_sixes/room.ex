@@ -39,6 +39,8 @@ defmodule ThreeSixes.Room do
     end
   end
 
+  defp clean(nickname) when not is_binary(nickname), do: {:error, :blank}
+
   defp clean(nickname) do
     nickname = String.trim(nickname)
 
@@ -54,7 +56,9 @@ defmodule ThreeSixes.Room do
     Enum.find(room.members, &(String.downcase(&1.nickname) == wanted))
   end
 
-  defp suggestion(room, base) do
+  defp suggestion(room, held) do
+    base = String.replace(held, ~r/ \d+$/u, "")
+
     2
     |> Stream.iterate(&(&1 + 1))
     |> Stream.map(&numbered(base, &1))

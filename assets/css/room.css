@@ -56,6 +56,9 @@
 .paper s[data-nickname]::before {
   content: attr(data-nickname);
 }
+.paper h1:has(s[data-nickname]) {
+  overflow-wrap: anywhere;
+}
 
 .roombar {
   position: relative;

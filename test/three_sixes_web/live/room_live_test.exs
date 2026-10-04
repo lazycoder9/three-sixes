@@ -103,6 +103,20 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     end
   end
 
+  test "a Join as with no number offered is ignored and the Room stays open", %{conn: conn} do
+    {:ok, code} = Rooms.create("guest:timur")
+    {:ok, timur, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
+    enter(timur, "Timur")
+    {:ok, dana, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
+
+    render_click(dana, "join_as")
+
+    assert has_element?(dana, "#join-form")
+    assert people(timur) == ["T You Host"]
+    enter(dana, "Dana")
+    assert people(timur) == ["T You Host", "D Dana"]
+  end
+
   test "an empty Nickname is refused under the line", %{conn: conn} do
     {:ok, code} = Rooms.create("guest:timur")
     {:ok, view, _html} = live(guest(conn, "dana"), ~p"/r/#{code}")

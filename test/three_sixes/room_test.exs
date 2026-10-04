@@ -27,6 +27,11 @@ defmodule ThreeSixes.RoomTest do
     assert Room.enter(room(), "guest:dana", "   \t ") == {:error, :blank}
   end
 
+  test "a Nickname that is not text is blank" do
+    assert Room.enter(room(), "guest:dana", nil) == {:error, :blank}
+    assert Room.enter(room(), "guest:dana", %{"a" => "b"}) == {:error, :blank}
+  end
+
   test "a Nickname is at most 16 characters, counted as the eye reads them" do
     assert {:ok, _} = Room.enter(room(), "guest:dana", String.duplicate("a", 16))
     assert Room.enter(room(), "guest:dana", String.duplicate("a", 17)) == {:error, :too_long}
@@ -48,6 +53,15 @@ defmodule ThreeSixes.RoomTest do
       |> enter!("guest:dana2", "dana 2")
 
     assert Room.enter(room, "guest:other", "DANA") == {:taken, "Dana", "Dana 3"}
+  end
+
+  test "a numbered Nickname that is taken gets the next number, not a second number" do
+    room =
+      room()
+      |> enter!("guest:dana", "Dana")
+      |> enter!("guest:dana2", "Dana 2")
+
+    assert Room.enter(room, "guest:other", "dana 2") == {:taken, "Dana 2", "Dana 3"}
   end
 
   test "a suggestion for a long Nickname cuts the name so the whole fits 16 characters" do

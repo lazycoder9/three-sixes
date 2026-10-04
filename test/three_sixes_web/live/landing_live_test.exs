@@ -53,12 +53,18 @@ defmodule ThreeSixesWeb.LandingLiveTest do
   end
 
   describe "Join with a code" do
-    test "fewer than four letters is refused under the tiles", %{conn: conn} do
+    test "fewer than four letters is refused above the tiles", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       view |> form("#join-code", %{code: ["k", "q", "x", ""]}) |> render_submit()
 
-      assert has_element?(view, "#join-code [role=alert]", "A Room code is four letters.")
+      assert has_element?(
+               view,
+               "#join-code legend + [role=alert]",
+               "A Room code is four letters."
+             )
+
+      assert has_element?(view, "#join-code [role=alert] + #code-tiles")
     end
 
     test "four letters, in any case, go to that Room", %{conn: conn} do

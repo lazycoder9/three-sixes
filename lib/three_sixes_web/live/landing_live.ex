@@ -64,6 +64,7 @@ defmodule ThreeSixesWeb.LandingLive do
               <form id="join-code" class={@code_error && "is-error"} phx-submit="join">
                 <fieldset>
                   <legend class="legend">Join with a code</legend>
+                  <p :if={@code_error} class="code-error" role="alert">{@code_error}</p>
                   <div id="code-tiles" class="tiles" phx-hook=".CodeTiles">
                     <.letter_tile_input name="code[]" aria-label="Room code, letter 1" />
                     <.letter_tile_input name="code[]" aria-label="Letter 2" />
@@ -72,26 +73,30 @@ defmodule ThreeSixesWeb.LandingLive do
                     <.block type="submit">Join</.block>
                   </div>
                 </fieldset>
-                <p :if={@code_error} class="code-error" role="alert">{@code_error}</p>
               </form>
               <script :type={Phoenix.LiveView.ColocatedHook} name=".CodeTiles">
                 export default {
                   mounted() {
                     const tiles = () => [...this.el.querySelectorAll("input")];
 
-                    this.el.addEventListener("input", (event) => {
+                    const place = (tile) => {
                       const cells = tiles();
-                      const i = cells.indexOf(event.target);
-                      const letters = event.target.value.replace(/[^a-z]/gi, "").toUpperCase();
+                      const i = cells.indexOf(tile);
+                      const letters = tile.value.replace(/[^a-z]/gi, "");
 
                       if (letters.length > 1) {
                         [...letters].slice(0, 4 - i).forEach((letter, k) => (cells[i + k].value = letter));
                         cells[Math.min(i + letters.length, 3)].focus();
                       } else {
-                        event.target.value = letters;
+                        if (tile.value !== letters) tile.value = letters;
                         if (letters && cells[i + 1]) cells[i + 1].focus();
                       }
+                    };
+
+                    this.el.addEventListener("input", (event) => {
+                      if (!event.isComposing) place(event.target);
                     });
+                    this.el.addEventListener("compositionend", (event) => place(event.target));
 
                     this.el.addEventListener("keydown", (event) => {
                       if (event.key !== "Backspace" || event.target.value) return;

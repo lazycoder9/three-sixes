@@ -65,8 +65,11 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, enter(socket, nickname)}
   end
 
-  def handle_event("join_as", _params, socket),
-    do: {:noreply, enter(socket, socket.assigns.suggestion)}
+  def handle_event("join_as", _params, %{assigns: %{suggestion: suggestion}} = socket)
+      when is_binary(suggestion),
+      do: {:noreply, enter(socket, suggestion)}
+
+  def handle_event("join_as", _params, socket), do: {:noreply, socket}
 
   def handle_event("edit", _params, socket) do
     {:noreply,
