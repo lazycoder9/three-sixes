@@ -62,7 +62,7 @@ defmodule ThreeSixesWeb.LandingLiveTest do
     assert has_element?(
              view,
              "#flash-error",
-             "Every Room is busy right now. Try again in a minute."
+             "Every Room is busy right now. Try again in a few minutes."
            )
 
     assert has_element?(view, "button", "Create a Room")

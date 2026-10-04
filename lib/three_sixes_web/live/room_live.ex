@@ -61,7 +61,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
       {:error, :busy} ->
         {:noreply,
-         put_flash(socket, :error, "Every Room is busy right now. Try again in a minute.")}
+         put_flash(socket, :error, "Every Room is busy right now. Try again in a few minutes.")}
     end
   end
 

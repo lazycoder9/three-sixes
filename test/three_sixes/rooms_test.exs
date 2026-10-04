@@ -115,6 +115,78 @@ defmodule ThreeSixes.RoomsTest do
     assert Process.info(Rooms.whereis(code), :monitors) == {:monitors, [process: self()]}
   end
 
+  test "a Room nobody has joined closes on its timeout" do
+    {:ok, code} = Rooms.create(@host)
+    room = Rooms.whereis(code)
+    ref = Process.monitor(room)
+
+    send(room, close_timeout(room))
+
+    assert_receive {:DOWN, ^ref, :process, ^room, :normal}
+    assert Rooms.join(code, @host) == {:error, :closed}
+  end
+
+  test "a Room with someone joined ignores the timeout" do
+    {:ok, code} = Rooms.create(@host)
+    room = Rooms.whereis(code)
+    timeout = close_timeout(room)
+    {:ok, _view} = Rooms.join(code, @host)
+
+    send(room, timeout)
+
+    assert {:ok, _view} = Rooms.join(code, @host)
+    assert Rooms.whereis(code) == room
+  end
+
+  test "after join, leave, rejoin and leave, only the last leave's timeout closes the Room" do
+    {:ok, code} = Rooms.create(@host)
+    room = Rooms.whereis(code)
+    ref = Process.monitor(room)
+
+    leave(join_from_another_process(code, "guest:dana"))
+    first_leave = close_timeout(room)
+    leave(join_from_another_process(code, "guest:dana"))
+    last_leave = close_timeout(room)
+
+    send(room, first_leave)
+    refute_receive {:DOWN, ^ref, :process, ^room, _reason}
+
+    send(room, last_leave)
+    assert_receive {:DOWN, ^ref, :process, ^room, :normal}
+  end
+
+  test "a join that arrives just behind the timeout finds the Room closed" do
+    {:ok, code} = Rooms.create(@host)
+    room = Rooms.whereis(code)
+    :ok = :sys.suspend(room)
+    send(room, close_timeout(room))
+
+    joining = Task.async(fn -> Rooms.join(code, @host) end)
+    wait_for_messages(room, 2)
+    :ok = :sys.resume(room)
+
+    assert Task.await(joining) == {:error, :closed}
+  end
+
+  defp wait_for_messages(pid, count) do
+    unless Process.info(pid, :message_queue_len) == {:message_queue_len, count} do
+      Process.sleep(1)
+      wait_for_messages(pid, count)
+    end
+  end
+
+  defp close_timeout(room) do
+    %{close_timer: timer} = :sys.get_state(room)
+    assert is_reference(timer)
+    {:timeout, timer, :close}
+  end
+
+  defp leave(pid) do
+    ref = Process.monitor(pid)
+    Process.exit(pid, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+  end
+
   defp fill_every_room do
     %{active: open} = DynamicSupervisor.count_children(ThreeSixes.Rooms.Supervisor)
     max_rooms = Application.fetch_env!(:three_sixes, :max_rooms)

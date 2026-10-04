@@ -40,6 +40,6 @@ defmodule ThreeSixes.Rooms do
   defp call(code, request) do
     GenServer.call(Server.via(code), request)
   catch
-    :exit, {:noproc, _} -> {:error, :closed}
+    :exit, {reason, _} when reason in [:noproc, :normal] -> {:error, :closed}
   end
 end
