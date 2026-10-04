@@ -1,3 +1,25 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+/tmp/
+three_sixes-*.tar
+/priv/static/assets/
+/priv/static/cache_manifest.json
+npm-debug.log
+/assets/node_modules/
+
+# Bun is the package manager; an npm lockfile here is always an accident.
+package-lock.json
+
+*.db
+*.db-*
+/priv/plts/
+.DS_Store
+
 # Working notes: plans, handoffs, review rounds (docs/ holds the durable documents).
 notes
 

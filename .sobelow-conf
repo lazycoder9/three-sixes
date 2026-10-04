@@ -1,0 +1,15 @@
+# ignore Config.HTTPS: TLS ends at the deploy proxy, which redirects HTTP to HTTPS; in-app
+# force_ssl would break the proxy's plain-HTTP probe of /health.
+[
+  verbose: true,
+  private: true,
+  skip: true,
+  router: nil,
+  exit: "Low",
+  format: "txt",
+  out: nil,
+  threshold: :low,
+  ignore: ["Config.HTTPS"],
+  ignore_files: [],
+  version: false
+]
