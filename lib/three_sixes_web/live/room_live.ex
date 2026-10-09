@@ -3,6 +3,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   import ThreeSixesWeb.TableComponents
 
+  alias ThreeSixes.Accounts
   alias ThreeSixes.Game
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
@@ -39,12 +40,17 @@ defmodule ThreeSixesWeb.RoomLive do
 
     if connected?(socket) do
       socket
-      |> assign(nickname: get_connect_params(socket)["nickname"] || "")
+      |> assign(nickname: first_nickname(socket))
       |> join()
     else
       assign(socket, closed?: Rooms.whereis(code) == nil)
     end
   end
+
+  defp first_nickname(%{assigns: %{account: %{nickname: nickname}}}) when is_binary(nickname),
+    do: nickname
+
+  defp first_nickname(socket), do: get_connect_params(socket)["nickname"] || ""
 
   defp join(socket) do
     %{code: code, person_id: person_id} = socket.assigns
@@ -129,7 +135,7 @@ defmodule ThreeSixesWeb.RoomLive do
       {:ok, view} ->
         socket
         |> assign(view: view, suggestion: nil, error: nil)
-        |> push_event("remember-nickname", %{nickname: socket.assigns.wanted})
+        |> remember_nickname()
 
       {:taken, held, suggestion} ->
         assign(socket, held: held, suggestion: suggestion, error: nil)
@@ -144,6 +150,23 @@ defmodule ThreeSixesWeb.RoomLive do
         assign(socket, suggestion: nil, error: "This Room is full.")
     end
   end
+
+  defp remember_nickname(%{assigns: %{account: nil, wanted: wanted}} = socket),
+    do: push_event(socket, "remember-nickname", %{nickname: wanted})
+
+  defp remember_nickname(%{assigns: %{account: %{nickname: wanted}}} = socket)
+       when wanted == socket.assigns.wanted,
+       do: socket
+
+  defp remember_nickname(%{assigns: %{account: account, wanted: wanted}} = socket) do
+    case Accounts.save_nickname(account, wanted) do
+      {:ok, account} -> assign(socket, account: account)
+      {:error, _changeset} -> socket
+    end
+  end
+
+  defp from_account?(%{nickname: nickname}, nickname), do: true
+  defp from_account?(_account, _nickname), do: false
 
   defp whole(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -193,7 +216,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} account={@account} return_to={nil}>
       <.closed :if={@closed?} />
       <section :if={!@closed?} class="screen screen--narrow">
         <.notebook_page>
@@ -207,6 +230,7 @@ defmodule ThreeSixesWeb.RoomLive do
             :if={@view && !@suggestion}
             view={@view}
             nickname={@nickname}
+            from_account?={from_account?(@account, @nickname)}
             edited?={@edited?}
             error={@error}
           />
@@ -238,6 +262,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   attr :view, :map, required: true
   attr :nickname, :string, required: true
+  attr :from_account?, :boolean, required: true
   attr :edited?, :boolean, required: true
   attr :error, :string, required: true
 
@@ -259,6 +284,7 @@ defmodule ThreeSixesWeb.RoomLive do
         maxlength="16"
         autocomplete="nickname"
         placeholder="write it here"
+        hint={@from_account? && "Filled in from your Account."}
         error={@error}
         phx-mounted={@edited? && JS.focus()}
       />

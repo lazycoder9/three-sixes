@@ -156,12 +156,25 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--spacing-3);
     padding: var(--spacing-4) clamp(16px, 4vw, 44px);
+  }
+  .top .logo {
+    flex: none;
   }
   .top nav {
     display: flex;
     align-items: center;
     gap: var(--spacing-3);
+    min-width: 0;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .top nav > * {
+    flex: none;
+  }
+  .top nav a {
+    padding: 10px 4px;
   }
   /* Props such as the pencil may hang off the table's edge, but never widen the page. */
   .table-main {

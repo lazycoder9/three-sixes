@@ -1,19 +1,23 @@
 defmodule ThreeSixesWeb.Layouts do
   use ThreeSixesWeb, :html
 
+  alias ThreeSixesWeb.AuthController
+
   embed_templates "layouts/*"
 
   @external_resource theme_script_path = Path.expand("../../../assets/js/theme_boot.js", __DIR__)
   @theme_script theme_script_path |> File.read!() |> String.trim_trailing()
 
   attr :flash, :map, required: true
+  attr :account, :any, required: true, doc: "the signed-in `ThreeSixes.Accounts.Account`, or nil"
+  attr :return_to, :any, required: true, doc: "where Sign in comes back to; nil hides Sign in"
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
     <header class="top">
       <.logo />
-      <nav aria-label="Page settings">
+      <nav aria-label="Account and settings">
         <button
           id="theme-switch"
           type="button"
@@ -26,6 +30,16 @@ defmodule ThreeSixesWeb.Layouts do
             <path d="M10 2a8 8 0 0 1 0 16z" fill="currentColor" />
           </svg>
         </button>
+        <.link
+          :if={!@account && @return_to && AuthController.sign_in_available?()}
+          navigate={~p"/signin?#{[return_to: @return_to]}"}
+        >
+          Sign in
+        </.link>
+        <.link :if={@account} navigate={~p"/account"} class="account-link">
+          <.token initial={@account |> account_name() |> String.first() |> String.upcase()} />
+          <span>{account_name(@account)}</span>
+        </.link>
       </nav>
     </header>
 
@@ -36,6 +50,9 @@ defmodule ThreeSixesWeb.Layouts do
     <.flash_group flash={@flash} />
     """
   end
+
+  @spec account_name(ThreeSixes.Accounts.Account.t()) :: String.t()
+  def account_name(account), do: account.nickname || account.name || account.email
 
   attr :id, :string, required: true
   attr :code, :string, required: true

@@ -5,6 +5,11 @@
 .screen--narrow > .paper {
   transform: rotate(-0.8deg);
 }
+.screen--narrow > .sticky {
+  max-width: 440px;
+  margin: 0 auto;
+  transform: rotate(1.2deg);
+}
 
 .room-code {
   margin: 10px 0 6px;

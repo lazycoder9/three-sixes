@@ -1,0 +1,44 @@
+.account-link {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding-block: 4px;
+  text-decoration: none;
+}
+.account-link span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev {
+  margin-top: var(--spacing-rule);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
+  border: 2px dashed rgba(55, 56, 60, 0.5);
+  display: grid;
+  gap: var(--spacing-2);
+  justify-items: start;
+}
+.dev .write-on {
+  justify-self: stretch;
+}
+.dev .hl {
+  background: var(--color-white);
+}
+.dev .block {
+  min-height: 42px;
+  font-size: 14px;
+}
+
+.account .headline {
+  margin: var(--spacing-4) 0 var(--spacing-1);
+}
+.account .headline,
+.account .lede {
+  overflow-wrap: anywhere;
+}
+.account__foot {
+  margin-top: var(--spacing-6);
+}

@@ -9,7 +9,7 @@ defmodule ThreeSixesWeb.KitLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} account={nil} return_to={nil}>
       <div class="kit-panels">
         <section
           :for={theme <- ~w(light dark)}

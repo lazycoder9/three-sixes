@@ -65,7 +65,7 @@ defmodule ThreeSixesWeb.LandingLive do
     assigns = assign(assigns, :tumbles_in_from, @tumbles_in_from)
 
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} account={@account} return_to={~p"/"}>
       <section class="screen">
         <div class="hero">
           <div>

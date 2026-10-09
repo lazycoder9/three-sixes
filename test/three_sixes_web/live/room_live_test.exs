@@ -84,6 +84,18 @@ defmodule ThreeSixesWeb.RoomLiveTest do
            )
   end
 
+  test "the Room's creator and a joining Guest see no Sign in on the join step", %{conn: conn} do
+    {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
+    {:ok, timur, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
+    {:ok, dana, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
+
+    for view <- [timur, dana] do
+      assert has_element?(view, "button", "Join Room")
+      assert has_element?(view, "header.top nav #theme-switch")
+      refute has_element?(view, "header.top nav a", "Sign in")
+    end
+  end
+
   describe "a Nickname already in the Room, regardless of case" do
     setup %{conn: conn} do
       {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
@@ -199,6 +211,44 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     end
   end
 
+  describe "an Account" do
+    test "finds its saved Nickname on the line, and a changed one is saved for the next Room",
+         %{conn: conn} do
+      conn = conn |> guest("dana") |> sign_in("Dana")
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
+
+      {:ok, view, _html} =
+        conn |> put_connect_params(%{"nickname" => "Guest Dana"}) |> live(~p"/r/#{code}")
+
+      assert has_element?(view, "#nickname[value='Dana']")
+      assert has_element?(view, "#join-form .hint", "Filled in from your Account.")
+
+      enter(view, " Dee ")
+      assert people(view) == ["D You"]
+      refute_push_event(view, "remember-nickname", _payload)
+
+      {:ok, next_code} = Rooms.create("guest:timur", "127.0.0.1")
+      {:ok, next, _html} = live(conn, ~p"/r/#{next_code}")
+
+      assert has_element?(next, "#nickname[value='Dee']")
+      assert has_element?(next, "#join-form .hint", "Filled in from your Account.")
+    end
+
+    test "signed in on two devices is one person in the Room", %{conn: conn} do
+      phone = conn |> guest("phone") |> sign_in("Dana")
+      laptop = build_conn() |> guest("laptop") |> sign_in("Dana")
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
+
+      {:ok, on_phone, _html} = live(phone, ~p"/r/#{code}")
+      enter(on_phone, "Dana")
+      {:ok, on_laptop, _html} = live(laptop, ~p"/r/#{code}")
+
+      refute has_element?(on_laptop, "#join-form")
+      assert people(on_laptop) == ["D You"]
+      assert people(on_phone) == ["D You"]
+    end
+  end
+
   test "a Room that stops while someone is in it shows them the closed screen", %{conn: conn} do
     {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
     {:ok, view, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
@@ -240,6 +290,8 @@ defmodule ThreeSixesWeb.RoomLiveTest do
     |> LazyHTML.query("#people li")
     |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
   end
+
+  defp sign_in(conn, name), do: conn |> post(~p"/auth/dev", %{name: name}) |> recycle()
 
   defp guest(conn, guest_id), do: init_test_session(conn, %{"guest_id" => guest_id})
 
