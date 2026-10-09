@@ -33,7 +33,8 @@ defmodule ThreeSixesWeb.RoomLive do
         held: nil,
         suggestion: nil,
         error: nil,
-        step: 0
+        step: 0,
+        rolled: nil
       )
 
     if connected?(socket) do
@@ -165,8 +166,9 @@ defmodule ThreeSixesWeb.RoomLive do
 
   @impl true
   def handle_info({:room_view, view}, socket) do
-    step = if bid_key(view) == bid_key(socket.assigns.view), do: socket.assigns.step, else: 0
-    {:noreply, assign(socket, view: view, step: step)}
+    %{view: old, step: step, rolled: rolled} = socket.assigns
+    step = if bid_key(view) == bid_key(old), do: step, else: 0
+    {:noreply, assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{assigns: %{room_ref: ref}} = socket),
@@ -176,7 +178,7 @@ defmodule ThreeSixesWeb.RoomLive do
   def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do
     ~H"""
     <Layouts.room flash={@flash} code={@view.code}>
-      <.game_table game={@view.game} step={@step} />
+      <.game_table game={@view.game} step={@step} rolled={@rolled} />
     </Layouts.room>
     """
   end
@@ -343,6 +345,14 @@ defmodule ThreeSixesWeb.RoomLive do
     {others, [last]} = people |> Enum.map(& &1.nickname) |> Enum.split(-1)
     "#{Enum.join(others, ", ")} and #{last} are in this Room."
   end
+
+  defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled
+
+  defp rolled(%{game: %{round: round}}, %{game: %{my_dice: [_ | _] = dice}}, _rolled),
+    do: {round, length(dice)}
+
+  defp rolled(%{game: %{round: round}}, _old, _rolled), do: {round, 0}
+  defp rolled(_view, _old, _rolled), do: nil
 
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
   defp bid_key(_view), do: nil

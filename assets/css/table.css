@@ -412,7 +412,6 @@
   .game-table__scrap {
     width: min(48%, 190px);
     padding: 10px 8px 14px;
-    font-size: 17px;
   }
   .game-table__scrap .bidn {
     --b: 40px;

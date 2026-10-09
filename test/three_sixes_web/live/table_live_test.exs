@@ -75,6 +75,27 @@ defmodule ThreeSixesWeb.TableLiveTest do
       refute has_element?(dana, ".seat__dice .die:not(.is-down)")
     end
 
+    test "your dice roll in at Start and at a new Round, and lie still after a reload" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[3], [5]])
+
+      assert count(timur, "#my-page .cube.cube--tumble-in") == 1
+      assert count(dana, "#my-page .cube.cube--tumble-in") == 1
+      assert count(visit(code, "timur"), "#my-page .cube--tumble-in") == 0
+
+      press(timur, "Bid one five")
+      check(dana)
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+      Scripted.script([[4], [1, 6]])
+      reveal(code, {:next_round, 1})
+
+      assert count(timur, "#my-page .cube--tumble-in") == 0
+      assert count(dana, "#my-page .cube") == 2
+      assert count(dana, "#my-page .slot:nth-child(2) .cube.cube--tumble-in") == 1
+      assert count(dana, "#my-page .cube--tumble-in") == 1
+      assert count(visit(code, "dana"), "#my-page .cube--tumble-in") == 0
+    end
+
     test "a reload mid-Round shows the same dice" do
       %{timur: timur, code: code} = table(~w(Timur Dana))
       start(timur, [[6], [3]])
