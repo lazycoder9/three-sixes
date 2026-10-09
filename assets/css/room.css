@@ -162,14 +162,12 @@
 .people__name small {
   display: block;
   color: var(--color-graphite-faint);
-  font-size: 16px;
+  font: 500 16px/1.1 var(--font-ui);
 }
 .tick {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  margin-top: var(--spacing-rule);
-  min-height: var(--spacing-rule);
   cursor: pointer;
 }
 .tick input {
@@ -180,7 +178,7 @@
   width: 24px;
   height: 24px;
   margin: 0;
-  border: 2.5px solid var(--color-graphite);
+  border: 2.5px solid currentColor;
   border-radius: 5px 3px 6px 4px;
   cursor: pointer;
 }
@@ -346,7 +344,7 @@
 }
 .spec__list small {
   color: var(--color-ink-dim);
-  font: 400 14px/1 var(--font-hand);
+  font: 500 14px/1 var(--font-ui);
 }
 
 .host-tag {

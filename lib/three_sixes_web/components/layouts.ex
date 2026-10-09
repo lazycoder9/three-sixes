@@ -108,7 +108,6 @@ defmodule ThreeSixesWeb.Layouts do
           id="menu-sit-out"
           phx-click="sit_out"
           phx-value-sitting_out={to_string(!@sitting_out?)}
-          aria-pressed={to_string(@sitting_out?)}
         >
           {if @sitting_out?, do: "Sitting out the next Game", else: "Sit out the next Game"}
         </.block>

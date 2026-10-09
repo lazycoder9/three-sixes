@@ -269,8 +269,8 @@ defmodule ThreeSixes.Room do
   defp spectators(%{game: nil}, _viewer), do: []
 
   defp spectators(%{game: game} = room, viewer) do
-    for %{id: id} <- room.members, id not in game.seats or out?(game, id) do
-      %{person: person_ref(room, id, viewer), out?: out?(game, id)}
+    for %{id: id} <- room.members, id not in game.seats or id in game.out do
+      %{person: person_ref(room, id, viewer), out?: id in game.out}
     end
   end
 

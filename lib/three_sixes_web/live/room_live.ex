@@ -200,6 +200,7 @@ defmodule ThreeSixesWeb.RoomLive do
   def handle_info({:room_view, view}, socket) do
     %{view: old, step: step, rolled: rolled} = socket.assigns
     step = if bid_key(view) == bid_key(old), do: step, else: 0
+    socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
     {:noreply, assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))}
   end
 
@@ -356,13 +357,6 @@ defmodule ThreeSixesWeb.RoomLive do
               <.tally count={person.tally} />
             </li>
           </ul>
-          <form id="sit-out-form" phx-change="sit_out">
-            <label class="tick">
-              <input type="hidden" name="sitting_out" value="false" />
-              <input type="checkbox" name="sitting_out" value="true" checked={@view.sitting_out?} />
-              Sit out the next Game
-            </label>
-          </form>
         </.notebook_page>
       </div>
       <div class="lobby__side">
@@ -373,6 +367,13 @@ defmodule ThreeSixesWeb.RoomLive do
           </div>
         </div>
         <Layouts.copy_room_link id="lobby-copied" code={@view.code} />
+        <form id="sit-out-form" phx-change="sit_out" phx-auto-recover="ignore">
+          <label class="tick">
+            <input type="hidden" name="sitting_out" value="false" />
+            <input type="checkbox" name="sitting_out" value="true" checked={@view.sitting_out?} />
+            Sit out the next Game
+          </label>
+        </form>
         <div :if={@view.host?} class="lobby__start">
           <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
             {if @view.over, do: "Next Game", else: "Start Game"}

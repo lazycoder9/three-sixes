@@ -300,10 +300,20 @@ defmodule ThreeSixes.RoomTest do
                List.last(Room.view_for(room, "guest:aziz").spectators).person
     end
 
-    test "take the one Knocked out only from the Round after, as their seat turns out" do
-      {:ok, room} = Room.reveal(dana_loses(%{"guest:dana" => 5}, [], bek_sits_out()), 1, 3)
+    test "take the one Knocked out from the Penalty die on, while their seat keeps its dice" do
+      {:ok, room} = Room.reveal(dana_loses(%{"guest:dana" => 5}, [], bek_sits_out()), 1, 2)
 
       assert spectators(room, "guest:timur") == [{"Bek", false}]
+
+      {:ok, room} = Room.reveal(room, 1, 3)
+
+      assert spectators(room, "guest:timur") == [{"Dana", true}, {"Bek", false}]
+
+      assert %{out?: false, dice: 6} =
+               Enum.find(
+                 Room.view_for(room, "guest:timur").game.seats,
+                 &(&1.person.nickname == "Dana")
+               )
     end
 
     test "are none with no Game on" do

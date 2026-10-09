@@ -437,7 +437,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       tick_sit_out(malika, true)
 
-      assert has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
+      sit_out = "#lobby .lobby__side #sit-out-form[phx-auto-recover=ignore]"
+      assert has_element?(malika, sit_out <> " input[type=checkbox][checked]")
       refute has_element?(dana, "#sit-out-form input[type=checkbox][checked]")
       assert text(dana, "#person-3 .people__name") == "Malika sitting out"
       assert text(malika, "#person-3 .people__name") == "You sitting out"
@@ -469,23 +470,24 @@ defmodule ThreeSixesWeb.TableLiveTest do
     test "the Room menu item toggles sitting out, and its words say which" do
       %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
 
-      assert text(malika, "#menu-sit-out[aria-pressed=false]") == "Sit out the next Game"
+      assert text(malika, "#menu-sit-out") == "Sit out the next Game"
+      refute has_element?(malika, "#menu-sit-out[aria-pressed]")
 
       malika |> element("#menu-sit-out") |> render_click()
 
-      assert text(malika, "#menu-sit-out[aria-pressed=true]") == "Sitting out the next Game"
+      assert text(malika, "#menu-sit-out") == "Sitting out the next Game"
       assert has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
       assert text(dana, "#person-3 .people__name") == "Malika sitting out"
 
       malika |> element("#menu-sit-out") |> render_click()
 
-      assert text(malika, "#menu-sit-out[aria-pressed=false]") == "Sit out the next Game"
+      assert text(malika, "#menu-sit-out") == "Sit out the next Game"
       assert text(dana, "#person-3 .people__name") == "Malika"
 
       start(timur, [[2], [5], [4]])
       dana |> element("#menu-sit-out") |> render_click()
 
-      assert text(dana, "#menu-sit-out[aria-pressed=true]") == "Sitting out the next Game"
+      assert text(dana, "#menu-sit-out") == "Sitting out the next Game"
       assert faces(dana) == [5]
     end
 
@@ -503,15 +505,19 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
   describe "the Spectators" do
     test "a chip under the Room code counts them, and opens into a list that stays open" do
-      %{dana: dana, timur: timur, code: code} = players = table(~w(Timur Dana Malika))
+      %{dana: dana, timur: timur, malika: malika, code: code} =
+        players = table(~w(Timur Dana Malika))
+
       timur_takes_his_sixth_die(players)
-
-      refute has_element?(dana, "#spectators-chip")
-
-      next_round(code, 5, [[2], [3]])
 
       assert text(dana, "#spectators-chip[aria-expanded=false]") == "1 Spectator"
       refute has_element?(dana, "#spectators:not([hidden])")
+
+      malika |> element("#spectators-chip") |> render_click()
+
+      assert items(malika, "#spectators:not([hidden]) li") == ["T Timur out"]
+
+      next_round(code, 5, [[2], [3]])
 
       aziz = visit(code, "aziz")
       enter(aziz, "Aziz")
@@ -538,6 +544,19 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       refute has_element?(dana, "#spectators:not([hidden])")
       assert has_element?(dana, "#spectators-chip[aria-expanded=false]")
+    end
+
+    test "the list opened in one Game is closed when the Next Game starts" do
+      %{dana: dana, timur: timur, malika: malika} = players = table(~w(Timur Dana Malika))
+      timur_takes_his_sixth_die(players)
+      dana |> element("#spectators-chip") |> render_click()
+      play_on_to_game_over(players)
+
+      tick_sit_out(malika, true)
+      next_game(timur, [[1], [2]])
+
+      assert text(dana, "#spectators-chip[aria-expanded=false]") == "1 Spectator"
+      refute has_element?(dana, "#spectators:not([hidden])")
     end
 
     test "a late arrival's HTML contains no hidden dice" do
@@ -594,8 +613,12 @@ defmodule ThreeSixesWeb.TableLiveTest do
     bluff_caught(code, timur, dana, 5)
   end
 
-  defp play_to_game_over(%{dana: dana, malika: malika, code: code} = players) do
+  defp play_to_game_over(players) do
     timur_takes_his_sixth_die(players)
+    play_on_to_game_over(players)
+  end
+
+  defp play_on_to_game_over(%{dana: dana, malika: malika, code: code}) do
     next_round(code, 5, [[2], [3]])
 
     for round <- 6..9 do
