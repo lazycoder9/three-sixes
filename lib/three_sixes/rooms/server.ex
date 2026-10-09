@@ -1,15 +1,17 @@
 defmodule ThreeSixes.Rooms.Server do
   use GenServer, restart: :temporary
 
+  alias ThreeSixes.Dice
+  alias ThreeSixes.Game
   alias ThreeSixes.Room
 
   @close_after :timer.minutes(15)
   @open_per_guest 5
   @open_per_address 20
 
-  @spec start_link({String.t(), Room.person_id(), String.t()}) :: GenServer.on_start()
-  def start_link({code, host_id, address}) do
-    GenServer.start_link(__MODULE__, {code, host_id, address},
+  @spec start_link({String.t(), Room.person_id(), String.t(), [pid()]}) :: GenServer.on_start()
+  def start_link({code, host_id, address, callers}) do
+    GenServer.start_link(__MODULE__, {code, host_id, address, callers},
       name: {:via, Registry, {ThreeSixes.Rooms.Registry, code, {host_id, address}}}
     )
   end
@@ -18,7 +20,9 @@ defmodule ThreeSixes.Rooms.Server do
   def via(code), do: {:via, Registry, {ThreeSixes.Rooms.Registry, code}}
 
   @impl true
-  def init({code, host_id, address}) do
+  def init({code, host_id, address, callers}) do
+    Process.put(:"$callers", callers)
+
     if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
       {:stop, :too_many}
     else
@@ -40,9 +44,36 @@ defmodule ThreeSixes.Rooms.Server do
         {:reply, {:ok, Room.view_for(room, person_id)}, state}
 
       {:ok, room} ->
-        state = %{state | room: room}
-        send_views(state)
-        {:reply, {:ok, Room.view_for(room, person_id)}, state}
+        {:reply, {:ok, Room.view_for(room, person_id)}, changed(state, room)}
+
+      refused ->
+        {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:start_game, person_id}, _from, state) do
+    seats = Dice.shuffle(Room.dealt_in(state.room))
+
+    case Room.start_game(state.room, person_id, seats) do
+      {:ok, room} -> {:reply, :ok, changed(state, roll(room))}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:raise, person_id, count, face}, _from, state) do
+    case Room.raise(state.room, person_id, count, face) do
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:check, person_id}, _from, state) do
+    case Room.check(state.room, person_id) do
+      {:ok, room} ->
+        for {delay, message} <- Room.reveal_schedule(room),
+            do: Process.send_after(self(), message, delay)
+
+        {:reply, :ok, changed(state, room)}
 
       refused ->
         {:reply, refused, state}
@@ -50,6 +81,20 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   @impl true
+  def handle_info({:reveal, round, step}, state) do
+    case Room.reveal(state.room, round, step) do
+      {:ok, room} when room != state.room -> {:noreply, changed(state, room)}
+      _stale_or_reached -> {:noreply, state}
+    end
+  end
+
+  def handle_info({:next_round, round}, state) do
+    case Room.reveal(state.room, round, 3) do
+      {:ok, room} -> {:noreply, changed(state, roll(room))}
+      :stale -> {:noreply, state}
+    end
+  end
+
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     {:noreply, schedule_close(%{state | joined: Map.delete(state.joined, pid)})}
   end
@@ -66,6 +111,17 @@ defmodule ThreeSixes.Rooms.Server do
 
   defp open(creator),
     do: Registry.count_select(ThreeSixes.Rooms.Registry, [{{:_, :_, creator}, [], [true]}])
+
+  defp roll(room) do
+    dice = Map.new(Game.to_roll(room.game), fn {seat, count} -> {seat, Dice.roll(count)} end)
+    Room.start_round(room, dice)
+  end
+
+  defp changed(state, room) do
+    state = %{state | room: room}
+    send_views(state)
+    state
+  end
 
   defp send_views(state) do
     for {pid, person_id} <- state.joined do

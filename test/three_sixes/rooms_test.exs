@@ -1,6 +1,7 @@
 defmodule ThreeSixes.RoomsTest do
   use ExUnit.Case, async: false
 
+  alias ThreeSixes.Dice.Scripted
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
   alias ThreeSixes.Rooms.Server
@@ -23,6 +24,25 @@ defmodule ThreeSixes.RoomsTest do
 
     assert_receive {:joined, ^pid, {:ok, _view}}
     pid
+  end
+
+  defp table do
+    {:ok, code} = Rooms.create(@host, @address)
+    {:ok, _view} = Rooms.join(code, @host)
+    {:ok, _view} = Rooms.enter(code, @host, "Malika")
+    {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+    dana = join_from_another_process(code, "guest:dana")
+    flush_views()
+    {code, dana}
+  end
+
+  defp flush_views do
+    receive do
+      {:room_view, _view} -> flush_views()
+      {:forwarded, _pid, {:room_view, _view}} -> flush_views()
+    after
+      0 -> :ok
+    end
   end
 
   defp forward(test) do
@@ -54,7 +74,7 @@ defmodule ThreeSixes.RoomsTest do
     for code <- taken do
       DynamicSupervisor.start_child(
         ThreeSixes.Rooms.Supervisor,
-        {Server, {code, "guest:" <> code, code}}
+        {Server, {code, "guest:" <> code, code, []}}
       )
 
       open_until_exit(code)
@@ -192,6 +212,152 @@ defmodule ThreeSixes.RoomsTest do
     :ok = :sys.resume(room)
 
     assert Task.await(joining) == {:error, :closed}
+  end
+
+  describe "a Game" do
+    test "the Host starts it, the dice roll in seat order, and everyone gets their view" do
+      {code, dana} = table()
+      Scripted.script([[3], [5]])
+
+      assert Rooms.start_game(code, @host) == :ok
+
+      assert_receive {:room_view,
+                      %{game: %{round: 1, my_dice: [3], my_turn?: true, dice_on_table: 2}}}
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{round: 1, my_dice: [5], my_turn?: false}}}}
+    end
+  end
+
+  defp started do
+    {code, dana} = table()
+    start(code, dana)
+    {code, dana}
+  end
+
+  defp start(code, dana) do
+    Scripted.script([[6], [2]])
+    :ok = Rooms.start_game(code, @host)
+    assert_receive {:room_view, %{game: %{round: 1}}}
+    assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 1}}}}
+  end
+
+  describe "a Round" do
+    test "runs from a Raise and a Check through the reveal to the next Round, opened by the loser" do
+      {code, dana} = started()
+      room = Rooms.whereis(code)
+
+      assert Rooms.raise(code, @host, 2, 6) == :ok
+      assert_receive {:room_view, %{game: %{bid: %{count: 2, face: 6}, my_turn?: false}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{my_turn?: true}}}}
+
+      assert Rooms.check(code, "guest:dana") == :ok
+      assert_receive {:room_view, %{game: %{reveal: %{step: 0}}}}
+
+      send(room, {:reveal, 1, 1})
+      assert_receive {:room_view, %{game: %{reveal: %{step: 1}, seats: [_, %{faces: [2]}]}}}
+
+      send(room, {:reveal, 1, 2})
+      assert_receive {:room_view, %{game: %{reveal: %{step: 2, count: 1, stood?: false}}}}
+
+      send(room, {:reveal, 1, 3})
+
+      assert_receive {:room_view,
+                      %{game: %{reveal: %{step: 3, loser: %{me?: true}}, dice_on_table: 3}}}
+
+      Scripted.script([[1, 4], [5]])
+      send(room, {:next_round, 1})
+
+      assert_receive {:room_view,
+                      %{game: %{round: 2, my_dice: [1, 4], my_turn?: true, reveal: nil}}}
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{round: 2, my_dice: [5], dice_on_table: 3}}}}
+    end
+  end
+
+  describe "stale and refused" do
+    test "a reveal or next-round message for another Round, or none running, changes nothing" do
+      {code, _dana} = started()
+      room = Rooms.whereis(code)
+
+      assert_ignored(room, [{:reveal, 1, 1}, {:next_round, 1}])
+
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      Scripted.script([[1], [5, 5]])
+      send(room, {:next_round, 1})
+      flush_after(room)
+
+      assert_ignored(room, [{:reveal, 1, 3}, {:next_round, 1}])
+
+      :ok = Rooms.raise(code, "guest:dana", 1, 5)
+      :ok = Rooms.check(code, @host)
+      flush_after(room)
+
+      assert_ignored(room, [{:reveal, 1, 3}, {:next_round, 1}, {:reveal, 3, 3}])
+
+      assert %{round: 2, reveal: %{step: 0}, counts: %{"guest:dana" => 2, @host => 1}} =
+               :sys.get_state(room).room.game
+    end
+
+    test "a reveal step already reached sends nothing" do
+      {code, _dana} = started()
+      room = Rooms.whereis(code)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 2})
+      flush_after(room)
+
+      assert_ignored(room, [{:reveal, 1, 1}, {:reveal, 1, 2}])
+    end
+
+    test "a refused start, Raise or Check replies an error and sends no view" do
+      {code, dana} = table()
+
+      assert Rooms.raise(code, @host, 1, 6) == {:error, :not_bidding}
+      assert Rooms.check(code, @host) == {:error, :not_bidding}
+      assert Rooms.start_game(code, "guest:dana") == {:error, :not_host}
+      refute_receive {:room_view, _view}
+
+      start(code, dana)
+
+      assert Rooms.start_game(code, @host) == {:error, :playing}
+      assert Rooms.check(code, @host) == {:error, :no_bid}
+      assert Rooms.raise(code, "guest:dana", 1, 6) == {:error, :not_your_turn}
+      assert Rooms.raise(code, @host, 3, 6) == {:error, :illegal}
+      assert Rooms.raise(code, @host, "2", 6) == {:error, :illegal}
+      refute_receive {:room_view, _view}
+      refute_receive {:forwarded, _pid, {:room_view, _view}}
+    end
+
+    test "a Game needs two people" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+
+      assert Rooms.start_game(code, @host) == {:error, :too_few}
+    end
+
+    test "a closed Room is closed to a Game too" do
+      {:ok, code} = Rooms.create(@host, @address)
+      close(code)
+
+      assert Rooms.start_game(code, @host) == {:error, :closed}
+      assert Rooms.raise(code, @host, 1, 6) == {:error, :closed}
+      assert Rooms.check(code, @host) == {:error, :closed}
+    end
+  end
+
+  defp assert_ignored(room, messages) do
+    before = :sys.get_state(room)
+    for message <- messages, do: send(room, message)
+    assert :sys.get_state(room) == before
+    refute_receive {:room_view, _view}
+  end
+
+  defp flush_after(room) do
+    :sys.get_state(room)
+    flush_views()
   end
 
   defp wait_for_messages(pid, count) do

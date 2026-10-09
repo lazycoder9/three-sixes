@@ -1,10 +1,12 @@
 defmodule ThreeSixesWeb.RoomLive do
   use ThreeSixesWeb, :live_view
 
+  import ThreeSixesWeb.TableComponents
+
+  alias ThreeSixes.Game
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
 
-  @token_colors [:tomato, :teal, :ochre, :walnut]
   @fits_zoomed 16
 
   @impl true
@@ -30,7 +32,9 @@ defmodule ThreeSixesWeb.RoomLive do
         wanted: nil,
         held: nil,
         suggestion: nil,
-        error: nil
+        error: nil,
+        step: 0,
+        rolled: nil
       )
 
     if connected?(socket) do
@@ -89,6 +93,37 @@ defmodule ThreeSixesWeb.RoomLive do
      assign(socket, nickname: socket.assigns.suggestion, suggestion: nil, edited?: true)}
   end
 
+  def handle_event("start", _params, socket) do
+    Rooms.start_game(socket.assigns.code, socket.assigns.person_id)
+    {:noreply, socket}
+  end
+
+  def handle_event("raise", %{"count" => count, "face" => face}, socket) do
+    with {:ok, count} <- whole(count), {:ok, face} <- whole(face) do
+      Rooms.raise(socket.assigns.code, socket.assigns.person_id, count, face)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("check", _params, socket) do
+    Rooms.check(socket.assigns.code, socket.assigns.person_id)
+    {:noreply, socket}
+  end
+
+  def handle_event("step", %{"by" => by}, %{assigns: %{view: %{game: %{} = game}}} = socket) do
+    case whole(by) do
+      {:ok, by} when by in [-1, 1] ->
+        {:noreply, assign(socket, step: clamp_step(game, socket.assigns.step + by))}
+
+      _junk ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event(event, _params, socket) when event in ~w(raise step),
+    do: {:noreply, socket}
+
   defp enter(socket, nickname) do
     case Rooms.enter(socket.assigns.code, socket.assigns.person_id, nickname) do
       {:ok, view} ->
@@ -110,13 +145,44 @@ defmodule ThreeSixesWeb.RoomLive do
     end
   end
 
+  defp whole(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} -> {:ok, integer}
+      _junk -> :error
+    end
+  end
+
+  defp whole(_value), do: :error
+
+  defp clamp_step(game, step) do
+    case {more_dice(game, 0), more_dice(game, step)} do
+      {%{count: least}, %{count: count}} -> count - least
+      _none -> 0
+    end
+  end
+
+  defp more_dice(game, step),
+    do: game.bid |> Game.offers(game.dice_on_table, step) |> Enum.find(&Map.has_key?(&1, :step?))
+
   @impl true
-  def handle_info({:room_view, view}, socket), do: {:noreply, assign(socket, view: view)}
+  def handle_info({:room_view, view}, socket) do
+    %{view: old, step: step, rolled: rolled} = socket.assigns
+    step = if bid_key(view) == bid_key(old), do: step, else: 0
+    {:noreply, assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))}
+  end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{assigns: %{room_ref: ref}} = socket),
     do: {:noreply, join(socket)}
 
   @impl true
+  def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do
+    ~H"""
+    <Layouts.room flash={@flash} code={@view.code}>
+      <.game_table game={@view.game} step={@step} rolled={@rolled} />
+    </Layouts.room>
+    """
+  end
+
   def render(%{view: %{me: me}} = assigns) when is_binary(me) do
     ~H"""
     <Layouts.room flash={@flash} code={@view.code}>
@@ -181,11 +247,7 @@ defmodule ThreeSixesWeb.RoomLive do
     <p :if={!@view.host?} class="faint">you're joining Room</p>
     <.room_code code={@view.code} />
     <p class="who">
-      <.token
-        :for={person <- @view.people}
-        initial={initial(person.nickname)}
-        color={token_color(person.n)}
-      />
+      <.person_token :for={person <- @view.people} person={person} />
       <span>{who_is_in(@view)}</span>
     </p>
     <form id="join-form" phx-submit="enter">
@@ -242,7 +304,7 @@ defmodule ThreeSixesWeb.RoomLive do
         <h1>Who's playing</h1>
         <ul id="people" class="people">
           <li :for={person <- @view.people} id={"person-#{person.n}"}>
-            <.token initial={initial(person.nickname)} color={token_color(person.n)} />
+            <.person_token person={person} />
             <span class="people__name">
               {if person.me?, do: "You", else: person.nickname}
               <span :if={person.host?} class="host-tag">Host</span>
@@ -258,10 +320,22 @@ defmodule ThreeSixesWeb.RoomLive do
           </div>
         </div>
         <Layouts.copy_room_link id="lobby-copied" code={@view.code} />
+        <div :if={@view.host?} class="lobby__start">
+          <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
+            Start Game
+          </.block>
+          <p class="lobby__wait">{dealt_in(@view.dealt_in)}</p>
+        </div>
+        <p :if={!@view.host?} class="lobby__wait">
+          Waiting for {@view.host_nickname || "the Host"} to start the Game.
+        </p>
       </div>
     </div>
     """
   end
+
+  defp dealt_in(count) when count < 2, do: "A Game needs two people."
+  defp dealt_in(count), do: "#{count} people are dealt in. Seats are shuffled."
 
   defp who_is_in(%{people: [], host?: true}), do: "Nobody else is here yet. You're the Host."
   defp who_is_in(%{people: []}), do: "Nobody is here yet."
@@ -272,9 +346,16 @@ defmodule ThreeSixesWeb.RoomLive do
     "#{Enum.join(others, ", ")} and #{last} are in this Room."
   end
 
+  defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled
+
+  defp rolled(%{game: %{round: round}}, %{game: %{my_dice: [_ | _] = dice}}, _rolled),
+    do: {round, length(dice)}
+
+  defp rolled(%{game: %{round: round}}, _old, _rolled), do: {round, 0}
+  defp rolled(_view, _old, _rolled), do: nil
+
+  defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
+  defp bid_key(_view), do: nil
+
   defp crowded?(view), do: length(view.people) > @fits_zoomed
-
-  defp initial(nickname), do: nickname |> String.first() |> String.upcase()
-
-  defp token_color(n), do: Enum.at(@token_colors, rem(n - 1, length(@token_colors)))
 end

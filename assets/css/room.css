@@ -288,3 +288,16 @@
     --d: 24px;
   }
 }
+
+.lobby__start {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-2);
+}
+.lobby__start .block {
+  margin-bottom: 0;
+}
+.lobby__wait {
+  max-width: 22em;
+  font: 400 20px/1.3 var(--font-hand);
+}
