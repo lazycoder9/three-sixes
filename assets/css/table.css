@@ -413,6 +413,10 @@
     width: min(48%, 190px);
     padding: 10px 8px 14px;
   }
+  .game-table:has(.my-page) .game-table__scrap {
+    top: 48%;
+    transform: translate(-50%, 0) rotate(-1.2deg);
+  }
   .game-table__scrap .bidn {
     --b: 40px;
   }
