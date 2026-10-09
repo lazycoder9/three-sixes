@@ -34,6 +34,30 @@ defmodule ThreeSixesWeb.LandingLiveTest do
              ["Roll in secret", "Bid, or Raise", "Check"]
   end
 
+  test "the header offers Sign in, which comes back to the landing page", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, ~s(header.top nav a[href="/signin?return_to=%2F"]), "Sign in")
+  end
+
+  test "the header has no Sign in when neither Google nor the dev login is set up",
+       %{conn: conn} do
+    google = Application.fetch_env!(:ueberauth, Ueberauth.Strategy.Google.OAuth)
+    dev_login = Application.fetch_env!(:three_sixes, :dev_login_enabled)
+    Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, [])
+    Application.put_env(:three_sixes, :dev_login_enabled, false)
+
+    on_exit(fn ->
+      Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, google)
+      Application.put_env(:three_sixes, :dev_login_enabled, dev_login)
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "header.top nav #theme-switch")
+    refute has_element?(view, "header.top nav a", "Sign in")
+  end
+
   test "tapping the dice rolls them and reads the roll back as a Bid", %{conn: conn} do
     Scripted.script([[2, 5, 5], [6, 6, 6]])
     {:ok, view, _html} = live(conn, ~p"/")

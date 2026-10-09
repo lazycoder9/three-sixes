@@ -4,6 +4,28 @@ if System.get_env("PHX_SERVER") do
   config :three_sixes, ThreeSixesWeb.Endpoint, server: true
 end
 
+# Kamal passes unset secrets as empty strings.
+present = fn name ->
+  case String.trim(System.get_env(name, "")) do
+    "" -> nil
+    value -> value
+  end
+end
+
+google_client_id = present.("GOOGLE_CLIENT_ID")
+google_client_secret = present.("GOOGLE_CLIENT_SECRET")
+
+if google_client_id && google_client_secret do
+  config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+    client_id: google_client_id,
+    client_secret: google_client_secret
+end
+
+if dev_login_enabled = present.("DEV_LOGIN_ENABLED") do
+  config :three_sixes,
+    dev_login_enabled: String.downcase(dev_login_enabled) in ["1", "true", "on", "yes"]
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

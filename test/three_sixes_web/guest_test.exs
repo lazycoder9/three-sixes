@@ -15,32 +15,4 @@ defmodule ThreeSixesWeb.GuestTest do
     other = build_conn() |> get(~p"/") |> get_session("guest_id")
     assert one != other
   end
-
-  describe "the address a Room is counted against" do
-    test "is the right-most x-forwarded-for entry, the one the deploy proxy adds" do
-      socket =
-        mount_with(%{
-          x_headers: [{"x-forwarded-for", "10.0.0.1, 203.0.113.7"}],
-          peer_data: %{address: {172, 17, 0, 2}, port: 4000, ssl_cert: nil}
-        })
-
-      assert socket.assigns.client_address == "203.0.113.7"
-    end
-
-    test "is the peer address with no x-forwarded-for" do
-      socket =
-        mount_with(%{
-          x_headers: [{"x-request-id", "abc"}],
-          peer_data: %{address: {198, 51, 100, 4}, port: 4000, ssl_cert: nil}
-        })
-
-      assert socket.assigns.client_address == "198.51.100.4"
-    end
-  end
-
-  defp mount_with(connect_info) do
-    socket = %Phoenix.LiveView.Socket{private: %{connect_info: connect_info}}
-    {:cont, socket} = ThreeSixesWeb.Guest.on_mount(:default, %{}, %{"guest_id" => "g"}, socket)
-    socket
-  end
 end

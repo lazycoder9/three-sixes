@@ -27,7 +27,7 @@ config :three_sixes, ThreeSixesWeb.Endpoint,
     ]
   ]
 
-config :three_sixes, dev_routes: true
+config :three_sixes, dev_routes: true, dev_login_enabled: true
 
 config :logger, :default_formatter, format: "[$level] $message\n"
 

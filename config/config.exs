@@ -8,6 +8,13 @@ config :three_sixes, ThreeSixes.Repo, journal_mode: :wal
 
 config :three_sixes, :dice, ThreeSixes.Dice.Crypto
 
+config :three_sixes, dev_login_enabled: false
+
+config :ueberauth, Ueberauth,
+  providers: [
+    google: {Ueberauth.Strategy.Google, [default_scope: "email profile"]}
+  ]
+
 config :three_sixes, ThreeSixesWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,

@@ -29,10 +29,21 @@ defmodule ThreeSixesWeb.Router do
   scope "/", ThreeSixesWeb do
     pipe_through :browser
 
-    live_session :default, on_mount: [{ThreeSixesWeb.Guest, :default}] do
+    live_session :default, on_mount: [{ThreeSixesWeb.Person, :default}] do
       live "/", LandingLive
       live "/r/:code", RoomLive
+      live "/signin", SignInLive
+      live "/account", AccountLive
     end
+  end
+
+  scope "/auth", ThreeSixesWeb do
+    pipe_through :browser
+
+    get "/google", AuthController, :request
+    get "/google/callback", AuthController, :callback
+    post "/dev", AuthController, :dev_login
+    delete "/logout", AuthController, :logout
   end
 
   if Application.compile_env(:three_sixes, :dev_routes) do

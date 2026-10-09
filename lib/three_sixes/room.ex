@@ -75,6 +75,9 @@ defmodule ThreeSixes.Room do
   @spec new(String.t(), person_id()) :: t()
   def new(code, host_id), do: %__MODULE__{code: code, host_id: host_id}
 
+  @spec max_nickname_length() :: pos_integer()
+  def max_nickname_length, do: @max_nickname_length
+
   @spec enter(t(), person_id(), String.t()) ::
           {:ok, t()}
           | {:taken, held :: String.t(), suggestion :: String.t()}

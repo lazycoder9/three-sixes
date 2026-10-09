@@ -3,6 +3,7 @@
 @import "./landing.css";
 @import "./room.css";
 @import "./table.css";
+@import "./account.css";
 @import "./kit.css";
 @source "../css";
 @source "../js";
