@@ -412,7 +412,6 @@
   .game-table__ring {
     min-height: 390px;
   }
-  /* Here the top seat's Bid chip sits right under the Spectator chip, so it moves down a line. */
   .roombar:has(.spec) ~ .table-main .game-table__ring {
     margin-top: 52px;
   }
