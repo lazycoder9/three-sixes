@@ -299,19 +299,26 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp lobby(assigns) do
     ~H"""
-    <div id="lobby" class={["lobby", crowded?(@view) && "lobby--crowded"]}>
-      <.notebook_page>
-        <h1>Who's playing</h1>
-        <ul id="people" class="people">
-          <li :for={person <- @view.people} id={"person-#{person.n}"}>
-            <.person_token person={person} />
-            <span class="people__name">
-              {if person.me?, do: "You", else: person.nickname}
-              <span :if={person.host?} class="host-tag">Host</span>
-            </span>
-          </li>
-        </ul>
-      </.notebook_page>
+    <div
+      id="lobby"
+      class={["lobby", @view.over && "is-over", crowded?(@view) && "lobby--crowded"]}
+    >
+      <div class="lobby__pages">
+        <.placement :if={@view.over} over={@view.over} />
+        <.notebook_page>
+          <h1>{if @view.over, do: "Next Game", else: "Who's playing"}</h1>
+          <ul id="people" class="people">
+            <li :for={person <- @view.people} id={"person-#{person.n}"}>
+              <.person_token person={person} />
+              <span class="people__name">
+                {if person.me?, do: "You", else: person.nickname}
+                <span :if={person.host?} class="host-tag">Host</span>
+              </span>
+              <.tally count={person.tally} />
+            </li>
+          </ul>
+        </.notebook_page>
+      </div>
       <div class="lobby__side">
         <div>
           <p class="lobby__label">Room code</p>
@@ -322,16 +329,41 @@ defmodule ThreeSixesWeb.RoomLive do
         <Layouts.copy_room_link id="lobby-copied" code={@view.code} />
         <div :if={@view.host?} class="lobby__start">
           <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
-            Start Game
+            {if @view.over, do: "Next Game", else: "Start Game"}
           </.block>
           <p class="lobby__wait">{dealt_in(@view.dealt_in)}</p>
         </div>
-        <p :if={!@view.host?} class="lobby__wait">
-          Waiting for {@view.host_nickname || "the Host"} to start the Game.
-        </p>
+        <p :if={!@view.host?} class="lobby__wait">{waiting_for_host(@view)}</p>
       </div>
     </div>
     """
+  end
+
+  attr :over, :map, required: true
+
+  defp placement(assigns) do
+    ~H"""
+    <.notebook_page id="placement">
+      <h1>{if @over.winner.me?, do: "You win!", else: "#{@over.winner.nickname} wins."}</h1>
+      <p class="faint">Final Placement, after {rounds(@over.rounds)}</p>
+      <ol class="placement">
+        <li :for={{person, place} <- Enum.with_index(@over.placement, 1)}>
+          <.person_token person={person} />
+          <span class={place == 1 && "circled"}>
+            <span :if={person.me?} class="hl">You</span>{if !person.me?, do: person.nickname}
+          </span>
+        </li>
+      </ol>
+    </.notebook_page>
+    """
+  end
+
+  defp rounds(1), do: "1 Round"
+  defp rounds(count), do: "#{count} Rounds"
+
+  defp waiting_for_host(view) do
+    host = view.host_nickname || "the Host"
+    "Waiting for #{host} to start #{if view.over, do: "the next Game", else: "the Game"}."
   end
 
   defp dealt_in(count) when count < 2, do: "A Game needs two people."

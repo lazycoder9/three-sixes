@@ -276,6 +276,61 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  defp knock_out_the_host(code) do
+    room = Rooms.whereis(code)
+    Scripted.script([[1], [2]])
+    :ok = Rooms.start_game(code, @host)
+
+    for round <- 1..5 do
+      if round > 1 do
+        Scripted.script([List.duplicate(1, round), [2]])
+        send(room, {:next_round, round - 1})
+      end
+
+      :ok = Rooms.raise(code, @host, round + 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, round, 3})
+    end
+
+    flush_after(room)
+    room
+  end
+
+  describe "Game over" do
+    test "after the last Knock out the next Round ends the Game, rolling nothing" do
+      {code, dana} = table()
+      room = knock_out_the_host(code)
+
+      send(room, {:next_round, 5})
+
+      malika = %{nickname: "Malika", me?: true, n: 1}
+      dana_ref = %{nickname: "Dana", me?: false, n: 2}
+
+      assert_receive {:room_view, %{game: nil, over: over, people: [%{tally: 0}, %{tally: 1}]}}
+
+      assert over == %{winner: dana_ref, placement: [dana_ref, malika], rounds: 5}
+      assert_receive {:forwarded, ^dana, {:room_view, %{over: %{winner: %{me?: true}}}}}
+      assert Rooms.whereis(code) == room
+    end
+
+    test "the Host's Next Game deals everyone in again, at one die, in reshuffled seats" do
+      {code, dana} = table()
+      room = knock_out_the_host(code)
+      send(room, {:next_round, 5})
+      flush_after(room)
+
+      Scripted.script_seats(["guest:dana", @host])
+      Scripted.script([[3], [4]])
+
+      assert Rooms.start_game(code, @host) == :ok
+
+      assert_receive {:room_view, %{over: nil, game: %{round: 1, my_dice: [4], my_turn?: false}}}
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{round: 1, my_dice: [3], my_turn?: true}}}}
+    end
+  end
+
   describe "stale and refused" do
     test "a reveal or next-round message for another Round, or none running, changes nothing" do
       {code, _dana} = started()

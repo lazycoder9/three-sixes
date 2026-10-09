@@ -1,6 +1,18 @@
 defmodule ThreeSixes.Game do
   @enforce_keys [:seats, :counts]
-  defstruct [:seats, :counts, round: 0, dice: %{}, bid: nil, said: %{}, turn: nil, reveal: nil]
+  defstruct [
+    :seats,
+    :counts,
+    round: 0,
+    dice: %{},
+    bid: nil,
+    said: %{},
+    turn: nil,
+    reveal: nil,
+    out: []
+  ]
+
+  @knocked_out_at 6
 
   @type person_id :: String.t()
   @type face :: 1..6
@@ -22,7 +34,8 @@ defmodule ThreeSixes.Game do
           bid: placed_bid() | nil,
           said: %{person_id() => bid()},
           turn: person_id() | nil,
-          reveal: reveal() | nil
+          reveal: reveal() | nil,
+          out: [person_id()]
         }
 
   @spec new([person_id()]) :: t()
@@ -41,14 +54,28 @@ defmodule ThreeSixes.Game do
     }
   end
 
-  defp opener(%{reveal: %{loser: loser}}), do: loser
+  defp opener(%{reveal: %{loser: loser}} = game) do
+    if loser in game.out, do: next_seat(game, loser), else: loser
+  end
+
   defp opener(game), do: hd(game.seats)
 
   @spec to_roll(t()) :: [{person_id(), pos_integer()}]
-  def to_roll(game), do: Enum.map(game.seats, &{&1, game.counts[&1]})
+  def to_roll(game), do: Enum.map(in_play(game), &{&1, game.counts[&1]})
 
   @spec dice_on_table(t()) :: non_neg_integer()
-  def dice_on_table(game), do: game.counts |> Map.values() |> Enum.sum()
+  def dice_on_table(game), do: game |> in_play() |> Enum.map(&game.counts[&1]) |> Enum.sum()
+
+  defp in_play(game), do: game.seats -- game.out
+
+  @spec over?(t()) :: boolean()
+  def over?(game), do: match?([_winner], in_play(game))
+
+  @spec placement(t()) :: [person_id()]
+  def placement(game) do
+    [winner] = in_play(game)
+    [winner | Enum.reverse(game.out)]
+  end
 
   @spec min_count(bid() | nil, face()) :: pos_integer()
   def min_count(nil, _face), do: 1
@@ -111,16 +138,21 @@ defmodule ThreeSixes.Game do
   @spec advance_reveal(t(), 1..3) :: t()
   def advance_reveal(%{reveal: %{step: at}} = game, step) when step > at do
     game = put_in(game.reveal.step, step)
-    if step == 3, do: update_in(game.counts[game.reveal.loser], &(&1 + 1)), else: game
+    if step == 3, do: penalize(game, game.reveal.loser), else: game
   end
 
   def advance_reveal(game, _step), do: game
 
+  defp penalize(game, loser) do
+    game = update_in(game.counts[loser], &(&1 + 1))
+    if game.counts[loser] == @knocked_out_at, do: %{game | out: game.out ++ [loser]}, else: game
+  end
+
   defp bidding?(game), do: game.turn != nil and game.reveal == nil
 
   defp next_seat(game, seat) do
-    index = Enum.find_index(game.seats, &(&1 == seat))
-    Enum.at(game.seats, rem(index + 1, length(game.seats)))
+    {before, [^seat | rest]} = Enum.split_while(game.seats, &(&1 != seat))
+    Enum.find(rest ++ before, &(&1 not in game.out))
   end
 
   @spec offers(bid() | nil, non_neg_integer(), integer()) :: [map()]

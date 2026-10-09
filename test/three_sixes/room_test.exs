@@ -117,16 +117,17 @@ defmodule ThreeSixes.RoomTest do
     assert Room.view_for(room, "guest:dana") == %{
              code: "KQXT",
              people: [
-               %{nickname: "Timur", host?: false, me?: false, n: 1},
-               %{nickname: "Malika", host?: true, me?: false, n: 2},
-               %{nickname: "Dana", host?: false, me?: true, n: 3}
+               %{nickname: "Timur", host?: false, me?: false, n: 1, tally: 0},
+               %{nickname: "Malika", host?: true, me?: false, n: 2, tally: 0},
+               %{nickname: "Dana", host?: false, me?: true, n: 3, tally: 0}
              ],
              me: "Dana",
              host?: false,
              host_nickname: "Malika",
              can_start?: false,
              dealt_in: 3,
-             game: nil
+             game: nil,
+             over: nil
            }
 
     assert %{me: "Malika", host?: true} = Room.view_for(room, @host)
@@ -226,6 +227,63 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
+  defp dana_loses(counts, out \\ []) do
+    {:ok, room} = Room.start_game(lobby(), @host, ["guest:dana", "guest:timur", @host])
+    counts = Map.merge(%{"guest:dana" => 1, "guest:timur" => 1, @host => 1}, counts)
+    room = %{room | game: %{room.game | counts: counts, out: out}}
+    dice = for {id, n} <- counts, id not in out, into: %{}, do: {id, List.duplicate(1, n)}
+    {:ok, room} = room |> Room.start_round(dice) |> Room.raise("guest:dana", 1, 6)
+    {:ok, room} = Room.check(room, "guest:timur")
+    room
+  end
+
+  describe "the next Round" do
+    test "for another Round, or with no reveal running, is stale" do
+      {:ok, raised} = Room.raise(playing(), "guest:dana", 3, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+
+      assert Room.next_round(lobby(), 1) == :stale
+      assert Room.next_round(raised, 1) == :stale
+      assert Room.next_round(checked, 2) == :stale
+    end
+
+    test "while two Players are left in play, rolls on, the Penalty die taken" do
+      {:roll, room} = Room.next_round(dana_loses(%{"guest:dana" => 5}), 1)
+
+      assert %{reveal: %{step: 3}, out: ["guest:dana"]} = room.game
+      assert room.game.counts["guest:dana"] == 6
+    end
+
+    defp over do
+      {:over, room} =
+        %{"guest:dana" => 5, @host => 6}
+        |> dana_loses([@host])
+        |> Room.next_round(1)
+
+      room
+    end
+
+    test "when one Player is left, ends the Game: the winner's Tally goes up, the Placement kept" do
+      room = over()
+
+      assert room.game == nil
+      assert room.tally == %{"guest:timur" => 1}
+      assert room.last == %{placement: ["guest:timur", "guest:dana", @host], rounds: 1}
+      assert Room.next_round(room, 1) == :stale
+    end
+
+    test "after Game over the Host deals the Next Game, everyone back at one die, the Tally kept" do
+      seats = [@host, "guest:dana", "guest:timur"]
+
+      {:ok, room} = Room.start_game(over(), @host, seats)
+
+      assert %{seats: ^seats, out: [], round: 0} = room.game
+      assert room.game.counts == %{"guest:dana" => 1, "guest:timur" => 1, @host => 1}
+      assert room.tally == %{"guest:timur" => 1}
+      assert room.last == nil
+    end
+  end
+
   test "a Check paces the reveal as the prototype does: 1.1 s, 2.7 s, 4.3 s, then 8.2 s" do
     {:ok, room} = Room.raise(playing(), "guest:dana", 1, 6)
     {:ok, room} = Room.check(room, "guest:timur")
@@ -262,6 +320,113 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
+  describe "the Game over view" do
+    test "gives every person their Tally, nothing won being 0" do
+      assert Enum.map(Room.view_for(over(), "guest:dana").people, &{&1.nickname, &1.tally}) ==
+               [{"Timur", 1}, {"Malika", 0}, {"Dana", 0}]
+    end
+
+    test "shows the winner and the Placement after how many Rounds, the viewer marked" do
+      timur = %{nickname: "Timur", me?: false, n: 1}
+      malika = %{nickname: "Malika", me?: false, n: 2}
+      dana = %{nickname: "Dana", me?: true, n: 3}
+
+      assert Room.view_for(over(), "guest:dana").over == %{
+               winner: timur,
+               placement: [timur, dana, malika],
+               rounds: 1
+             }
+
+      assert %{winner: %{nickname: "Timur", me?: true}} =
+               Room.view_for(over(), "guest:timur").over
+    end
+
+    test "is there only between a Game over and the Next Game" do
+      {:ok, next} = Room.start_game(over(), @host, Room.dealt_in(lobby()))
+
+      for room <- [lobby(), playing(), next] do
+        assert Room.view_for(room, "guest:dana").over == nil
+      end
+    end
+
+    test "offers the Host the Next Game" do
+      assert %{can_start?: true, game: nil} = Room.view_for(over(), @host)
+      assert %{can_start?: false} = Room.view_for(over(), "guest:dana")
+    end
+
+    test "carries no person id" do
+      ids = [@host, "guest:dana", "guest:timur"]
+
+      for viewer <- ids, id <- ids do
+        refute inspect(Room.view_for(over(), viewer)) =~ id
+      end
+    end
+  end
+
+  describe "the game view with a Player Knocked out" do
+    defp dana_knocked_out, do: dana_loses(%{"guest:dana" => 5}) |> Room.reveal(1, 3) |> elem(1)
+
+    defp next_round_after_dana do
+      {:roll, room} = Room.next_round(dana_loses(%{"guest:dana" => 5}), 1)
+      Room.start_round(room, %{"guest:timur" => [3], @host => [4]})
+    end
+
+    defp out_seats(room, viewer),
+      do:
+        for(seat <- Room.view_for(room, viewer).game.seats, do: {seat.person.nickname, seat.out?})
+
+    test "marks the seat out from the Round after the Knock out, not during its reveal" do
+      assert out_seats(dana_knocked_out(), "guest:timur") ==
+               [{"Timur", false}, {"Malika", false}, {"Dana", false}]
+
+      assert out_seats(next_round_after_dana(), "guest:timur") ==
+               [{"Timur", false}, {"Malika", false}, {"Dana", true}]
+    end
+
+    test "a Knocked-out Player watches from the next Round: no dice of their own, no faces" do
+      view = Room.view_for(next_round_after_dana(), "guest:dana").game
+
+      assert %{seated?: false, knocked_out?: true, my_dice: nil, my_turn?: false} = view
+      assert %{can_check?: false} = view
+      assert Enum.map(view.seats, & &1.faces) == [nil, nil, nil]
+      assert Enum.map(view.seats, & &1.person.nickname) == ["Dana", "Timur", "Malika"]
+    end
+
+    test "the one Knocked out still plays out the reveal from their seat" do
+      assert %{seated?: true, knocked_out?: false, my_dice: [1, 1, 1, 1, 1]} =
+               Room.view_for(dana_knocked_out(), "guest:dana").game
+    end
+
+    test "the reveal says the Penalty die Knocked the loser out, from step 3" do
+      {:ok, at_two} = Room.reveal(dana_loses(%{"guest:dana" => 5}), 1, 2)
+      {:ok, ordinary} = Room.reveal(dana_loses(%{"guest:dana" => 4}), 1, 3)
+
+      assert %{knocked_out?: false, loser: nil} =
+               Room.view_for(at_two, "guest:timur").game.reveal
+
+      assert %{knocked_out?: true, loser: %{nickname: "Dana"}} =
+               Room.view_for(dana_knocked_out(), "guest:timur").game.reveal
+
+      assert %{knocked_out?: false, loser: %{nickname: "Dana"}} =
+               Room.view_for(ordinary, "guest:timur").game.reveal
+    end
+
+    test "carries no person id" do
+      ids = [@host, "guest:dana", "guest:timur"]
+
+      for room <- [dana_knocked_out(), next_round_after_dana()], viewer <- ids, id <- ids do
+        refute inspect(Room.view_for(room, viewer)) =~ id
+      end
+    end
+
+    test "nobody else is Knocked out" do
+      for viewer <- ["guest:timur", @host, "guest:aziz"] do
+        room = enter!(next_round_after_dana(), "guest:aziz", "Aziz")
+        assert %{knocked_out?: false} = Room.view_for(room, viewer).game
+      end
+    end
+  end
+
   describe "the game view" do
     @timur %{nickname: "Timur", me?: true, n: 1}
     @malika %{nickname: "Malika", me?: false, n: 2}
@@ -277,6 +442,7 @@ defmodule ThreeSixes.RoomTest do
                round: 1,
                dice_on_table: 3,
                seated?: true,
+               knocked_out?: false,
                my_dice: [2],
                my_turn?: true,
                can_check?: true,
@@ -289,7 +455,8 @@ defmodule ThreeSixes.RoomTest do
                    said: nil,
                    on_turn?: true,
                    faces: nil,
-                   penalty?: false
+                   penalty?: false,
+                   out?: false
                  },
                  %{
                    person: @malika,
@@ -297,7 +464,8 @@ defmodule ThreeSixes.RoomTest do
                    said: nil,
                    on_turn?: false,
                    faces: nil,
-                   penalty?: false
+                   penalty?: false,
+                   out?: false
                  },
                  %{
                    person: @dana,
@@ -305,7 +473,8 @@ defmodule ThreeSixes.RoomTest do
                    said: %{count: 1, face: 6},
                    on_turn?: false,
                    faces: nil,
-                   penalty?: false
+                   penalty?: false,
+                   out?: false
                  }
                ],
                reveal: nil
@@ -357,7 +526,8 @@ defmodule ThreeSixes.RoomTest do
                bid: %{count: 1, face: 6, by: @dana},
                count: nil,
                stood?: nil,
-               loser: nil
+               loser: nil,
+               knocked_out?: false
              }
     end
 
@@ -381,6 +551,7 @@ defmodule ThreeSixes.RoomTest do
                round: 1,
                dice_on_table: 4,
                seated?: true,
+               knocked_out?: false,
                my_dice: [2],
                my_turn?: false,
                can_check?: false,
@@ -393,7 +564,8 @@ defmodule ThreeSixes.RoomTest do
                    said: nil,
                    on_turn?: false,
                    faces: [2],
-                   penalty?: true
+                   penalty?: true,
+                   out?: false
                  },
                  %{
                    person: @malika,
@@ -401,7 +573,8 @@ defmodule ThreeSixes.RoomTest do
                    said: nil,
                    on_turn?: false,
                    faces: [6],
-                   penalty?: false
+                   penalty?: false,
+                   out?: false
                  },
                  %{
                    person: @dana,
@@ -409,7 +582,8 @@ defmodule ThreeSixes.RoomTest do
                    said: %{count: 1, face: 6},
                    on_turn?: false,
                    faces: [6],
-                   penalty?: false
+                   penalty?: false,
+                   out?: false
                  }
                ],
                reveal: %{
@@ -418,7 +592,8 @@ defmodule ThreeSixes.RoomTest do
                  bid: %{count: 1, face: 6, by: @dana},
                  count: 2,
                  stood?: true,
-                 loser: @timur
+                 loser: @timur,
+                 knocked_out?: false
                }
              }
     end

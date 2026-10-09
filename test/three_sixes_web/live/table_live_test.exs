@@ -310,6 +310,113 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "Knocked out" do
+    test "the Penalty die that makes six Knocks the loser out, and the next Player opens" do
+      %{timur: timur, dana: dana, malika: malika, code: code} =
+        players = table(~w(Timur Dana Malika))
+
+      timur_takes_his_sixth_die(players)
+
+      assert text(dana, "#scrap") == "Bid 1 × 0 × Bluff caught. Timur + Knocked out"
+      assert text(timur, "#scrap") == "Bid 1 × 0 × Bluff caught. You + Knocked out"
+      assert has_element?(dana, "#scrap .scrap__pen .red", "Knocked out")
+      assert has_element?(dana, "#seat-1.is-loser:not(.is-out) .die.is-penalty")
+      assert count(dana, "#seat-1 .seat__dice .die.is-flip") == 5
+
+      next_round(code, 5, [[2], [3]])
+
+      assert text(dana, "#my-page .my-page__head") == "You open. Make a Bid."
+      assert text(malika, "#scrap") == "Dana opens the Round. 2 dice on the table"
+      assert has_element?(malika, "#seat-1.is-out", "out")
+      assert count(malika, "#seat-1 .die") == 0
+      refute has_element?(malika, "#seat-1 .seat__said")
+    end
+
+    test "a Knocked-out Player watches: no page, their seat out, the others' dice face down" do
+      %{timur: timur, dana: dana, code: code} = players = table(~w(Timur Dana Malika))
+      timur_takes_his_sixth_die(players)
+
+      assert has_element?(timur, "#my-page")
+
+      next_round(code, 5, [[2], [3]])
+
+      refute has_element?(timur, "#my-page")
+      assert text(timur, "#watching") == "You're Knocked out. You're watching. Waiting for Dana."
+      assert has_element?(timur, "#seat-1.is-out", "You")
+      assert faces(timur) == []
+      assert count(timur, "#seat-2 .seat__dice .die.is-down") == 1
+      assert count(timur, "#seat-3 .seat__dice .die.is-down") == 1
+      refute has_element?(timur, ".seat__dice .die:not(.is-down)")
+
+      press(dana, "Bid one six")
+
+      assert text(timur, "#watching") ==
+               "You're Knocked out. You're watching. Waiting for Malika."
+
+      refute has_element?(timur, ".seat__dice .die:not(.is-down)")
+    end
+  end
+
+  describe "Game over" do
+    test "a Game for three runs to Game over: the Placement, the Tally, then the Next Game" do
+      %{timur: timur, dana: dana, malika: malika} = players = table(~w(Timur Dana Malika))
+
+      play_to_game_over(players)
+
+      refute has_element?(malika, "#game-table")
+      assert text(malika, "#placement h1") == "You win!"
+      assert text(dana, "#placement h1") == "Malika wins."
+      assert text(dana, "#placement p") == "Final Placement, after 10 Rounds"
+      assert placement(dana) == ["M Malika", "D You", "T Timur"]
+      assert placement(malika) == ["M You", "D Dana", "T Timur"]
+      assert has_element?(dana, "#placement li:first-child .circled", "Malika")
+      assert count(dana, "#placement .circled") == 1
+      assert has_element?(dana, "#placement li:nth-child(2) .hl", "You")
+      assert has_element?(malika, "#placement li:first-child .circled .hl", "You")
+
+      assert has_element?(dana, "#person-3 .tally[role=img][aria-label='1 win']")
+      assert count(dana, "#person-3 .tally i") == 1
+      refute has_element?(dana, "#person-1 .tally")
+      refute has_element?(dana, "#person-2 .tally")
+
+      next_game(timur, [[1], [2], [3]])
+
+      for player <- [timur, dana, malika] do
+        refute has_element?(player, "#lobby")
+        assert count(player, "#my-page .cube") == 1
+        assert count(player, "#my-page .cube.cube--tumble-in") == 1
+        assert count(player, ".seat .seat__dice .die.is-down") == 2
+        refute has_element?(player, ".seat.is-out")
+      end
+
+      assert text(dana, "#scrap") == "Timur opens the Round. 3 dice on the table"
+    end
+
+    test "the lobby page reads Next Game; the Host deals it and everyone else waits for the Host" do
+      %{timur: timur, dana: dana} = players = table(~w(Timur Dana Malika))
+
+      play_to_game_over(players)
+
+      assert text(timur, "#lobby .paper:not(#placement) h1") == "Next Game"
+      assert has_element?(timur, "#lobby button[phx-click=start]:not([disabled])", "Next Game")
+      assert has_element?(timur, "#lobby p", "3 people are dealt in. Seats are shuffled.")
+      refute has_element?(timur, "button", "Start Game")
+      assert has_element?(dana, "#lobby p", "Waiting for Timur to start the next Game.")
+      refute has_element?(dana, "#lobby button[phx-click=start]")
+    end
+
+    test "a reload at Game over shows the same Placement" do
+      %{code: code} = players = table(~w(Timur Dana Malika))
+      play_to_game_over(players)
+
+      dana = visit(code, "dana")
+
+      assert text(dana, "#placement h1") == "Malika wins."
+      assert placement(dana) == ["M Malika", "D You", "T Timur"]
+      assert has_element?(dana, "#person-3 .tally[aria-label='1 win']")
+    end
+  end
+
   test "someone who enters during a Game watches the table with no page and no dice" do
     %{timur: timur, code: code} = table(~w(Timur Dana))
     start(timur, [[2], [5]])
@@ -324,6 +431,41 @@ defmodule ThreeSixesWeb.TableLiveTest do
     assert count(aziz, ".seat") == 2
     refute has_element?(aziz, ".seat__dice .die:not(.is-down)")
     assert text(aziz, "#scrap") == "Timur bids 1 × 2 dice on the table"
+  end
+
+  defp timur_takes_his_sixth_die(%{timur: timur, dana: dana, code: code}) do
+    start(timur, [[1], [2], [3]])
+
+    for round <- 1..4 do
+      bluff_caught(code, timur, dana, round)
+      next_round(code, round, [List.duplicate(1, round + 1), [2], [3]])
+    end
+
+    bluff_caught(code, timur, dana, 5)
+  end
+
+  defp play_to_game_over(%{dana: dana, malika: malika, code: code} = players) do
+    timur_takes_his_sixth_die(players)
+    next_round(code, 5, [[2], [3]])
+
+    for round <- 6..9 do
+      bluff_caught(code, dana, malika, round)
+      next_round(code, round, [List.duplicate(2, round - 4), [3]])
+    end
+
+    bluff_caught(code, dana, malika, 10)
+    reveal(code, {:next_round, 10})
+  end
+
+  defp bluff_caught(code, bidder, checker, round) do
+    press(bidder, "Bid one six")
+    check(checker)
+    for step <- 1..3, do: reveal(code, {:reveal, round, step})
+  end
+
+  defp next_round(code, round, rolls) do
+    Scripted.script(rolls)
+    reveal(code, {:next_round, round})
   end
 
   defp reveal(code, message) do
@@ -348,6 +490,20 @@ defmodule ThreeSixesWeb.TableLiveTest do
   defp start(host, rolls) do
     Scripted.script(rolls)
     host |> element("#lobby button", "Start Game") |> render_click()
+  end
+
+  defp next_game(host, rolls) do
+    Scripted.script(rolls)
+    host |> element("#lobby button", "Next Game") |> render_click()
+  end
+
+  defp placement(view) do
+    view
+    |> render()
+    |> String.replace("<", " <")
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#placement li")
+    |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
   end
 
   defp text(view, selector) do

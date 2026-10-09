@@ -26,7 +26,7 @@ defmodule ThreeSixesWeb.TableComponents do
       </div>
       <.my_page :if={@game.seated?} game={@game} step={@step} rolled={@rolled} />
       <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
-        You're watching. {head(@game)}
+        {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
       </.torn_scrap>
     </div>
     """
@@ -57,7 +57,7 @@ defmodule ThreeSixesWeb.TableComponents do
     ~H"""
     <li
       id={"seat-#{@seat.person.n}"}
-      class={["seat", @turn? && "is-turn", @seat.penalty? && "is-loser"]}
+      class={["seat", @turn? && "is-turn", @seat.penalty? && "is-loser", @seat.out? && "is-out"]}
       aria-current={@turn? && "true"}
       style={"--x: #{@x}; --y: #{@y}"}
     >
@@ -71,9 +71,10 @@ defmodule ThreeSixesWeb.TableComponents do
         />
         <span :if={@seat.penalty?} class="die is-penalty"></span>
       </span>
-      <span :if={!@seat.faces} class="seat__dice">
+      <span :if={!@seat.faces and !@seat.out?} class="seat__dice">
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
+      <small :if={@seat.out?} class="seat__out">out</small>
       <span
         :if={@seat.said && !@game.reveal}
         class={["seat__said", said_now?(@seat, @game) && "is-now"]}
@@ -114,6 +115,7 @@ defmodule ThreeSixesWeb.TableComponents do
     </p>
     <p :if={@reveal.loser} class="scrap__pen">
       {name(@reveal.loser)} <b>+</b><span class="die is-penalty"></span>
+      <em :if={@reveal.knocked_out?} class="red">Knocked out</em>
     </p>
     """
   end

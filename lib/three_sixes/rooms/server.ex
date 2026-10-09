@@ -89,8 +89,9 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   def handle_info({:next_round, round}, state) do
-    case Room.reveal(state.room, round, 3) do
-      {:ok, room} -> {:noreply, changed(state, roll(room))}
+    case Room.next_round(state.room, round) do
+      {:roll, room} -> {:noreply, changed(state, roll(room))}
+      {:over, room} -> {:noreply, changed(state, room)}
       :stale -> {:noreply, state}
     end
   end
