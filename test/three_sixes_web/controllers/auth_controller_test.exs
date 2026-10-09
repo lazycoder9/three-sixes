@@ -47,7 +47,17 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       assert get_session(conn, "account_id")
     end
 
-    for path <- ["//evil.com", "https://evil.com", "/\\evil.com", "/%09/evil.com", "/\t/evil.com"] do
+    for path <- [
+          "//evil.com",
+          "https://evil.com",
+          "/\\evil.com",
+          "/%09/evil.com",
+          "/\t/evil.com",
+          "/foo\nbar",
+          "/foo\rbar",
+          "/foo\0bar",
+          "/foo\x7Fbar"
+        ] do
       test "goes to the landing page instead of #{inspect(path)}" do
         conn =
           google_callback(%{"guest_id" => "g1", "return_to" => unquote(path)},
@@ -74,6 +84,22 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       assert redirected_to(conn) == "/signin"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Cross-Site Request Forgery attack"
       assert get_session(conn, "account_id") == nil
+    end
+
+    test "a failed sign-in keeps the path the person came from, for the next try" do
+      failure = %Ueberauth.Failure{
+        provider: :google,
+        errors: [%Ueberauth.Failure.Error{message_key: "access_denied", message: "denied"}]
+      }
+
+      no_email = %{@auth | info: %{@auth.info | email: nil}}
+
+      for assigns <- [[ueberauth_failure: failure], [ueberauth_auth: no_email]] do
+        conn = google_callback(%{"guest_id" => "g1", "return_to" => "/account"}, assigns)
+
+        assert redirected_to(conn) == "/signin?return_to=%2Faccount"
+        assert get_session(conn, "account_id") == nil
+      end
     end
   end
 
@@ -163,6 +189,23 @@ defmodule ThreeSixesWeb.AuthControllerTest do
     assert get_session(conn, "account_id") == nil
     assert get_session(conn, "guest_id") not in [nil, "old"]
     assert conn.private[:plug_session_info] == :renew
+  end
+
+  test "logging out disconnects the LiveViews of this sign-in only", %{conn: conn} do
+    conn = post(conn, ~p"/auth/dev", %{"name" => "Fox"})
+    live_socket_id = get_session(conn, "live_socket_id")
+    other_device = build_conn() |> post(~p"/auth/dev", %{"name" => "Fox"})
+
+    assert "account_session:" <> _ = live_socket_id
+    assert get_session(other_device, "live_socket_id") != live_socket_id
+    conn = conn |> recycle() |> post(~p"/auth/dev", %{"name" => "Dana"})
+    assert get_session(conn, "live_socket_id") == live_socket_id
+
+    ThreeSixesWeb.Endpoint.subscribe(live_socket_id)
+    conn = conn |> recycle() |> delete(~p"/auth/logout")
+
+    assert_receive %Phoenix.Socket.Broadcast{topic: ^live_socket_id, event: "disconnect"}
+    assert get_session(conn, "live_socket_id") == nil
   end
 
   describe "whether signing in is possible" do

@@ -26,6 +26,20 @@ defmodule ThreeSixesWeb.SignInLiveTest do
     assert has_element?(view, ".dev button", "Dev login")
   end
 
+  test "without Google set up the sign-in page offers only the dev login", %{conn: conn} do
+    google = Application.fetch_env!(:ueberauth, Ueberauth.Strategy.Google.OAuth)
+    Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, [])
+
+    on_exit(fn -> Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, google) end)
+
+    {:ok, view, _html} = conn |> guest("dana") |> live(~p"/signin?return_to=/account")
+
+    assert has_element?(view, ".sticky h1", "Keep your record.")
+    refute has_element?(view, ~s(a[href^="/auth/google"]))
+    refute has_element?(view, ".hint", "Open in Safari or Chrome.")
+    assert has_element?(view, ".dev button", "Dev login")
+  end
+
   test "signing in through the dev login comes back to the page with the Account in the header",
        %{conn: conn} do
     conn = conn |> guest("dana") |> post(~p"/auth/dev", %{name: "Dana", return_to: "/"})

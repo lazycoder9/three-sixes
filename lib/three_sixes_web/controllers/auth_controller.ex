@@ -4,6 +4,8 @@ defmodule ThreeSixesWeb.AuthController do
   alias ThreeSixes.Accounts
   alias ThreeSixesWeb.Guest
 
+  @control_characters Enum.map([127 | Enum.to_list(0..31)], &<<&1>>)
+
   plug :store_return_to when action == :request
   plug Ueberauth when action in [:request, :callback]
 
@@ -14,7 +16,7 @@ defmodule ThreeSixesWeb.AuthController do
 
     conn
     |> put_flash(:error, "Sign-in failed: #{message}")
-    |> redirect(to: ~p"/signin")
+    |> redirect(to: sign_in_page(conn))
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -25,7 +27,7 @@ defmodule ThreeSixesWeb.AuthController do
       {:error, _changeset} ->
         conn
         |> put_flash(:error, "Signing in didn't work. Please try again.")
-        |> redirect(to: ~p"/signin")
+        |> redirect(to: sign_in_page(conn))
     end
   end
 
@@ -41,6 +43,10 @@ defmodule ThreeSixesWeb.AuthController do
   end
 
   def logout(conn, _params) do
+    if live_socket_id = get_session(conn, "live_socket_id") do
+      ThreeSixesWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    end
+
     conn
     |> clear_session()
     |> put_session("guest_id", Guest.new_id())
@@ -55,7 +61,8 @@ defmodule ThreeSixesWeb.AuthController do
   @spec dev_login_enabled?() :: boolean()
   def dev_login_enabled?, do: Application.get_env(:three_sixes, :dev_login_enabled, false)
 
-  defp google_configured? do
+  @spec google_configured?() :: boolean()
+  def google_configured? do
     :ueberauth
     |> Application.get_env(Ueberauth.Strategy.Google.OAuth, [])
     |> Keyword.get(:client_id)
@@ -81,15 +88,29 @@ defmodule ThreeSixesWeb.AuthController do
   defp complete_sign_in(conn, account, return_to) do
     conn
     |> put_session("account_id", account.id)
+    |> put_session("live_socket_id", live_socket_id(conn))
     |> delete_session("return_to")
     |> configure_session(renew: true)
     |> redirect(to: local_path(return_to) || ~p"/")
   end
 
+  defp sign_in_page(conn) do
+    case local_path(get_session(conn, "return_to")) do
+      nil -> ~p"/signin"
+      path -> ~p"/signin?#{[return_to: path]}"
+    end
+  end
+
+  defp live_socket_id(conn) do
+    get_session(conn, "live_socket_id") ||
+      "account_session:" <>
+        (16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false))
+  end
+
   defp local_path("//" <> _), do: nil
 
   defp local_path("/" <> _ = path) do
-    if String.contains?(path, ["\\", "/%09", "/\t"]), do: nil, else: path
+    if String.contains?(path, ["\\", "/%09" | @control_characters]), do: nil, else: path
   end
 
   defp local_path(_), do: nil

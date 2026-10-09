@@ -84,15 +84,16 @@ defmodule ThreeSixesWeb.RoomLiveTest do
            )
   end
 
-  test "a Guest's Sign in in the header comes back to this Room", %{conn: conn} do
+  test "the Room's creator and a joining Guest see no Sign in on the join step", %{conn: conn} do
     {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
-    {:ok, view, _html} = live(guest(conn, "dana"), ~p"/r/#{code}")
+    {:ok, timur, _html} = live(guest(conn, "timur"), ~p"/r/#{code}")
+    {:ok, dana, _html} = live(guest(build_conn(), "dana"), ~p"/r/#{code}")
 
-    assert has_element?(
-             view,
-             ~s(header.top nav a[href="/signin?return_to=%2Fr%2F#{code}"]),
-             "Sign in"
-           )
+    for view <- [timur, dana] do
+      assert has_element?(view, "button", "Join Room")
+      assert has_element?(view, "header.top nav #theme-switch")
+      refute has_element?(view, "header.top nav a", "Sign in")
+    end
   end
 
   describe "a Nickname already in the Room, regardless of case" do

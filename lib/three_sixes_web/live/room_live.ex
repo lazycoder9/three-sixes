@@ -216,7 +216,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} account={@account} return_to={~p"/r/#{@code}"}>
+    <Layouts.app flash={@flash} account={@account} return_to={nil}>
       <.closed :if={@closed?} />
       <section :if={!@closed?} class="screen screen--narrow">
         <.notebook_page>

@@ -12,6 +12,7 @@ defmodule ThreeSixesWeb.SignInLive do
        assign(socket,
          page_title: "Sign in",
          return_to: params["return_to"] || ~p"/",
+         google?: AuthController.google_configured?(),
          dev_login?: AuthController.dev_login_enabled?()
        )}
     end
@@ -29,12 +30,15 @@ defmodule ThreeSixesWeb.SignInLive do
           </p>
           <div class="gap"></div>
           <a
+            :if={@google?}
             href={~p"/auth/google?#{[return_to: @return_to]}"}
             class="block block--white block--big block--wide"
           >
             <.google_g /> Sign in with Google
           </a>
-          <p class="hint">Doesn't work inside some chat apps? Open in Safari or Chrome.</p>
+          <p :if={@google?} class="hint">
+            Doesn't work inside some chat apps? Open in Safari or Chrome.
+          </p>
           <.form
             :if={@dev_login?}
             for={%{"name" => "Dana", "return_to" => @return_to}}

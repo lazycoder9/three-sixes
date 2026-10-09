@@ -38,6 +38,7 @@ defmodule ThreeSixesWeb.LandingLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
 
     assert has_element?(view, ~s(header.top nav a[href="/signin?return_to=%2F"]), "Sign in")
+    assert has_element?(view, ~s(header.top nav[aria-label="Account and settings"]))
   end
 
   test "the header has no Sign in when neither Google nor the dev login is set up",

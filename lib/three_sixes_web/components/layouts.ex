@@ -17,7 +17,7 @@ defmodule ThreeSixesWeb.Layouts do
     ~H"""
     <header class="top">
       <.logo />
-      <nav aria-label="Page settings">
+      <nav aria-label="Account and settings">
         <button
           id="theme-switch"
           type="button"
