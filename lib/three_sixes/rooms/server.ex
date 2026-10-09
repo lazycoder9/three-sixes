@@ -51,6 +51,13 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
+  def handle_call({:sit_out, person_id, sitting_out?}, _from, state) do
+    case Room.sit_out(state.room, person_id, sitting_out?) do
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
   def handle_call({:start_game, person_id}, _from, state) do
     seats = Dice.shuffle(Room.dealt_in(state.room))
 

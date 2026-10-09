@@ -283,6 +283,36 @@ defmodule ThreeSixesWeb.TableComponents do
   defp head(%{turn: nil}), do: ""
   defp head(%{turn: turn}), do: "Waiting for #{turn.nickname}."
 
+  attr :spectators, :list, required: true
+  attr :open?, :boolean, required: true
+
+  def spectators(assigns) do
+    ~H"""
+    <div class="spec">
+      <button
+        id="spectators-chip"
+        type="button"
+        class="spec__chip"
+        phx-click="spectators"
+        aria-expanded={to_string(@open?)}
+        aria-controls="spectators"
+      >
+        {spectator_count(length(@spectators))}<i aria-hidden="true"></i>
+      </button>
+      <ul id="spectators" class="spec__list" hidden={!@open?}>
+        <li :for={spectator <- @spectators}>
+          <.person_token person={spectator.person} />
+          <span>{name(spectator.person)}</span>
+          <small :if={spectator.out?}>out</small>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  defp spectator_count(1), do: "1 Spectator"
+  defp spectator_count(count), do: "#{count} Spectators"
+
   attr :person, :map, required: true
 
   def person_token(assigns) do
