@@ -8,7 +8,7 @@ defmodule ThreeSixes.Room do
   defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil]
 
   @type person_id :: String.t()
-  @type member :: %{id: person_id(), nickname: String.t()}
+  @type member :: %{id: person_id(), nickname: String.t(), sitting_out?: boolean()}
   @type person_ref :: %{nickname: String.t(), me?: boolean(), n: pos_integer()}
   @type bid_view :: %{count: pos_integer(), face: Game.face(), by: person_ref()}
   @type game_view :: %{
@@ -52,15 +52,18 @@ defmodule ThreeSixes.Room do
               host?: boolean(),
               me?: boolean(),
               n: pos_integer(),
-              tally: non_neg_integer()
+              tally: non_neg_integer(),
+              sitting_out?: boolean()
             }
           ],
           me: String.t() | nil,
+          sitting_out?: boolean(),
           host?: boolean(),
           host_nickname: String.t() | nil,
           can_start?: boolean(),
           dealt_in: non_neg_integer(),
           game: game_view() | nil,
+          spectators: [%{person: person_ref(), out?: boolean()}],
           over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil
         }
   @type t :: %__MODULE__{
@@ -93,11 +96,13 @@ defmodule ThreeSixes.Room do
   defp add(room, person_id, nickname) do
     with {:ok, nickname} <- clean(nickname) do
       case holder(room, nickname) do
-        nil -> {:ok, %{room | members: room.members ++ [%{id: person_id, nickname: nickname}]}}
+        nil -> {:ok, %{room | members: room.members ++ [member(person_id, nickname)]}}
         holder -> {:taken, holder.nickname, suggestion(room, holder.nickname)}
       end
     end
   end
+
+  defp member(person_id, nickname), do: %{id: person_id, nickname: nickname, sitting_out?: false}
 
   defp clean(nickname) when not is_binary(nickname), do: {:error, :blank}
 
@@ -139,8 +144,23 @@ defmodule ThreeSixes.Room do
   @spec member?(t(), person_id()) :: boolean()
   def member?(room, person_id), do: Enum.any?(room.members, &(&1.id == person_id))
 
+  @spec sit_out(t(), person_id(), boolean()) :: {:ok, t()} | {:error, :not_member}
+  def sit_out(room, person_id, sitting_out?) when is_boolean(sitting_out?) do
+    if member?(room, person_id) do
+      members =
+        Enum.map(room.members, fn
+          %{id: ^person_id} = member -> %{member | sitting_out?: sitting_out?}
+          member -> member
+        end)
+
+      {:ok, %{room | members: members}}
+    else
+      {:error, :not_member}
+    end
+  end
+
   @spec dealt_in(t()) :: [person_id()]
-  def dealt_in(room), do: Enum.map(room.members, & &1.id)
+  def dealt_in(room), do: for(member <- room.members, not member.sitting_out?, do: member.id)
 
   @spec start_game(t(), person_id(), [person_id()]) ::
           {:ok, t()} | {:error, :not_host | :playing | :too_few | :wrong_seats}
@@ -217,6 +237,7 @@ defmodule ThreeSixes.Room do
     me = find_member(room, person_id)
     host = find_member(room, room.host_id)
     host? = person_id == room.host_id
+    dealt_in = length(dealt_in(room))
 
     %{
       code: room.code,
@@ -229,17 +250,28 @@ defmodule ThreeSixes.Room do
             host?: member.id == room.host_id,
             me?: member.id == person_id,
             n: n,
-            tally: Map.get(room.tally, member.id, 0)
+            tally: Map.get(room.tally, member.id, 0),
+            sitting_out?: member.sitting_out?
           }
         end),
       me: me && me.nickname,
+      sitting_out?: me != nil and me.sitting_out?,
       host?: host?,
       host_nickname: host && host.nickname,
-      can_start?: host? and room.game == nil and length(room.members) >= 2,
-      dealt_in: length(room.members),
+      can_start?: host? and room.game == nil and dealt_in >= 2,
+      dealt_in: dealt_in,
       game: room.game && game_view(room, room.game, person_id),
+      spectators: spectators(room, person_id),
       over: over_view(room, person_id)
     }
+  end
+
+  defp spectators(%{game: nil}, _viewer), do: []
+
+  defp spectators(%{game: game} = room, viewer) do
+    for %{id: id} <- room.members, id not in game.seats or out?(game, id) do
+      %{person: person_ref(room, id, viewer), out?: out?(game, id)}
+    end
   end
 
   defp over_view(%{game: nil, last: %{placement: [winner | _] = placement} = last} = room, viewer) do

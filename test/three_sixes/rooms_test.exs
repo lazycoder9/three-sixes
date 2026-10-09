@@ -229,6 +229,34 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "sitting out" do
+    test "every joined process gets the flag, and the next Game is dealt to the others" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      flush_views()
+
+      assert Rooms.sit_out(code, "guest:dana", true) == :ok
+
+      assert_receive {:room_view,
+                      %{sitting_out?: false, dealt_in: 2, people: [_, %{sitting_out?: true}, _]}}
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{sitting_out?: true}}}
+
+      Scripted.script([[3], [5]])
+      :ok = Rooms.start_game(code, @host)
+
+      assert_receive {:room_view, %{game: %{seats: seats}}}
+      assert Enum.map(seats, & &1.person.nickname) == ["Malika", "Timur"]
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view,
+                       %{
+                         game: %{seated?: false, my_dice: nil},
+                         spectators: [%{person: %{me?: true}}]
+                       }}}
+    end
+  end
+
   defp started do
     {code, dana} = table()
     start(code, dana)
@@ -367,12 +395,13 @@ defmodule ThreeSixes.RoomsTest do
       assert_ignored(room, [{:reveal, 1, 1}, {:reveal, 1, 2}])
     end
 
-    test "a refused start, Raise or Check replies an error and sends no view" do
+    test "a refused start, Raise, Check or sitting out replies an error and sends no view" do
       {code, dana} = table()
 
       assert Rooms.raise(code, @host, 1, 6) == {:error, :not_bidding}
       assert Rooms.check(code, @host) == {:error, :not_bidding}
       assert Rooms.start_game(code, "guest:dana") == {:error, :not_host}
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
       refute_receive {:room_view, _view}
 
       start(code, dana)
@@ -400,6 +429,7 @@ defmodule ThreeSixes.RoomsTest do
       assert Rooms.start_game(code, @host) == {:error, :closed}
       assert Rooms.raise(code, @host, 1, 6) == {:error, :closed}
       assert Rooms.check(code, @host) == {:error, :closed}
+      assert Rooms.sit_out(code, @host, true) == {:error, :closed}
     end
   end
 

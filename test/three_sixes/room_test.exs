@@ -117,16 +117,32 @@ defmodule ThreeSixes.RoomTest do
     assert Room.view_for(room, "guest:dana") == %{
              code: "KQXT",
              people: [
-               %{nickname: "Timur", host?: false, me?: false, n: 1, tally: 0},
-               %{nickname: "Malika", host?: true, me?: false, n: 2, tally: 0},
-               %{nickname: "Dana", host?: false, me?: true, n: 3, tally: 0}
+               %{
+                 nickname: "Timur",
+                 host?: false,
+                 me?: false,
+                 n: 1,
+                 tally: 0,
+                 sitting_out?: false
+               },
+               %{
+                 nickname: "Malika",
+                 host?: true,
+                 me?: false,
+                 n: 2,
+                 tally: 0,
+                 sitting_out?: false
+               },
+               %{nickname: "Dana", host?: false, me?: true, n: 3, tally: 0, sitting_out?: false}
              ],
              me: "Dana",
+             sitting_out?: false,
              host?: false,
              host_nickname: "Malika",
              can_start?: false,
              dealt_in: 3,
              game: nil,
+             spectators: [],
              over: nil
            }
 
@@ -193,6 +209,117 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
+  describe "sitting out" do
+    defp sit_out!(room, person_id, sitting_out? \\ true) do
+      {:ok, room} = Room.sit_out(room, person_id, sitting_out?)
+      room
+    end
+
+    test "someone sitting out is not dealt in, and unticking deals them in again" do
+      room = sit_out!(lobby(), @host)
+
+      assert Room.dealt_in(room) == ["guest:timur", "guest:dana"]
+      assert Room.dealt_in(sit_out!(room, @host, false)) == ["guest:timur", @host, "guest:dana"]
+    end
+
+    test "only a member can sit out" do
+      assert Room.sit_out(lobby(), "guest:aziz", true) == {:error, :not_member}
+    end
+
+    test "the Game is dealt to the others only, and needs two of them" do
+      room = sit_out!(lobby(), "guest:dana")
+
+      assert Room.start_game(room, @host, [@host, "guest:dana", "guest:timur"]) ==
+               {:error, :wrong_seats}
+
+      {:ok, room} = Room.start_game(room, @host, [@host, "guest:timur"])
+      assert room.game.seats == [@host, "guest:timur"]
+
+      room = lobby() |> sit_out!("guest:timur") |> sit_out!(@host)
+      assert Room.start_game(room, @host, ["guest:dana"]) == {:error, :too_few}
+    end
+
+    test "a Host sitting out still starts the Game for the others" do
+      {:ok, room} =
+        lobby() |> sit_out!(@host) |> Room.start_game(@host, ["guest:dana", "guest:timur"])
+
+      assert room.game.seats == ["guest:dana", "guest:timur"]
+    end
+
+    test "a Player who ticks it mid-Game plays on, and sits out the Next Game" do
+      room = sit_out!(playing(), "guest:dana")
+
+      assert room.game.seats == ["guest:dana", "guest:timur", @host]
+
+      assert %{seated?: true, my_dice: [6], my_turn?: true} =
+               Room.view_for(room, "guest:dana").game
+
+      assert {:ok, _room} = Room.raise(room, "guest:dana", 1, 6)
+      assert Room.dealt_in(room) == ["guest:timur", @host]
+    end
+  end
+
+  describe "the view of sitting out" do
+    test "marks each person sitting out, and tells the viewer their own flag" do
+      room = sit_out!(lobby(), "guest:dana")
+
+      assert Enum.map(Room.view_for(room, "guest:timur").people, & &1.sitting_out?) ==
+               [false, false, true]
+
+      assert %{sitting_out?: true} = Room.view_for(room, "guest:dana")
+      assert %{sitting_out?: false} = Room.view_for(room, "guest:timur")
+      assert %{sitting_out?: false} = Room.view_for(room, "guest:aziz")
+    end
+
+    test "counts only those not sitting out as dealt in, and a start needs two of them" do
+      room = sit_out!(lobby(), "guest:dana")
+      assert %{dealt_in: 2, can_start?: true} = Room.view_for(room, @host)
+
+      room = sit_out!(room, "guest:timur")
+      assert %{dealt_in: 1, can_start?: false} = Room.view_for(room, @host)
+    end
+  end
+
+  describe "the Spectators" do
+    defp bek_sits_out, do: lobby() |> enter!("guest:bek", "Bek") |> sit_out!("guest:bek")
+
+    defp spectators(room, viewer),
+      do: for(s <- Room.view_for(room, viewer).spectators, do: {s.person.nickname, s.out?})
+
+    test "are the Knocked out, those sitting out and late arrivals, in join order" do
+      {:roll, room} = Room.next_round(dana_loses(%{"guest:dana" => 5}, [], bek_sits_out()), 1)
+
+      room =
+        room
+        |> Room.start_round(%{"guest:timur" => [3], @host => [4]})
+        |> enter!("guest:aziz", "Aziz")
+
+      assert spectators(room, "guest:timur") == [{"Dana", true}, {"Bek", false}, {"Aziz", false}]
+
+      assert %{nickname: "Aziz", me?: true, n: 5} =
+               List.last(Room.view_for(room, "guest:aziz").spectators).person
+    end
+
+    test "take the one Knocked out only from the Round after, as their seat turns out" do
+      {:ok, room} = Room.reveal(dana_loses(%{"guest:dana" => 5}, [], bek_sits_out()), 1, 3)
+
+      assert spectators(room, "guest:timur") == [{"Bek", false}]
+    end
+
+    test "are none with no Game on" do
+      assert Room.view_for(bek_sits_out(), "guest:timur").spectators == []
+    end
+
+    test "carry no person id" do
+      {:roll, room} = Room.next_round(dana_loses(%{"guest:dana" => 5}, [], bek_sits_out()), 1)
+      ids = [@host, "guest:dana", "guest:timur", "guest:bek"]
+
+      for viewer <- ids, id <- ids do
+        refute inspect(Room.view_for(room, viewer)) =~ id
+      end
+    end
+  end
+
   describe "playing" do
     test "with no Game running nobody can Raise or Check" do
       assert Room.raise(lobby(), @host, 1, 6) == {:error, :not_bidding}
@@ -227,8 +354,8 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
-  defp dana_loses(counts, out \\ []) do
-    {:ok, room} = Room.start_game(lobby(), @host, ["guest:dana", "guest:timur", @host])
+  defp dana_loses(counts, out \\ [], lobby \\ lobby()) do
+    {:ok, room} = Room.start_game(lobby, @host, ["guest:dana", "guest:timur", @host])
     counts = Map.merge(%{"guest:dana" => 1, "guest:timur" => 1, @host => 1}, counts)
     room = %{room | game: %{room.game | counts: counts, out: out}}
     dice = for {id, n} <- counts, id not in out, into: %{}, do: {id, List.duplicate(1, n)}
