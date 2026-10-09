@@ -121,6 +121,7 @@
   margin: 0;
   font-size: 34px;
   line-height: var(--spacing-rule);
+  overflow-wrap: anywhere;
 }
 .lobby__side {
   display: grid;
@@ -318,7 +319,7 @@
     column-gap: var(--spacing-6);
   }
   .lobby.is-over {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(200px, 260px);
     max-width: 1080px;
   }
   .lobby.is-over .lobby__pages {
