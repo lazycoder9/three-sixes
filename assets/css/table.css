@@ -1,0 +1,479 @@
+.game-table {
+  --seat: rgba(255, 255, 255, 0.2);
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-3) var(--spacing-4);
+}
+[data-theme="dark"] .game-table {
+  --seat: rgba(0, 0, 0, 0.22);
+}
+/* The top seat's Bid chip sits above the seat, so the ring leaves it room under the Room bar. */
+.game-table__ring {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 440px;
+  margin-top: 26px;
+}
+.game-table__seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.die.is-down {
+  background: linear-gradient(150deg, #fbf4e2, #e6d8b6);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(90, 65, 30, 0.45),
+    0 calc(var(--d) * 0.1) 0 rgba(0, 0, 0, 0.3);
+}
+.die.is-flip {
+  animation: flip 0.45s both;
+}
+.die.is-hit {
+  box-shadow:
+    0 0 0 calc(var(--d) * 0.09) var(--color-mustard),
+    0 calc(var(--d) * 0.12) calc(var(--d) * 0.2) rgba(0, 0, 0, 0.35);
+  translate: 0 calc(var(--d) * -0.12);
+}
+.die.is-miss {
+  opacity: 0.5;
+}
+.die.is-penalty {
+  background: linear-gradient(150deg, #f0907c, var(--color-tomato));
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 20, 10, 0.4),
+    0 calc(var(--d) * 0.06) 0 rgba(0, 0, 0, 0.28);
+  animation: thud 0.5s var(--ease-press) both;
+}
+@keyframes flip {
+  from {
+    transform: rotateY(90deg) scale(0.8);
+  }
+}
+@keyframes thud {
+  from {
+    transform: translateY(-28px) rotate(-30deg) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.bidn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.16em;
+  font: 400 var(--b, 30px) / 1 var(--font-display);
+  white-space: nowrap;
+}
+.bidn b {
+  font-weight: 400;
+}
+.bidn i {
+  margin: 0 0.05em;
+  font: 700 0.62em/1 var(--font-scrawl);
+}
+.bidn .die {
+  --d: calc(var(--b, 30px) * 1.06);
+  transform: rotate(6deg);
+}
+
+.scrawl {
+  font: 700 28px/1.05 var(--font-scrawl);
+}
+.red {
+  color: var(--color-tomato);
+}
+.slam {
+  animation: slam 0.35s var(--ease-press) both;
+}
+@keyframes slam {
+  from {
+    transform: scale(2) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+.seat {
+  --sw: 128px;
+  --sh: 118px;
+  position: absolute;
+  left: calc(50% + var(--x) * (50% - var(--sw) / 2));
+  top: calc(50% + var(--y) * (50% - var(--sh) / 2));
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  width: var(--sw);
+  padding: 8px 5px 10px;
+  border-radius: 18px;
+  background: var(--seat);
+  text-align: center;
+  transition:
+    transform 0.25s var(--ease-press),
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+.seat .token {
+  width: 46px;
+  height: 46px;
+  font-size: 19px;
+}
+.seat__name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat__dice {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  min-height: 26px;
+}
+.seat__dice .die {
+  --d: 25px;
+}
+.seat__dice .die.is-flip,
+.seat__dice .die.is-penalty {
+  --d: 30px;
+}
+.seat__said {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 8px);
+  transform: translateX(-50%) rotate(-3deg);
+  padding: 1px 8px 2px;
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.4);
+  opacity: 0.6;
+}
+.seat__said .bidn {
+  --b: 21px;
+}
+.seat__said.is-now {
+  opacity: 1;
+  animation: slam 0.3s var(--ease-press);
+}
+.seat.is-turn {
+  z-index: 2;
+  background: var(--color-sheet);
+  color: var(--color-espresso);
+  box-shadow:
+    0 0 0 3px var(--color-mustard),
+    0 12px 16px -8px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.seat.is-loser {
+  box-shadow: 0 0 0 3px var(--color-tomato);
+}
+
+.game-table__scrap {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 1;
+  transform: translate(-50%, -50%) rotate(-1.2deg);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: min(46%, 310px);
+  padding: 14px 14px 18px;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.2;
+}
+.game-table__scrap .bidn {
+  --b: 60px;
+  margin: 4px 0;
+}
+.game-table__scrap .scrawl {
+  font-size: 32px;
+}
+.scrap__bid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.game-table__scrap .scrap__bid .bidn {
+  --b: 22px;
+  margin: 0;
+}
+.game-table__scrap .scrap__found .bidn {
+  --b: 50px;
+  margin: 10px 0 12px;
+}
+.scrap__found .die {
+  box-shadow:
+    0 0 0 4px var(--color-mustard),
+    0 6px 10px rgba(0, 0, 0, 0.3);
+}
+.scrap__pen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.scrap__pen b {
+  color: var(--color-tomato);
+  font: 700 26px/1 var(--font-scrawl);
+}
+.scrap__pen .die {
+  --d: 24px;
+  animation: none;
+}
+
+.my-page {
+  align-self: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hand head check"
+    "hand opts check";
+  align-items: center;
+  gap: 3px 20px;
+  width: 860px;
+  max-width: 100%;
+  margin-top: 6px;
+  padding-top: 21px;
+  padding-bottom: 10px;
+}
+.my-page.is-turn::after {
+  box-shadow:
+    0 0 0 4px var(--color-mustard),
+    0 18px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.my-page .hand {
+  --s: 44px;
+  grid-area: hand;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px 16px;
+  max-width: 196px;
+  padding: 8px 6px;
+}
+.hand .slot {
+  transition:
+    translate 0.25s,
+    opacity 0.25s;
+}
+.hand .slot.is-hit {
+  translate: 0 -14%;
+  filter: drop-shadow(0 0 2px var(--color-mustard)) drop-shadow(0 0 7px var(--color-mustard));
+}
+.hand .slot.is-miss {
+  opacity: 0.45;
+}
+.hand .slot--pen {
+  align-self: center;
+  transform: rotate(8deg);
+}
+.hand .slot--pen::before {
+  display: none;
+}
+.hand .slot--pen .die {
+  --d: 34px;
+}
+.my-page__head {
+  grid-area: head;
+  min-height: 1.1em;
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.opts {
+  grid-area: opts;
+  display: grid;
+  align-content: center;
+  justify-content: start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 88px;
+}
+.opts.is-hidden {
+  visibility: hidden;
+}
+.orow {
+  display: grid;
+  grid-template-columns: 48px repeat(6, auto) auto;
+  align-items: center;
+  gap: 6px;
+}
+.orow b {
+  font: 700 27px/1 var(--font-scrawl);
+  text-align: right;
+  white-space: nowrap;
+}
+.pickdie {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  border-radius: 22%;
+}
+.pickdie .die {
+  --d: 37px;
+  display: grid;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.pickgap {
+  width: 37px;
+}
+.pickdie:focus-visible {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 2px;
+}
+.pickdie:disabled {
+  cursor: default;
+}
+.opts.is-off .pickdie {
+  opacity: 0.45;
+}
+.orow__step {
+  display: flex;
+  gap: 6px;
+  margin-left: 6px;
+}
+.orow__step .round-button {
+  width: 32px;
+  height: 32px;
+  font: 700 18px/1 var(--font-ui);
+}
+.orow__step .round-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.opts.is-off .orow__step {
+  visibility: hidden;
+}
+.block.my-page__check {
+  grid-area: check;
+  align-self: center;
+  min-width: 136px;
+  min-height: 90px;
+  margin: 0 0 5px;
+  font-size: 20px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pickdie:not(:disabled):hover .die {
+    transform: translateY(-3px) rotate(-6deg);
+    box-shadow:
+      0 0 0 3px var(--color-tomato),
+      0 8px 10px -3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.game-table__watching {
+  align-self: center;
+  max-width: 420px;
+  margin-top: var(--spacing-2);
+  text-align: center;
+  font-size: 21px;
+}
+
+@media (max-width: 720px) {
+  .game-table {
+    padding: 0 var(--spacing-2) var(--spacing-3);
+  }
+  .game-table__ring {
+    min-height: 390px;
+  }
+  .seat {
+    --sw: 88px;
+    --sh: 92px;
+  }
+  .seat .token {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
+  .seat__dice .die {
+    --d: 21px;
+  }
+  .seat__dice .die.is-flip,
+  .seat__dice .die.is-penalty {
+    --d: 23px;
+  }
+  .game-table__scrap {
+    width: min(48%, 190px);
+    padding: 10px 8px 14px;
+    font-size: 17px;
+  }
+  .game-table__scrap .bidn {
+    --b: 40px;
+  }
+  .game-table__scrap .scrawl {
+    font-size: 25px;
+  }
+  .game-table__scrap .scrap__found .bidn {
+    --b: 42px;
+    margin: 8px 0 10px;
+  }
+  .my-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "hand" "head" "opts" "check";
+    gap: 5px;
+    width: 100%;
+    padding-left: 38px;
+    padding-right: 10px;
+  }
+  .my-page .hand {
+    --s: clamp(34px, calc((100vw - 110px) / 6.5), 42px);
+    flex-wrap: nowrap;
+    justify-self: center;
+    max-width: none;
+    padding: 12px 0 10px;
+  }
+  .my-page__head {
+    font-size: 22px;
+    text-align: center;
+  }
+  .opts {
+    justify-content: center;
+    gap: 5px;
+    min-height: 78px;
+  }
+  .orow {
+    grid-template-columns: 34px repeat(6, auto) auto;
+    gap: 4px;
+  }
+  .orow b {
+    font-size: 25px;
+  }
+  .pickdie .die {
+    --d: 33px;
+  }
+  .pickgap {
+    width: 33px;
+  }
+  .orow__step {
+    gap: 4px;
+    min-width: 28px;
+    margin-left: 2px;
+  }
+  .orow__step .round-button {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+  .block.my-page__check {
+    min-height: 50px;
+    margin-top: 4px;
+    font-size: 19px;
+  }
+}
