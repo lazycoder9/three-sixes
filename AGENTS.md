@@ -26,3 +26,5 @@ is gitignored, not in `docs/`, which holds only durable, still-true documents.
   && mix precommit && git push --force-with-lease`. Always spell the remote-tracking ref in full:
   a local branch named `origin/main` shadows the bare form, and the rebase silently lands on the
   wrong tip.
+- Pull requests land as a squash merge (`gh pr merge --squash --delete-branch`), so `main` holds
+  one commit per pull request.
