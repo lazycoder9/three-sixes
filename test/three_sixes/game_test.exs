@@ -259,6 +259,130 @@ defmodule ThreeSixes.GameTest do
     end
   end
 
+  defp holding(counts, dice) do
+    counts
+    |> Map.keys()
+    |> Enum.sort()
+    |> Game.new()
+    |> Map.put(:counts, counts)
+    |> Game.start_round(dice)
+  end
+
+  defp lose!(game, loser, checker) do
+    game
+    |> raise!(loser, Game.dice_on_table(game), 6)
+    |> check!(checker)
+    |> Game.advance_reveal(3)
+  end
+
+  describe "Knocked out" do
+    test "the sixth die Knocks its taker out at reveal step 3, once" do
+      game =
+        %{"a" => 5, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> raise!("a", 3, 6)
+        |> check!("b")
+        |> Game.advance_reveal(2)
+
+      assert game.out == []
+
+      game = Game.advance_reveal(game, 3)
+
+      assert game.counts["a"] == 6
+      assert game.out == ["a"]
+      assert Game.advance_reveal(game, 3) == game
+    end
+
+    test "a Knocked-out Player rolls no dice and has none on the table" do
+      game =
+        %{"a" => 5, "b" => 2, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2, 2], "c" => [3]})
+        |> lose!("a", "b")
+
+      assert Game.to_roll(game) == [{"b", 2}, {"c", 1}]
+      assert Game.dice_on_table(game) == 3
+    end
+
+    test "when the loser is Knocked out, the next Player in turn order opens" do
+      game =
+        %{"a" => 1, "b" => 5, "c" => 1}
+        |> holding(%{"a" => [2], "b" => [1, 1, 1, 1, 1], "c" => [3]})
+        |> raise!("a", 1, 2)
+        |> lose!("b", "c")
+        |> Game.start_round(%{"a" => [4], "c" => [5]})
+
+      assert game.turn == "c"
+    end
+
+    defp a_knocked_out do
+      %{"a" => 5, "b" => 1, "c" => 1, "d" => 5}
+      |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3], "d" => [4, 4, 4, 4, 4]})
+      |> lose!("a", "b")
+      |> Game.start_round(%{"b" => [2], "c" => [3], "d" => [4, 4, 4, 4, 4]})
+    end
+
+    test "the turn passes over a Knocked-out seat, wrapping round" do
+      game = a_knocked_out()
+      assert game.turn == "b"
+
+      game = game |> raise!("b", 1, 2) |> raise!("c", 1, 3) |> raise!("d", 1, 4)
+
+      assert game.turn == "b"
+    end
+
+    test "after a Knock out, the opener is the next Player in play, past every seat out" do
+      game =
+        a_knocked_out()
+        |> raise!("b", 1, 2)
+        |> raise!("c", 1, 3)
+        |> lose!("d", "b")
+        |> Game.start_round(%{"b" => [5], "c" => [5]})
+
+      assert game.out == ["a", "d"]
+      assert game.turn == "b"
+      assert Game.to_roll(game) == [{"b", 1}, {"c", 1}]
+    end
+  end
+
+  describe "Game over" do
+    test "comes when one Player is left in play" do
+      game =
+        %{"a" => 5, "b" => 1, "c" => 5}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3, 3, 3, 3, 3]})
+        |> lose!("a", "b")
+
+      refute Game.over?(game)
+
+      game =
+        game
+        |> Game.start_round(%{"b" => [2], "c" => [3, 3, 3, 3, 3]})
+        |> raise!("b", 1, 2)
+        |> lose!("c", "b")
+
+      assert Game.over?(game)
+    end
+
+    test "the Placement is the winner, then the others in reverse order of being Knocked out" do
+      fives = [1, 1, 1, 1, 1]
+
+      game =
+        %{"a" => 1, "b" => 5, "c" => 5, "d" => 5}
+        |> holding(%{"a" => [2], "b" => fives, "c" => fives, "d" => fives})
+        |> raise!("a", 1, 2)
+        |> raise!("b", 1, 3)
+        |> raise!("c", 1, 4)
+        |> lose!("d", "a")
+        |> Game.start_round(%{"a" => [2], "b" => fives, "c" => fives})
+        |> raise!("a", 1, 2)
+        |> lose!("b", "c")
+        |> Game.start_round(%{"a" => [2], "c" => fives})
+        |> lose!("c", "a")
+
+      assert game.out == ["d", "b", "c"]
+      assert Game.placement(game) == ["a", "c", "b", "d"]
+    end
+  end
+
   test "the dice to roll are each seat's count, in seat order" do
     assert ["c", "a", "b"] |> Game.new() |> Game.to_roll() == [{"c", 1}, {"a", 1}, {"b", 1}]
 

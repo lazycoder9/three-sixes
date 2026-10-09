@@ -5,7 +5,7 @@ defmodule ThreeSixes.Room do
   @max_nickname_length 16
   @capacity 30
 
-  defstruct [:code, :host_id, members: [], game: nil]
+  defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil]
 
   @type person_id :: String.t()
   @type member :: %{id: person_id(), nickname: String.t()}
@@ -15,6 +15,7 @@ defmodule ThreeSixes.Room do
           round: pos_integer(),
           dice_on_table: pos_integer(),
           seated?: boolean(),
+          knocked_out?: boolean(),
           my_dice: [Game.face()] | nil,
           my_turn?: boolean(),
           can_check?: boolean(),
@@ -27,7 +28,8 @@ defmodule ThreeSixes.Room do
               said: Game.bid() | nil,
               on_turn?: boolean(),
               faces: [Game.face()] | nil,
-              penalty?: boolean()
+              penalty?: boolean(),
+              out?: boolean()
             }
           ],
           reveal:
@@ -37,25 +39,37 @@ defmodule ThreeSixes.Room do
               bid: bid_view(),
               count: non_neg_integer() | nil,
               stood?: boolean() | nil,
-              loser: person_ref() | nil
+              loser: person_ref() | nil,
+              knocked_out?: boolean()
             }
             | nil
         }
   @type view :: %{
           code: String.t(),
-          people: [%{nickname: String.t(), host?: boolean(), me?: boolean(), n: pos_integer()}],
+          people: [
+            %{
+              nickname: String.t(),
+              host?: boolean(),
+              me?: boolean(),
+              n: pos_integer(),
+              tally: non_neg_integer()
+            }
+          ],
           me: String.t() | nil,
           host?: boolean(),
           host_nickname: String.t() | nil,
           can_start?: boolean(),
           dealt_in: non_neg_integer(),
-          game: game_view() | nil
+          game: game_view() | nil,
+          over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil
         }
   @type t :: %__MODULE__{
           code: String.t(),
           host_id: person_id(),
           members: [member()],
-          game: Game.t() | nil
+          game: Game.t() | nil,
+          tally: %{person_id() => pos_integer()},
+          last: %{placement: [person_id()], rounds: pos_integer()} | nil
         }
 
   @spec new(String.t(), person_id()) :: t()
@@ -135,7 +149,7 @@ defmodule ThreeSixes.Room do
       room.game != nil -> {:error, :playing}
       length(dealt_in) < 2 -> {:error, :too_few}
       Enum.sort(seats) != Enum.sort(dealt_in) -> {:error, :wrong_seats}
-      true -> {:ok, %{room | game: Game.new(seats)}}
+      true -> {:ok, %{room | game: Game.new(seats), last: nil}}
     end
   end
 
@@ -163,6 +177,25 @@ defmodule ThreeSixes.Room do
     do: {:ok, %{room | game: Game.advance_reveal(game, step)}}
 
   def reveal(_room, _round, _step), do: :stale
+
+  @spec next_round(t(), pos_integer()) :: :stale | {:roll, t()} | {:over, t()}
+  def next_round(room, round) do
+    case reveal(room, round, 3) do
+      {:ok, room} -> if Game.over?(room.game), do: {:over, game_over(room)}, else: {:roll, room}
+      :stale -> :stale
+    end
+  end
+
+  defp game_over(%{game: game} = room) do
+    [winner | _] = placement = Game.placement(game)
+
+    %{
+      room
+      | game: nil,
+        tally: Map.update(room.tally, winner, 1, &(&1 + 1)),
+        last: %{placement: placement, rounds: game.round}
+    }
+  end
 
   @spec reveal_schedule(t()) :: [
           {pos_integer(), {:reveal, pos_integer(), 1..3} | {:next_round, pos_integer()}}
@@ -192,7 +225,8 @@ defmodule ThreeSixes.Room do
             nickname: member.nickname,
             host?: member.id == room.host_id,
             me?: member.id == person_id,
-            n: n
+            n: n,
+            tally: Map.get(room.tally, member.id, 0)
           }
         end),
       me: me && me.nickname,
@@ -200,26 +234,36 @@ defmodule ThreeSixes.Room do
       host_nickname: host && host.nickname,
       can_start?: host? and room.game == nil and length(room.members) >= 2,
       dealt_in: length(room.members),
-      game: room.game && game_view(room, room.game, person_id)
+      game: room.game && game_view(room, room.game, person_id),
+      over: over_view(room, person_id)
     }
   end
 
+  defp over_view(%{game: nil, last: %{placement: [winner | _] = placement} = last} = room, viewer) do
+    ref = &person_ref(room, &1, viewer)
+    %{winner: ref.(winner), placement: Enum.map(placement, ref), rounds: last.rounds}
+  end
+
+  defp over_view(_room, _viewer), do: nil
+
   defp game_view(room, game, viewer) do
     ref = &person_ref(room, &1, viewer)
-    seated? = viewer in game.seats
+    knocked_out? = out?(game, viewer)
+    seated? = viewer in game.seats and not knocked_out?
     my_turn? = seated? and game.turn == viewer
 
     %{
       round: game.round,
       dice_on_table: Game.dice_on_table(game),
       seated?: seated?,
+      knocked_out?: knocked_out?,
       my_dice: game.dice[viewer],
       my_turn?: my_turn?,
       can_check?: my_turn? and game.bid != nil and game.reveal == nil,
       turn: game.turn && ref.(game.turn),
       bid: game.bid && bid_view(game.bid, ref),
       seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
-      reveal: game.reveal && reveal_view(game.reveal, ref)
+      reveal: game.reveal && reveal_view(game, ref)
     }
   end
 
@@ -239,12 +283,17 @@ defmodule ThreeSixes.Room do
       said: game.said[seat],
       on_turn?: game.turn == seat,
       faces: if(reveal.step >= 1, do: game.dice[seat]),
-      penalty?: reveal.step >= 3 and reveal.loser == seat
+      penalty?: reveal.step >= 3 and reveal.loser == seat,
+      out?: out?(game, seat)
     }
   end
 
-  defp reveal_view(reveal, ref) do
+  defp out?(%{reveal: %{loser: seat}}, seat), do: false
+  defp out?(game, seat), do: seat in game.out
+
+  defp reveal_view(%{reveal: reveal} = game, ref) do
     counted? = reveal.step >= 2
+    penalized? = reveal.step >= 3
 
     %{
       step: reveal.step,
@@ -252,7 +301,8 @@ defmodule ThreeSixes.Room do
       bid: bid_view(reveal.bid, ref),
       count: if(counted?, do: reveal.count),
       stood?: if(counted?, do: reveal.stood?),
-      loser: if(reveal.step >= 3, do: ref.(reveal.loser))
+      loser: if(penalized?, do: ref.(reveal.loser)),
+      knocked_out?: penalized? and reveal.loser in game.out
     }
   end
 
