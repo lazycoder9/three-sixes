@@ -106,8 +106,16 @@
   margin: 0 auto;
   padding: var(--spacing-4) clamp(12px, 3vw, 28px) var(--spacing-7);
 }
-.lobby > .paper {
+.lobby__pages {
+  display: grid;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+.lobby__pages > .paper {
   transform: rotate(-0.6deg);
+}
+.lobby__pages > .paper + .paper {
+  transform: rotate(0.5deg);
 }
 .lobby h1 {
   margin: 0;
@@ -142,6 +150,89 @@
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
+.placement {
+  list-style: none;
+  margin: calc(var(--spacing-rule) * 0.5) 0 0;
+  padding: 0;
+  counter-reset: place;
+}
+.placement li {
+  counter-increment: place;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: calc(var(--spacing-rule) * 1.5);
+  line-height: 1.1;
+}
+.placement li > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.placement li::before {
+  content: counter(place) ".";
+  flex: none;
+  width: 1.4em;
+  font: 700 28px/1 var(--font-scrawl);
+  text-align: right;
+}
+.placement li:first-child {
+  min-height: calc(var(--spacing-rule) * 2);
+  font-size: 24px;
+}
+.placement li:first-child::before {
+  color: var(--color-tomato);
+}
+.circled {
+  position: relative;
+  display: inline-block;
+}
+.circled::after {
+  content: "";
+  position: absolute;
+  inset: -3px -10px -5px;
+  border: 2.5px solid var(--color-tomato);
+  border-radius: 50%;
+  transform: rotate(-4deg);
+  filter: url(#rough);
+}
+.defs {
+  position: absolute;
+}
+
+.tally {
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+  vertical-align: middle;
+}
+.tally span {
+  position: relative;
+  display: inline-flex;
+  gap: 4px;
+}
+.tally i {
+  width: 2.5px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--color-graphite);
+  transform: rotate(5deg);
+}
+.tally i:nth-child(even) {
+  height: 18px;
+  transform: rotate(-3deg);
+}
+.tally .five::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--color-graphite);
+  transform: rotate(-24deg);
+}
+
 .host-tag {
   margin-left: 6px;
   color: var(--color-tomato);
@@ -222,9 +313,16 @@
 }
 
 @media (min-width: 1000px) {
-  .people {
+  .lobby:not(.is-over) .people {
     columns: 2;
     column-gap: var(--spacing-6);
+  }
+  .lobby.is-over {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    max-width: 1080px;
+  }
+  .lobby.is-over .lobby__pages {
+    display: contents;
   }
   .people li {
     break-inside: avoid;

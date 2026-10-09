@@ -176,6 +176,17 @@
 .seat.is-loser {
   box-shadow: 0 0 0 3px var(--color-tomato);
 }
+.seat.is-out {
+  opacity: 0.4;
+}
+.seat.is-out .seat__name {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-tomato);
+  text-decoration-thickness: 2px;
+}
+.seat__out {
+  font: 400 15px/1 var(--font-hand);
+}
 
 .game-table__scrap {
   position: absolute;
@@ -232,6 +243,10 @@
 .scrap__pen .die {
   --d: 24px;
   animation: none;
+}
+.scrap__pen em {
+  flex-basis: 100%;
+  font: 700 24px/1 var(--font-scrawl);
 }
 
 .my-page {

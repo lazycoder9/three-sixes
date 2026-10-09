@@ -42,6 +42,34 @@ defmodule ThreeSixesWeb.KitchenComponentsTest do
     assert body_style(face: 6, from: 5) =~ "--from-rx: 90deg; --from-ry: 0deg"
   end
 
+  describe "a Tally" do
+    test "of nothing is not drawn" do
+      assert render_component(&tally/1, count: 0) == ""
+    end
+
+    test "draws strokes in groups of five, four struck through by a fifth, then the rest" do
+      assert strokes(1) == {"1 win", [[:single, 1]]}
+      assert strokes(4) == {"4 wins", [[:single, 4]]}
+      assert strokes(5) == {"5 wins", [[:five, 4]]}
+      assert strokes(12) == {"12 wins", [[:five, 4], [:five, 4], [:single, 2]]}
+    end
+  end
+
+  defp strokes(count) do
+    html = (&tally/1) |> render_component(count: count) |> LazyHTML.from_fragment()
+
+    groups =
+      html
+      |> LazyHTML.query(".tally > span")
+      |> Enum.map(fn group ->
+        kind = if "five" in classes(group), do: :five, else: :single
+        [kind, group |> LazyHTML.query("i") |> Enum.count()]
+      end)
+
+    {html |> LazyHTML.query(".tally[role=img]") |> LazyHTML.attribute("aria-label") |> hd(),
+     groups}
+  end
+
   defp pip_cells(html, selector) do
     html
     |> LazyHTML.from_fragment()
