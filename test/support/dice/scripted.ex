@@ -21,6 +21,9 @@ defmodule ThreeSixes.Dice.Scripted do
     end
   end
 
+  @impl true
+  def shuffle(list), do: list
+
   defp next_roll(scripts, owners) do
     case Enum.find(owners, &match?([_ | _], scripts[&1])) do
       nil -> {nil, scripts}

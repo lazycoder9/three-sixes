@@ -15,7 +15,7 @@ defmodule ThreeSixes.Rooms do
 
     case DynamicSupervisor.start_child(
            ThreeSixes.Rooms.Supervisor,
-           {Server, {code, host_id, address}}
+           {Server, {code, host_id, address, [self() | Process.get(:"$callers", [])]}}
          ) do
       {:ok, _pid} -> {:ok, code}
       {:error, {:already_started, _pid}} -> create(host_id, address, attempts - 1)
@@ -32,6 +32,18 @@ defmodule ThreeSixes.Rooms do
           | {:taken, held :: String.t(), suggestion :: String.t()}
           | {:error, :blank | :too_long | :full | :closed}
   def enter(code, person_id, nickname), do: call(code, {:enter, person_id, nickname})
+
+  @spec start_game(String.t(), Room.person_id()) ::
+          :ok | {:error, :not_host | :playing | :too_few | :closed}
+  def start_game(code, person_id), do: call(code, {:start_game, person_id})
+
+  @spec raise(String.t(), Room.person_id(), term(), term()) ::
+          :ok | {:error, :not_bidding | :not_your_turn | :illegal | :closed}
+  def raise(code, person_id, count, face), do: call(code, {:raise, person_id, count, face})
+
+  @spec check(String.t(), Room.person_id()) ::
+          :ok | {:error, :not_bidding | :not_your_turn | :no_bid | :closed}
+  def check(code, person_id), do: call(code, {:check, person_id})
 
   @spec whereis(String.t()) :: pid() | nil
   def whereis(code) do

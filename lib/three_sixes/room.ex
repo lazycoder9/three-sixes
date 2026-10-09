@@ -1,19 +1,62 @@
 defmodule ThreeSixes.Room do
+  alias ThreeSixes.Game
+
   @enforce_keys [:code, :host_id]
   @max_nickname_length 16
   @capacity 30
 
-  defstruct [:code, :host_id, members: []]
+  defstruct [:code, :host_id, members: [], game: nil]
 
   @type person_id :: String.t()
   @type member :: %{id: person_id(), nickname: String.t()}
+  @type person_ref :: %{nickname: String.t(), me?: boolean(), n: pos_integer()}
+  @type bid_view :: %{count: pos_integer(), face: Game.face(), by: person_ref()}
+  @type game_view :: %{
+          round: pos_integer(),
+          dice_on_table: pos_integer(),
+          seated?: boolean(),
+          my_dice: [Game.face()] | nil,
+          my_turn?: boolean(),
+          can_check?: boolean(),
+          turn: person_ref() | nil,
+          bid: bid_view() | nil,
+          seats: [
+            %{
+              person: person_ref(),
+              dice: pos_integer(),
+              said: Game.bid() | nil,
+              on_turn?: boolean(),
+              faces: [Game.face()] | nil,
+              penalty?: boolean()
+            }
+          ],
+          reveal:
+            %{
+              step: 0..3,
+              checker: person_ref(),
+              bid: bid_view(),
+              count: non_neg_integer() | nil,
+              stood?: boolean() | nil,
+              loser: person_ref() | nil
+            }
+            | nil
+        }
   @type view :: %{
           code: String.t(),
           people: [%{nickname: String.t(), host?: boolean(), me?: boolean(), n: pos_integer()}],
           me: String.t() | nil,
-          host?: boolean()
+          host?: boolean(),
+          host_nickname: String.t() | nil,
+          can_start?: boolean(),
+          dealt_in: non_neg_integer(),
+          game: game_view() | nil
         }
-  @type t :: %__MODULE__{code: String.t(), host_id: person_id(), members: [member()]}
+  @type t :: %__MODULE__{
+          code: String.t(),
+          host_id: person_id(),
+          members: [member()],
+          game: Game.t() | nil
+        }
 
   @spec new(String.t(), person_id()) :: t()
   def new(code, host_id), do: %__MODULE__{code: code, host_id: host_id}
@@ -79,9 +122,65 @@ defmodule ThreeSixes.Room do
   @spec member?(t(), person_id()) :: boolean()
   def member?(room, person_id), do: Enum.any?(room.members, &(&1.id == person_id))
 
+  @spec dealt_in(t()) :: [person_id()]
+  def dealt_in(room), do: Enum.map(room.members, & &1.id)
+
+  @spec start_game(t(), person_id(), [person_id()]) ::
+          {:ok, t()} | {:error, :not_host | :playing | :too_few | :wrong_seats}
+  def start_game(room, by, seats) do
+    dealt_in = dealt_in(room)
+
+    cond do
+      by != room.host_id -> {:error, :not_host}
+      room.game != nil -> {:error, :playing}
+      length(dealt_in) < 2 -> {:error, :too_few}
+      Enum.sort(seats) != Enum.sort(dealt_in) -> {:error, :wrong_seats}
+      true -> {:ok, %{room | game: Game.new(seats)}}
+    end
+  end
+
+  @spec start_round(t(), %{person_id() => [Game.face()]}) :: t()
+  def start_round(room, dice), do: %{room | game: Game.start_round(room.game, dice)}
+
+  @spec raise(t(), person_id(), term(), term()) ::
+          {:ok, t()} | {:error, :not_bidding | :not_your_turn | :illegal}
+  def raise(%{game: nil}, _by, _count, _face), do: {:error, :not_bidding}
+
+  def raise(room, by, count, face) do
+    with {:ok, game} <- Game.raise(room.game, by, count, face), do: {:ok, %{room | game: game}}
+  end
+
+  @spec check(t(), person_id()) ::
+          {:ok, t()} | {:error, :not_bidding | :not_your_turn | :no_bid}
+  def check(%{game: nil}, _by), do: {:error, :not_bidding}
+
+  def check(room, by) do
+    with {:ok, game} <- Game.check(room.game, by), do: {:ok, %{room | game: game}}
+  end
+
+  @spec reveal(t(), pos_integer(), 1..3) :: {:ok, t()} | :stale
+  def reveal(%{game: %Game{round: round, reveal: %{}} = game} = room, round, step),
+    do: {:ok, %{room | game: Game.advance_reveal(game, step)}}
+
+  def reveal(_room, _round, _step), do: :stale
+
+  @spec reveal_schedule(t()) :: [
+          {pos_integer(), {:reveal, pos_integer(), 1..3} | {:next_round, pos_integer()}}
+        ]
+  def reveal_schedule(%{game: %Game{round: round}}) do
+    [
+      {1100, {:reveal, round, 1}},
+      {2700, {:reveal, round, 2}},
+      {4300, {:reveal, round, 3}},
+      {8200, {:next_round, round}}
+    ]
+  end
+
   @spec view_for(t(), person_id()) :: view()
   def view_for(room, person_id) do
-    me = Enum.find(room.members, &(&1.id == person_id))
+    me = find_member(room, person_id)
+    host = find_member(room, room.host_id)
+    host? = person_id == room.host_id
 
     %{
       code: room.code,
@@ -97,7 +196,76 @@ defmodule ThreeSixes.Room do
           }
         end),
       me: me && me.nickname,
-      host?: person_id == room.host_id
+      host?: host?,
+      host_nickname: host && host.nickname,
+      can_start?: host? and room.game == nil and length(room.members) >= 2,
+      dealt_in: length(room.members),
+      game: room.game && game_view(room, room.game, person_id)
     }
   end
+
+  defp game_view(room, game, viewer) do
+    ref = &person_ref(room, &1, viewer)
+    seated? = viewer in game.seats
+    my_turn? = seated? and game.turn == viewer
+
+    %{
+      round: game.round,
+      dice_on_table: Game.dice_on_table(game),
+      seated?: seated?,
+      my_dice: game.dice[viewer],
+      my_turn?: my_turn?,
+      can_check?: my_turn? and game.bid != nil and game.reveal == nil,
+      turn: game.turn && ref.(game.turn),
+      bid: game.bid && bid_view(game.bid, ref),
+      seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
+      reveal: game.reveal && reveal_view(game.reveal, ref)
+    }
+  end
+
+  defp from_seat(seats, viewer) do
+    case Enum.find_index(seats, &(&1 == viewer)) do
+      nil -> seats
+      index -> Enum.drop(seats, index) ++ Enum.take(seats, index)
+    end
+  end
+
+  defp seat_view(game, seat, ref) do
+    reveal = game.reveal || %{step: 0, loser: nil}
+
+    %{
+      person: ref.(seat),
+      dice: game.counts[seat],
+      said: game.said[seat],
+      on_turn?: game.turn == seat,
+      faces: if(reveal.step >= 1, do: game.dice[seat]),
+      penalty?: reveal.step >= 3 and reveal.loser == seat
+    }
+  end
+
+  defp reveal_view(reveal, ref) do
+    counted? = reveal.step >= 2
+
+    %{
+      step: reveal.step,
+      checker: ref.(reveal.checker),
+      bid: bid_view(reveal.bid, ref),
+      count: if(counted?, do: reveal.count),
+      stood?: if(counted?, do: reveal.stood?),
+      loser: if(reveal.step >= 3, do: ref.(reveal.loser))
+    }
+  end
+
+  defp bid_view(bid, ref), do: %{count: bid.count, face: bid.face, by: ref.(bid.by)}
+
+  defp person_ref(room, person_id, viewer) do
+    {member, n} =
+      room.members
+      |> Enum.with_index(1)
+      |> Enum.find(fn {member, _n} -> member.id == person_id end)
+
+    %{nickname: member.nickname, me?: person_id == viewer, n: n}
+  end
+
+  defp find_member(room, person_id), do: Enum.find(room.members, &(&1.id == person_id))
 end
