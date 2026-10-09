@@ -70,15 +70,20 @@ defmodule ThreeSixesWeb.Layouts do
 
   attr :flash, :map, required: true
   attr :code, :string, required: true
+  attr :sitting_out?, :boolean, required: true
+  slot :under_code
   slot :inner_block, required: true
 
   def room(assigns) do
     ~H"""
     <header class="roombar">
       <.logo />
-      <span class="tiles roombar__code" aria-label={"Room code #{@code}"}>
-        <.letter_tile :for={letter <- String.graphemes(@code)} letter={letter} />
-      </span>
+      <div class="roombar__code">
+        <span class="tiles" aria-label={"Room code #{@code}"}>
+          <.letter_tile :for={letter <- String.graphemes(@code)} letter={letter} />
+        </span>
+        {render_slot(@under_code)}
+      </div>
       <button type="button" class="round-button" popovertarget="room-menu" aria-label="Room menu">
         <svg
           viewBox="0 0 24 24"
@@ -99,6 +104,14 @@ defmodule ThreeSixesWeb.Layouts do
       <h2 id="room-menu-title">Room {@code}</h2>
       <div class="stack">
         <.copy_room_link id="menu-copied" code={@code} />
+        <.block
+          id="menu-sit-out"
+          phx-click="sit_out"
+          phx-value-sitting_out={to_string(!@sitting_out?)}
+          aria-pressed={to_string(@sitting_out?)}
+        >
+          {if @sitting_out?, do: "Sitting out the next Game", else: "Sit out the next Game"}
+        </.block>
         <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
       </div>
       <div class="row">

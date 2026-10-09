@@ -417,6 +417,156 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "sitting out" do
+    test "someone sitting out is not dealt into the next Game" do
+      %{timur: timur, malika: malika} = table(~w(Timur Dana Malika))
+
+      tick_sit_out(malika, true)
+      start(timur, [[2], [5]])
+
+      assert count(malika, ".seat") == 2
+      refute has_element?(malika, ".seat", "You")
+      assert count(timur, ".seat") == 1
+      assert has_element?(timur, ".seat", "Dana")
+      refute has_element?(malika, "#my-page")
+      assert text(malika, "#watching") == "You're watching. Waiting for Timur."
+    end
+
+    test "the lobby marks who is sitting out, and the Host's count leaves them out" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+
+      tick_sit_out(malika, true)
+
+      assert has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
+      refute has_element?(dana, "#sit-out-form input[type=checkbox][checked]")
+      assert text(dana, "#person-3 .people__name") == "Malika sitting out"
+      assert text(malika, "#person-3 .people__name") == "You sitting out"
+      assert text(dana, "#person-2 .people__name") == "You"
+      assert has_element?(timur, "#lobby p", "2 people are dealt in. Seats are shuffled.")
+
+      tick_sit_out(dana, true)
+
+      assert has_element?(timur, "#lobby button[phx-click=start][disabled]", "Start Game")
+      assert has_element?(timur, "#lobby p", "A Game needs two people.")
+    end
+
+    test "unticking the box deals you in again" do
+      %{timur: timur, malika: malika} = table(~w(Timur Dana Malika))
+
+      tick_sit_out(malika, true)
+      tick_sit_out(malika, false)
+
+      refute has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
+      assert text(timur, "#person-3 .people__name") == "Malika"
+      assert has_element?(timur, "#lobby p", "3 people are dealt in. Seats are shuffled.")
+
+      start(timur, [[2], [5], [4]])
+
+      assert faces(malika) == [4]
+      assert count(timur, ".seat") == 2
+    end
+
+    test "the Room menu item toggles sitting out, and its words say which" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+
+      assert text(malika, "#menu-sit-out[aria-pressed=false]") == "Sit out the next Game"
+
+      malika |> element("#menu-sit-out") |> render_click()
+
+      assert text(malika, "#menu-sit-out[aria-pressed=true]") == "Sitting out the next Game"
+      assert has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
+      assert text(dana, "#person-3 .people__name") == "Malika sitting out"
+
+      malika |> element("#menu-sit-out") |> render_click()
+
+      assert text(malika, "#menu-sit-out[aria-pressed=false]") == "Sit out the next Game"
+      assert text(dana, "#person-3 .people__name") == "Malika"
+
+      start(timur, [[2], [5], [4]])
+      dana |> element("#menu-sit-out") |> render_click()
+
+      assert text(dana, "#menu-sit-out[aria-pressed=true]") == "Sitting out the next Game"
+      assert faces(dana) == [5]
+    end
+
+    test "a sit_out that is not true or false changes nothing and leaves the Room open" do
+      %{timur: timur, malika: malika, code: code} = table(~w(Timur Dana Malika))
+
+      for params <- [%{"sitting_out" => "yes"}, %{"sitting_out" => ["true"]}, %{}],
+          do: render_click(malika, "sit_out", params)
+
+      refute has_element?(malika, "#sit-out-form input[type=checkbox][checked]")
+      assert has_element?(timur, "#lobby p", "3 people are dealt in. Seats are shuffled.")
+      assert Rooms.whereis(code)
+    end
+  end
+
+  describe "the Spectators" do
+    test "a chip under the Room code counts them, and opens into a list that stays open" do
+      %{dana: dana, timur: timur, code: code} = players = table(~w(Timur Dana Malika))
+      timur_takes_his_sixth_die(players)
+
+      refute has_element?(dana, "#spectators-chip")
+
+      next_round(code, 5, [[2], [3]])
+
+      assert text(dana, "#spectators-chip[aria-expanded=false]") == "1 Spectator"
+      refute has_element?(dana, "#spectators:not([hidden])")
+
+      aziz = visit(code, "aziz")
+      enter(aziz, "Aziz")
+
+      assert text(dana, "#spectators-chip") == "2 Spectators"
+      assert text(aziz, "#spectators-chip") == "2 Spectators"
+
+      dana |> element("#spectators-chip") |> render_click()
+
+      assert has_element?(dana, "#spectators-chip[aria-expanded=true][aria-controls=spectators]")
+      assert items(dana, "#spectators:not([hidden]) li") == ["T Timur out", "A Aziz"]
+      assert has_element?(dana, "#spectators li:first-child small", "out")
+
+      press(dana, "Bid one six")
+
+      assert items(dana, "#spectators:not([hidden]) li") == ["T Timur out", "A Aziz"]
+
+      timur |> element("#spectators-chip") |> render_click()
+
+      assert items(timur, "#spectators:not([hidden]) li") == ["T You out", "A Aziz"]
+      refute has_element?(aziz, "#spectators:not([hidden])")
+
+      dana |> element("#spectators-chip") |> render_click()
+
+      refute has_element?(dana, "#spectators:not([hidden])")
+      assert has_element?(dana, "#spectators-chip[aria-expanded=false]")
+    end
+
+    test "a late arrival's HTML contains no hidden dice" do
+      %{timur: timur, code: code} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      aziz = visit(code, "aziz")
+      enter(aziz, "Aziz")
+      html = aziz |> render() |> LazyHTML.from_fragment()
+
+      refute has_element?(aziz, "#my-page")
+      assert html |> LazyHTML.query(".cube, [data-face]") |> Enum.empty?()
+      assert html |> LazyHTML.query(".die:not(.is-down)") |> Enum.count() == 1
+      assert html |> LazyHTML.query(".logo .die") |> Enum.count() == 1
+      assert html |> LazyHTML.query(".seat__dice .die.is-down") |> Enum.count() == 2
+    end
+
+    test "there is no chip in the lobby, nor while everyone in the Room is playing" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+
+      refute has_element?(timur, "#spectators-chip")
+
+      start(timur, [[2], [5]])
+
+      refute has_element?(timur, "#spectators-chip")
+      refute has_element?(dana, "#spectators-chip")
+    end
+  end
+
   test "someone who enters during a Game watches the table with no page and no dice" do
     %{timur: timur, code: code} = table(~w(Timur Dana))
     start(timur, [[2], [5]])
@@ -492,17 +642,23 @@ defmodule ThreeSixesWeb.TableLiveTest do
     host |> element("#lobby button", "Start Game") |> render_click()
   end
 
+  defp tick_sit_out(view, ticked?) do
+    view |> form("#sit-out-form", %{sitting_out: to_string(ticked?)}) |> render_change()
+  end
+
   defp next_game(host, rolls) do
     Scripted.script(rolls)
     host |> element("#lobby button", "Next Game") |> render_click()
   end
 
-  defp placement(view) do
+  defp placement(view), do: items(view, "#placement li")
+
+  defp items(view, selector) do
     view
     |> render()
     |> String.replace("<", " <")
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("#placement li")
+    |> LazyHTML.query(selector)
     |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
   end
 

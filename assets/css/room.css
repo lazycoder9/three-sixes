@@ -67,7 +67,7 @@
 
 .roombar {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
@@ -85,8 +85,11 @@
   --d: 28px;
 }
 .roombar__code {
-  gap: 4px;
+  position: relative;
   margin: 0 auto 0 var(--spacing-2);
+}
+.roombar__code .tiles {
+  gap: 4px;
 }
 .roombar__code .letter-tile {
   width: 26px;
@@ -155,6 +158,43 @@
   min-width: 0;
   line-height: 1.1;
   overflow-wrap: anywhere;
+}
+.people__name small {
+  display: block;
+  color: var(--color-graphite-faint);
+  font-size: 16px;
+}
+.tick {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-rule);
+  min-height: var(--spacing-rule);
+  cursor: pointer;
+}
+.tick input {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 2.5px solid var(--color-graphite);
+  border-radius: 5px 3px 6px 4px;
+  cursor: pointer;
+}
+.tick input:checked::after {
+  content: "";
+  width: 14px;
+  height: 8px;
+  border: solid var(--color-tomato);
+  border-width: 0 0 3.5px 3.5px;
+  transform: rotate(-48deg) translate(2px, -2px);
+}
+.tick input:focus-visible {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 2px;
 }
 .placement {
   list-style: none;
@@ -237,6 +277,76 @@
   border-radius: 2px;
   background: var(--color-graphite);
   transform: rotate(-24deg);
+}
+
+.spec {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: max-content;
+  margin-top: 2px;
+  color: var(--color-ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateX(-50%);
+}
+.spec__chip {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px 3px 13px;
+  border-radius: 999px;
+  background: var(--seat);
+  opacity: 0.8;
+  cursor: pointer;
+}
+.spec__chip:hover,
+.spec__chip[aria-expanded="true"] {
+  opacity: 1;
+}
+.spec__chip:focus-visible {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 2px;
+}
+.spec__chip i {
+  width: 6px;
+  height: 6px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+.spec__chip[aria-expanded="true"] i {
+  transform: translateY(2px) rotate(-135deg);
+}
+.spec__list {
+  list-style: none;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 8px 14px 8px 8px;
+  border-radius: 14px;
+  background: linear-gradient(var(--seat), var(--seat)), var(--color-table);
+  box-shadow: 0 12px 16px -8px rgba(0, 0, 0, 0.5);
+  animation: stick 0.2s;
+}
+.spec__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink);
+}
+.spec__list .token {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+}
+.spec__list small {
+  color: var(--color-ink-dim);
+  font: 400 14px/1 var(--font-hand);
 }
 
 .host-tag {

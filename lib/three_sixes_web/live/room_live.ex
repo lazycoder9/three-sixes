@@ -35,7 +35,8 @@ defmodule ThreeSixesWeb.RoomLive do
         suggestion: nil,
         error: nil,
         step: 0,
-        rolled: nil
+        rolled: nil,
+        spectators_open?: false
       )
 
     if connected?(socket) do
@@ -104,6 +105,14 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("sit_out", %{"sitting_out" => flag}, socket) when flag in ~w(true false) do
+    Rooms.sit_out(socket.assigns.code, socket.assigns.person_id, flag == "true")
+    {:noreply, socket}
+  end
+
+  def handle_event("spectators", _params, socket),
+    do: {:noreply, update(socket, :spectators_open?, &(!&1))}
+
   def handle_event("raise", %{"count" => count, "face" => face}, socket) do
     with {:ok, count} <- whole(count), {:ok, face} <- whole(face) do
       Rooms.raise(socket.assigns.code, socket.assigns.person_id, count, face)
@@ -127,7 +136,7 @@ defmodule ThreeSixesWeb.RoomLive do
     end
   end
 
-  def handle_event(event, _params, socket) when event in ~w(raise step),
+  def handle_event(event, _params, socket) when event in ~w(raise step sit_out),
     do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -200,7 +209,10 @@ defmodule ThreeSixesWeb.RoomLive do
   @impl true
   def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do
     ~H"""
-    <Layouts.room flash={@flash} code={@view.code}>
+    <Layouts.room flash={@flash} code={@view.code} sitting_out?={@view.sitting_out?}>
+      <:under_code :if={@view.spectators != []}>
+        <.spectators spectators={@view.spectators} open?={@spectators_open?} />
+      </:under_code>
       <.game_table game={@view.game} step={@step} rolled={@rolled} />
     </Layouts.room>
     """
@@ -208,7 +220,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   def render(%{view: %{me: me}} = assigns) when is_binary(me) do
     ~H"""
-    <Layouts.room flash={@flash} code={@view.code}>
+    <Layouts.room flash={@flash} code={@view.code} sitting_out?={@view.sitting_out?}>
       <.lobby view={@view} />
     </Layouts.room>
     """
@@ -339,10 +351,18 @@ defmodule ThreeSixesWeb.RoomLive do
               <span class="people__name">
                 {if person.me?, do: "You", else: person.nickname}
                 <span :if={person.host?} class="host-tag">Host</span>
+                <small :if={person.sitting_out?}>sitting out</small>
               </span>
               <.tally count={person.tally} />
             </li>
           </ul>
+          <form id="sit-out-form" phx-change="sit_out">
+            <label class="tick">
+              <input type="hidden" name="sitting_out" value="false" />
+              <input type="checkbox" name="sitting_out" value="true" checked={@view.sitting_out?} />
+              Sit out the next Game
+            </label>
+          </form>
         </.notebook_page>
       </div>
       <div class="lobby__side">

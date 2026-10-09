@@ -1,5 +1,8 @@
-.game-table {
+.game-table,
+.spec {
   --seat: rgba(255, 255, 255, 0.2);
+}
+.game-table {
   grid-row: 1 / -1;
   display: flex;
   flex-direction: column;
@@ -8,7 +11,8 @@
   margin: 0 auto;
   padding: 0 var(--spacing-3) var(--spacing-4);
 }
-[data-theme="dark"] .game-table {
+[data-theme="dark"] .game-table,
+[data-theme="dark"] .spec {
   --seat: rgba(0, 0, 0, 0.22);
 }
 /* The top seat's Bid chip sits above the seat, so the ring leaves it room under the Room bar. */
@@ -407,6 +411,10 @@
   }
   .game-table__ring {
     min-height: 390px;
+  }
+  /* Here the top seat's Bid chip sits right under the Spectator chip, so it moves down a line. */
+  .roombar:has(.spec) ~ .table-main .game-table__ring {
+    margin-top: 52px;
   }
   .seat {
     --sw: 88px;
