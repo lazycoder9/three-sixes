@@ -27,7 +27,7 @@ defmodule ThreeSixes.AccountsTest do
 
   describe "an Account from a Google sign-in" do
     test "is created with Google's details, and its first Nickname is the first name" do
-      assert {:ok, %Account{} = account} =
+      assert {:created, %Account{} = account} =
                Accounts.find_or_create_from_google(google("1001", %{}))
 
       assert account.google_id == "1001"
@@ -39,7 +39,7 @@ defmodule ThreeSixes.AccountsTest do
     end
 
     test "takes the first word of the name for the Nickname when Google gives no first name" do
-      {:ok, account} =
+      {:created, account} =
         Accounts.find_or_create_from_google(google(1002, %{first_name: nil, name: "Fox Mulder"}))
 
       assert account.google_id == "1002"
@@ -47,7 +47,7 @@ defmodule ThreeSixes.AccountsTest do
     end
 
     test "cuts the first Nickname to 16 characters and trims it" do
-      {:ok, account} =
+      {:created, account} =
         Accounts.find_or_create_from_google(
           google("1003", %{first_name: "  Bartholomew-Alexander  "})
         )
@@ -56,17 +56,17 @@ defmodule ThreeSixes.AccountsTest do
     end
 
     test "has no Nickname when Google gives no name at all" do
-      {:ok, account} =
+      {:created, account} =
         Accounts.find_or_create_from_google(google("1004", %{first_name: nil, name: nil}))
 
       assert account.nickname == nil
     end
 
     test "is found again by the same Google id, with name, email and avatar refreshed and the Nickname kept" do
-      {:ok, first} = Accounts.find_or_create_from_google(google("1005", %{}))
+      {:created, first} = Accounts.find_or_create_from_google(google("1005", %{}))
       {:ok, _renamed} = Accounts.save_nickname(first, "Agent D")
 
-      {:ok, again} =
+      {:found, again} =
         Accounts.find_or_create_from_google(
           google("1005", %{
             name: "Dana Katherine Scully",
@@ -83,9 +83,15 @@ defmodule ThreeSixes.AccountsTest do
       assert again.nickname == "Agent D"
     end
 
+    test "says whether this sign-in created it" do
+      assert {:created, account} = Accounts.find_or_create_from_google(google("1008", %{}))
+      assert {:found, again} = Accounts.find_or_create_from_google(google("1008", %{}))
+      assert again.id == account.id
+    end
+
     test "may share its email with another Account" do
-      {:ok, one} = Accounts.find_or_create_from_google(google("1006", %{}))
-      {:ok, other} = Accounts.find_or_create_from_google(google("1007", %{}))
+      {:created, one} = Accounts.find_or_create_from_google(google("1006", %{}))
+      {:created, other} = Accounts.find_or_create_from_google(google("1007", %{}))
 
       assert one.id != other.id
       assert one.email == other.email
@@ -94,21 +100,21 @@ defmodule ThreeSixes.AccountsTest do
 
   describe "a dev Account" do
     test "is made from a name, and the same name finds it again" do
-      {:ok, account} = Accounts.find_or_create_dev("Dana Scully")
+      assert {:created, account} = Accounts.find_or_create_dev("Dana Scully")
 
       assert account.google_id == "dev:dana scully"
       assert account.email == "danascully@dev.localhost"
       assert account.name == "Dana Scully"
       assert account.nickname == "Dana Scully"
 
-      assert {:ok, %Account{id: id}} = Accounts.find_or_create_dev("dana scully")
+      assert {:found, %Account{id: id}} = Accounts.find_or_create_dev("dana scully")
       assert id == account.id
     end
   end
 
   describe "saving a Nickname" do
     setup do
-      {:ok, account} = Accounts.find_or_create_dev("Dana")
+      {:created, account} = Accounts.find_or_create_dev("Dana")
       %{account: account}
     end
 
@@ -271,7 +277,7 @@ defmodule ThreeSixes.AccountsTest do
 
   describe "taking over a Guest's history" do
     setup do
-      {:ok, account} = Accounts.find_or_create_dev("Malika")
+      {:created, account} = Accounts.find_or_create_dev("Malika")
       %{account: account, me: Accounts.person_id(account)}
     end
 
@@ -314,7 +320,7 @@ defmodule ThreeSixes.AccountsTest do
 
     test "is refused to a second Account once one has taken the Guest id", %{account: account} do
       record!([{"guest:g1", "Malika"}, {@ana, "Ana"}], [])
-      {:ok, other} = Accounts.find_or_create_dev("Bo")
+      {:created, other} = Accounts.find_or_create_dev("Bo")
       {:ok, :merged} = Accounts.take_over_guest("guest:g1", account)
 
       assert Accounts.take_over_guest("guest:g1", other) == {:ok, :already_merged}
@@ -358,7 +364,7 @@ defmodule ThreeSixes.AccountsTest do
 
   describe "a person id" do
     test "is the Account's id or the Guest's id, each marked as which" do
-      {:ok, account} = Accounts.find_or_create_dev("Malika")
+      {:created, account} = Accounts.find_or_create_dev("Malika")
 
       assert Accounts.person_id(account) == "account:#{account.id}"
       assert Accounts.guest_person_id("g1") == "guest:g1"

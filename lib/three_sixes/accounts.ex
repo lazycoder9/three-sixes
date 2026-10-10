@@ -31,8 +31,9 @@ defmodule ThreeSixes.Accounts do
   @spec guest_person_id(String.t()) :: Room.person_id()
   def guest_person_id(guest_id), do: "guest:" <> guest_id
 
-  @spec find_or_create_from_google(Ueberauth.Auth.t()) ::
-          {:ok, Account.t()} | {:error, Ecto.Changeset.t()}
+  @type found :: {:created | :found, Account.t()} | {:error, Ecto.Changeset.t()}
+
+  @spec find_or_create_from_google(Ueberauth.Auth.t()) :: found()
   def find_or_create_from_google(%{uid: uid, info: info}) do
     find_or_create(
       %{
@@ -45,7 +46,7 @@ defmodule ThreeSixes.Accounts do
     )
   end
 
-  @spec find_or_create_dev(String.t()) :: {:ok, Account.t()} | {:error, Ecto.Changeset.t()}
+  @spec find_or_create_dev(String.t()) :: found()
   def find_or_create_dev(name) do
     find_or_create(
       %{
@@ -156,13 +157,18 @@ defmodule ThreeSixes.Accounts do
         %Account{nickname: first_nickname(first_name)}
         |> Account.google_changeset(attrs)
         |> Repo.insert()
+        |> tag(:created)
 
       account ->
         account
         |> Account.google_changeset(attrs)
         |> Repo.update()
+        |> tag(:found)
     end
   end
+
+  defp tag({:ok, account}, tag), do: {tag, account}
+  defp tag(error, _tag), do: error
 
   defp first_word(nil), do: nil
   defp first_word(name), do: name |> String.split() |> List.first()

@@ -21,20 +21,20 @@ defmodule ThreeSixesWeb.AuthController do
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
     case Accounts.find_or_create_from_google(auth) do
-      {:ok, account} ->
-        complete_sign_in(conn, account, get_session(conn, "return_to"))
-
       {:error, _changeset} ->
         conn
         |> put_flash(:error, "Signing in didn't work. Please try again.")
         |> redirect(to: sign_in_page(conn))
+
+      found ->
+        complete_sign_in(conn, found, get_session(conn, "return_to"))
     end
   end
 
   def dev_login(conn, params) do
     if dev_login_enabled?() do
-      {:ok, account} = params["name"] |> dev_name() |> Accounts.find_or_create_dev()
-      complete_sign_in(conn, account, params["return_to"])
+      found = params["name"] |> dev_name() |> Accounts.find_or_create_dev()
+      complete_sign_in(conn, found, params["return_to"])
     else
       conn
       |> put_flash(:error, "Dev login is off.")
@@ -43,9 +43,7 @@ defmodule ThreeSixesWeb.AuthController do
   end
 
   def logout(conn, _params) do
-    if live_socket_id = get_session(conn, "live_socket_id") do
-      ThreeSixesWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
-    end
+    disconnect_live_views(conn)
 
     conn
     |> clear_session()
@@ -85,17 +83,26 @@ defmodule ThreeSixesWeb.AuthController do
     end
   end
 
-  defp complete_sign_in(conn, account, return_to) do
-    if guest_id = get_session(conn, "guest_id") do
-      Accounts.take_over_guest(Accounts.guest_person_id(guest_id), account)
-    end
+  defp complete_sign_in(conn, {found, account}, return_to) do
+    guest_id = get_session(conn, "guest_id")
+    if guest_id, do: Accounts.take_over_guest(Accounts.guest_person_id(guest_id), account)
+
+    disconnect_live_views(conn)
 
     conn
     |> put_session("account_id", account.id)
-    |> put_session("live_socket_id", live_socket_id(conn))
+    |> put_session("live_socket_id", "account_session:" <> Guest.new_id())
+    |> put_session("was_guest_id", guest_id)
+    |> put_session("new_account", if(found == :created, do: true))
     |> delete_session("return_to")
     |> configure_session(renew: true)
     |> redirect(to: local_path(return_to) || ~p"/")
+  end
+
+  defp disconnect_live_views(conn) do
+    if live_socket_id = get_session(conn, "live_socket_id") do
+      ThreeSixesWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    end
   end
 
   defp sign_in_page(conn) do
@@ -103,12 +110,6 @@ defmodule ThreeSixesWeb.AuthController do
       nil -> ~p"/signin"
       path -> ~p"/signin?#{[return_to: path]}"
     end
-  end
-
-  defp live_socket_id(conn) do
-    get_session(conn, "live_socket_id") ||
-      "account_session:" <>
-        (16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false))
   end
 
   defp local_path("//" <> _), do: nil

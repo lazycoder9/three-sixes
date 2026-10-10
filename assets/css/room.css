@@ -415,6 +415,7 @@
   --color-tile: var(--color-birch);
   --color-tile-edge: var(--color-birch-edge);
   width: min(400px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
   margin: auto;
   border: 0;
   padding: clamp(20px, 5vw, 30px);
@@ -446,6 +447,12 @@
 }
 .dialog .row {
   margin-top: var(--spacing-4);
+}
+.menu-sign-in {
+  margin-top: var(--spacing-5);
+}
+.dialog .menu-sign-in__turn {
+  margin-bottom: var(--spacing-3);
 }
 .dialog p {
   margin: 0;
@@ -508,6 +515,10 @@
   .dialog {
     zoom: 1.05;
   }
+  /* Zoom scales the cap as well, so it is divided back to keep the dialog inside the window. */
+  .dialog {
+    max-height: calc((100dvh - 28px) / 1.05);
+  }
   .lobby:not(.lobby--crowded) {
     zoom: 1.1;
   }
@@ -517,6 +528,9 @@
   .dialog {
     zoom: 1.1;
   }
+  .dialog {
+    max-height: calc((100dvh - 28px) / 1.1);
+  }
   .lobby:not(.lobby--crowded) {
     zoom: 1.25;
   }
@@ -525,6 +539,9 @@
   .roombar,
   .dialog {
     zoom: 1.25;
+  }
+  .dialog {
+    max-height: calc((100dvh - 28px) / 1.25);
   }
   .lobby:not(.lobby--crowded) {
     zoom: 1.5;
