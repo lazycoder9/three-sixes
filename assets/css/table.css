@@ -360,13 +360,6 @@ body:has(.game-table) .table-main {
   color: var(--color-tomato);
   font: 700 calc(22 * var(--u)) / 1.1 var(--font-scrawl);
 }
-.hand .slot--pen:has(.die + .die) {
-  grid-auto-flow: column;
-}
-.hand .slot--pen .die + .die {
-  margin-left: calc(-10 * var(--u));
-  rotate: -16deg;
-}
 
 .three-sixes {
   position: absolute;
@@ -452,9 +445,6 @@ body:has(.game-table) .table-main {
     font-size: 17px;
     line-height: 1;
   }
-  .my-page .hand:has(.slot--pen .die + .die) {
-    column-gap: 8px;
-  }
   .three-sixes {
     gap: 6px;
     padding: 5px 12px 6px;
@@ -482,11 +472,11 @@ body:has(.game-table) .table-main {
 .my-page {
   align-self: center;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "hand head check"
-    "hand opts check"
-    "hand opts keys";
+    "head check"
+    "opts check"
+    "opts keys";
   grid-template-rows: min-content 1fr auto;
   align-items: center;
   gap: calc(3 * var(--u)) calc(20 * var(--u));
@@ -501,39 +491,16 @@ body:has(.game-table) .table-main {
     0 0 0 calc(4 * var(--u)) var(--color-mustard),
     0 18px 24px -12px rgba(0, 0, 0, 0.55);
 }
-.my-page .hand {
-  --s: calc(44 * var(--u));
-  grid-area: hand;
+.my-dice {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  gap: calc(12 * var(--u)) calc(16 * var(--u));
-  max-width: calc(196 * var(--u));
-  padding: calc(8 * var(--u)) calc(6 * var(--u));
+  gap: calc(12 * var(--u));
+  margin-top: calc(10 * var(--u));
 }
-.hand .slot {
-  transition:
-    translate 0.25s,
-    opacity 0.25s;
-}
-.hand .slot.is-hit {
-  translate: 0 -14%;
-  filter: drop-shadow(0 0 calc(2 * var(--u)) var(--color-mustard))
-    drop-shadow(0 0 calc(7 * var(--u)) var(--color-mustard));
-}
-.hand .slot.is-miss {
-  opacity: 0.45;
-}
-.hand .slot--pen {
-  align-self: center;
-  transform: rotate(8deg);
-}
-.hand .slot--pen::before {
-  display: none;
-}
-.hand .slot--pen .die {
-  --d: calc(34 * var(--u));
+.my-dice .die {
+  --d: calc(44 * var(--u));
 }
 .my-page__head {
   grid-area: head;
@@ -836,19 +803,19 @@ body:has(.game-table) .table-main {
   }
   .my-page {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "hand" "head" "opts" "check";
+    grid-template-areas: "head" "opts" "check";
     grid-template-rows: none;
     gap: 5px;
     width: 100%;
     padding-left: 38px;
     padding-right: 10px;
   }
-  .my-page .hand {
-    --s: clamp(34px, calc((100vw - 110px) / 6.5), 42px);
-    flex-wrap: nowrap;
-    justify-self: center;
-    max-width: none;
-    padding: 12px 0 10px;
+  .my-dice {
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .my-dice .die {
+    --d: clamp(34px, calc((100vw - 110px) / 6.5), 42px);
   }
   .my-page__head {
     font-size: 22px;
@@ -904,7 +871,7 @@ body:has(.game-table) .table-main {
 }
 @media (width < 720px) and (hover: hover) and (pointer: fine) {
   .my-page {
-    grid-template-areas: "hand" "head" "opts" "keys" "check";
-    grid-template-rows: repeat(3, auto) minmax(19px, auto) auto;
+    grid-template-areas: "head" "opts" "keys" "check";
+    grid-template-rows: repeat(2, auto) minmax(19px, auto) auto;
   }
 }
