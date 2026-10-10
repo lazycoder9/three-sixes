@@ -475,6 +475,29 @@ defmodule ThreeSixes.RoomsTest do
 
       assert capture_log(&close_every_room/0) =~ "could not write its save"
     end
+
+    test "a Game a restore finishes is recorded once, and not again from the save after it" do
+      {code, _dana} = table()
+      knock_out_the_host(code)
+      shut_down(code)
+      assert recorded() == []
+
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+
+      assert recorded() == [
+               %{
+                 room_code: code,
+                 rounds: 5,
+                 placements: [{"guest:dana", "Dana"}, {@host, "Malika"}],
+                 checks: for(round <- 1..5, do: {round, "guest:dana", @host, false})
+               }
+             ]
+
+      shut_down(code)
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+
+      assert length(recorded()) == 1
+    end
   end
 
   describe "a Reaction" do

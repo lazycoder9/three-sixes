@@ -51,8 +51,15 @@ defmodule ThreeSixes.Rooms.Server do
   defp restored(saved, closes_at) do
     case Room.restore(saved) do
       {:roll, room} -> room |> roll() |> state(closes_at) |> unsaved()
-      {:ok, room} -> state(room, closes_at)
+      {:ok, room} -> room |> state(closes_at) |> finished_on_restore(Room.finished(saved, room))
     end
+  end
+
+  defp finished_on_restore(state, nil), do: state
+
+  defp finished_on_restore(state, game) do
+    record(game)
+    unsaved(state)
   end
 
   defp new(code, {host_id, address}) do
