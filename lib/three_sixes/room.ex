@@ -314,7 +314,29 @@ defmodule ThreeSixes.Room do
         {wins, tally} -> Map.update(tally, to, wins, &(&1 + wins))
       end
 
-    %{room | host_id: host_after_move(room, from, to), tally: tally}
+    %{
+      room
+      | host_id: host_after_move(room, from, to),
+        tally: tally,
+        handover: room.handover && handover_after_move(room.handover, from, to)
+    }
+  end
+
+  defp handover_after_move(handover, from, to) do
+    rename = fn
+      ^from -> to
+      id -> id
+    end
+
+    vote =
+      handover.vote &&
+        %{
+          handover.vote
+          | by: rename.(handover.vote.by),
+            yes: handover.vote.yes |> Enum.map(rename) |> Enum.uniq()
+        }
+
+    %{handover | host: rename.(handover.host), vote: vote}
   end
 
   defp host_after_move(%{host_id: from}, from, to), do: to

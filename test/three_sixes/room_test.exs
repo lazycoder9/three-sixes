@@ -1689,5 +1689,45 @@ defmodule ThreeSixes.RoomTest do
 
       assert Room.enter(room, "guest:bek", "Aziz") == {:taken, "Aziz", "Aziz 2"}
     end
+
+    test "of the vote's starter carries the vote: they still asked, by their Nickname, and their yes counts" do
+      assert {:moved, room} = Room.move_seat(voting(), "guest:dana", @account)
+
+      for viewer <- [@host, "guest:timur", @account, "guest:dana"],
+          do: Room.view_for(room, viewer)
+
+      assert %{by: %{nickname: "Dana", me?: false, n: 3}, yes: 1, of: 2} =
+               host_away_view(room, "guest:timur").vote
+
+      assert %{by: %{me?: true}, said_yes?: true} = host_away_view(room, @account).vote
+      assert settle(vote!(room, "guest:timur")).host_id == "guest:timur"
+    end
+
+    test "onto an Account with a seat, a yes said from both counts once, as the Account's, and the vote passes" do
+      room = lobby() |> enter!(@account, "Aziz") |> voting() |> vote!("guest:timur")
+
+      assert {:ok, room} = room |> vote!(@account) |> Room.move_seat("guest:timur", @account)
+
+      assert room.handover.vote.yes == ["guest:dana", @account]
+
+      room = lobby() |> enter!(@account, "Aziz") |> voting() |> vote!("guest:timur")
+
+      assert {:ok, room} = Room.move_seat(room, "guest:timur", @account)
+
+      assert %{yes: 2, of: 2, said_yes?: true} = host_away_view(room, @account).vote
+      assert settle(room).host_id == "guest:dana"
+    end
+
+    test "of the Host who is Away keeps the handover running and its vote open" do
+      before = voting()
+
+      assert {:moved, room} = Room.move_seat(before, @host, @account)
+
+      assert host_away_view(room, @account) == nil
+      assert host_away_view(room, "guest:dana") == host_away_view(before, "guest:dana")
+
+      assert Room.settle_handover(room, 50_000, &no_shuffle/1).handover ==
+               %{before.handover | host: @account}
+    end
   end
 end
