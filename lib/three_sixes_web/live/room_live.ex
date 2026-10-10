@@ -136,7 +136,14 @@ defmodule ThreeSixesWeb.RoomLive do
     end
   end
 
-  def handle_event(event, _params, socket) when event in ~w(raise step sit_out),
+  def handle_event(
+        "key",
+        %{"key" => key},
+        %{assigns: %{view: %{game: %{my_turn?: true} = game}}} = socket
+      ),
+      do: {:noreply, play_key(socket, game, key)}
+
+  def handle_event(event, _params, socket) when event in ~w(raise step sit_out key),
     do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -186,15 +193,33 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp whole(_value), do: :error
 
-  defp clamp_step(game, step) do
-    case {more_dice(game, 0), more_dice(game, step)} do
-      {%{count: least}, %{count: count}} -> count - least
-      _none -> 0
-    end
+  @face_keys ~w(1 2 3 4 5 6)
+
+  defp play_key(socket, game, key) when key in @face_keys do
+    %{code: code, person_id: person_id, step: step} = socket.assigns
+    face = String.to_integer(key)
+
+    with {count, face} <- Game.cheapest_offer(game.bid, game.dice_on_table, step, face),
+         do: Rooms.raise(code, person_id, count, face)
+
+    socket
   end
 
-  defp more_dice(game, step),
-    do: game.bid |> Game.offers(game.dice_on_table, step) |> Enum.find(&Map.has_key?(&1, :step?))
+  defp play_key(socket, game, key) when key in ~w(ArrowRight +),
+    do: assign(socket, step: clamp_step(game, socket.assigns.step + 1))
+
+  defp play_key(socket, game, key) when key in ~w(ArrowLeft -),
+    do: assign(socket, step: clamp_step(game, socket.assigns.step - 1))
+
+  defp play_key(socket, _game, key) when key in ~w(c C) do
+    Rooms.check(socket.assigns.code, socket.assigns.person_id)
+    socket
+  end
+
+  defp play_key(socket, _game, _key), do: socket
+
+  defp clamp_step(game, step),
+    do: step |> min(Game.max_step(game.bid, game.dice_on_table)) |> max(0)
 
   @impl true
   def handle_info({:room_view, view}, socket) do

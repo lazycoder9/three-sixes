@@ -259,7 +259,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "hand head check"
-    "hand opts check";
+    "hand opts check"
+    "hand opts keys";
   align-items: center;
   gap: 3px 20px;
   width: 860px;
@@ -315,6 +316,7 @@
 }
 
 .opts {
+  --step-w: 70px;
   grid-area: opts;
   display: grid;
   align-content: center;
@@ -328,8 +330,34 @@
 }
 .orow {
   display: grid;
-  grid-template-columns: 48px repeat(6, auto) auto;
+  grid-template-columns: 48px repeat(6, auto);
   align-items: center;
+  gap: 6px;
+}
+.opts > .orow {
+  margin-left: calc(var(--step-w) + 6px);
+}
+.ostep {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ostep__buttons {
+  display: flex;
+  gap: 6px;
+  width: var(--step-w);
+}
+.ostep__buttons .round-button {
+  width: 32px;
+  height: 32px;
+  font: 700 18px/1 var(--font-ui);
+}
+.ostep__buttons .round-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ostep__rows {
+  display: grid;
   gap: 6px;
 }
 .orow b {
@@ -360,25 +388,43 @@
 .pickdie:disabled {
   cursor: default;
 }
-.opts.is-off .pickdie {
+.opts.is-off .pickdie,
+.keyhint.is-off {
   opacity: 0.45;
 }
-.orow__step {
-  display: flex;
-  gap: 6px;
+.keyhint {
+  grid-area: keys;
+  align-self: start;
+  margin: 0;
+  color: var(--color-graphite-faint);
+  font: 500 13px/1.4 var(--font-ui);
+  text-align: center;
+}
+.keyhint > span {
+  display: block;
+}
+.keyhint__dot {
+  display: none;
+}
+.my-page kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font: 600 11px/1.45 var(--font-ui);
+  text-align: center;
+  opacity: 0.7;
+}
+.my-page__check kbd {
   margin-left: 6px;
+  vertical-align: 2px;
 }
-.orow__step .round-button {
-  width: 32px;
-  height: 32px;
-  font: 700 18px/1 var(--font-ui);
-}
-.orow__step .round-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.opts.is-off .orow__step {
-  visibility: hidden;
+@media (hover: none), (pointer: coarse) {
+  .keyhint,
+  .my-page__check kbd {
+    display: none;
+  }
 }
 .block.my-page__check {
   grid-area: check;
@@ -469,12 +515,13 @@
     text-align: center;
   }
   .opts {
+    --step-w: 28px;
     justify-content: center;
     gap: 5px;
     min-height: 78px;
   }
   .orow {
-    grid-template-columns: 34px repeat(6, auto) auto;
+    grid-template-columns: 34px repeat(6, auto);
     gap: 4px;
   }
   .orow b {
@@ -486,12 +533,24 @@
   .pickgap {
     width: 33px;
   }
-  .orow__step {
-    gap: 4px;
-    min-width: 28px;
-    margin-left: 2px;
+  .opts > .orow {
+    margin-left: calc(var(--step-w) + 4px);
   }
-  .orow__step .round-button {
+  .keyhint > span,
+  .keyhint__dot {
+    display: inline;
+  }
+  .ostep {
+    gap: 4px;
+  }
+  .ostep__rows {
+    gap: 5px;
+  }
+  .ostep__buttons {
+    flex-direction: column-reverse;
+    gap: 4px;
+  }
+  .ostep__buttons .round-button {
     width: 28px;
     height: 28px;
     font-size: 16px;
@@ -500,5 +559,10 @@
     min-height: 50px;
     margin-top: 4px;
     font-size: 19px;
+  }
+}
+@media (max-width: 720px) and (hover: hover) and (pointer: fine) {
+  .my-page {
+    grid-template-areas: "hand" "head" "opts" "keys" "check";
   }
 }

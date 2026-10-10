@@ -3,6 +3,7 @@ import { Socket } from "phoenix";
 import { LiveSocket, type LiveSocketInstanceInterface } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/three_sixes";
 import topbar from "../vendor/topbar";
+import { PlayKeys } from "./hooks/play_keys";
 import { ThemeSwitch } from "./hooks/theme_switch";
 
 interface LiveReloader {
@@ -24,7 +25,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribut
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: () => ({ _csrf_token: csrfToken, nickname: localStorage.getItem(NICKNAME_KEY) }),
-  hooks: { ...colocatedHooks, ThemeSwitch },
+  hooks: { ...colocatedHooks, PlayKeys, ThemeSwitch },
 });
 
 const mustard = getComputedStyle(document.documentElement).getPropertyValue("--color-mustard");

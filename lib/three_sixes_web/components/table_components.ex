@@ -163,6 +163,8 @@ defmodule ThreeSixesWeb.TableComponents do
       id="my-page"
       class={["my-page", @game.my_turn? && "is-turn"]}
       aria-current={@game.my_turn? && "true"}
+      phx-hook="PlayKeys"
+      data-my-turn={to_string(@game.my_turn?)}
     >
       <div class="hand">
         <span
@@ -183,8 +185,9 @@ defmodule ThreeSixesWeb.TableComponents do
         class="my-page__check"
         phx-click="check"
         disabled={!@game.can_check?}
+        aria-keyshortcuts="c"
       >
-        Check
+        Check <kbd aria-hidden="true">C</kbd>
       </.block>
     </.notebook_page>
     """
@@ -200,42 +203,33 @@ defmodule ThreeSixesWeb.TableComponents do
   end
 
   defp offers(assigns) do
+    %{bid: bid, dice_on_table: dice_on_table} = assigns.game
+    rows = Game.offers(bid, dice_on_table, assigns.step)
+    {stepped, at_bid} = Enum.split_with(rows, & &1.stepped?)
+
     assigns =
       assign(assigns,
-        rows: Game.offers(assigns.game.bid, assigns.game.dice_on_table, assigns.step),
-        verb: if(assigns.game.bid, do: "Raise to", else: "Bid"),
+        rows: rows,
+        at_bid: at_bid,
+        stepped: stepped,
+        max_step: Game.max_step(bid, dice_on_table),
+        opening?: bid == nil,
         off?: !assigns.game.my_turn?
       )
 
     ~H"""
     <div class={["opts", @off? && "is-off"]}>
       <p :if={@rows == []} class="faint">Nothing higher is left to say.</p>
-      <div :for={row <- @rows} class="orow">
-        <b>{row.count} &times;</b>
-        <%= for face <- 1..6 do %>
+      <.orow :for={row <- @at_bid} row={row} opening?={@opening?} off?={@off?} />
+      <div :if={@stepped != []} class="ostep">
+        <span class="ostep__buttons">
           <button
-            :if={face in row.faces}
-            type="button"
-            class="pickdie"
-            phx-click="raise"
-            phx-value-count={row.count}
-            phx-value-face={face}
-            aria-label={"#{@verb} #{words(row.count, face)}"}
-            disabled={@off?}
-          >
-            <.die face={face} />
-          </button>
-          <span :if={face not in row.faces} class="pickgap"></span>
-        <% end %>
-        <span :if={row[:step?]} class="orow__step">
-          <button
-            :if={@step > 0}
             type="button"
             class="round-button"
             phx-click="step"
             phx-value-by="-1"
             aria-label="One fewer"
-            disabled={@off?}
+            disabled={@off? or @step <= 0}
           >
             &minus;
           </button>
@@ -245,12 +239,48 @@ defmodule ThreeSixesWeb.TableComponents do
             phx-click="step"
             phx-value-by="1"
             aria-label="One more"
-            disabled={@off? or row.at_max?}
+            disabled={@off? or @step >= @max_step}
           >
             +
           </button>
         </span>
+        <div class="ostep__rows">
+          <.orow :for={row <- @stepped} row={row} opening?={@opening?} off?={@off?} />
+        </div>
       </div>
+    </div>
+    <p :if={@rows != []} class={["keyhint", @off? && "is-off"]}>
+      <span><kbd>1</kbd>–<kbd>6</kbd> {if @opening?, do: "Bid", else: "Raise"}</span>
+      <span :if={@max_step > 0}>
+        <span class="keyhint__dot">·</span> <kbd>←</kbd> <kbd>→</kbd> fewer or more dice
+      </span>
+    </p>
+    """
+  end
+
+  attr :row, :map, required: true
+  attr :opening?, :boolean, required: true
+  attr :off?, :boolean, required: true
+
+  defp orow(assigns) do
+    ~H"""
+    <div class="orow">
+      <b>{@row.count} &times;</b>
+      <%= for face <- 1..6 do %>
+        <button
+          :if={face in @row.faces}
+          type="button"
+          class="pickdie"
+          phx-click="raise"
+          phx-value-count={@row.count}
+          phx-value-face={face}
+          aria-label={"#{if @opening?, do: "Bid", else: "Raise to"} #{words(@row.count, face)}"}
+          disabled={@off?}
+        >
+          <.die face={face} />
+        </button>
+        <span :if={face not in @row.faces} class="pickgap"></span>
+      <% end %>
     </div>
     """
   end

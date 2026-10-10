@@ -108,29 +108,44 @@ defmodule ThreeSixesWeb.TableLiveTest do
   end
 
   describe "the Raises on offer" do
-    test "open with every face at one die, and + and - step the count up to the dice on the table" do
-      %{timur: timur} = table(~w(Timur Dana Malika))
+    @all [1, 2, 3, 4, 5, 6]
+
+    test "open with two rows of every face; - and + move both, up to the dice on the table" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana Malika))
       start(timur, [[1], [2], [3]])
 
-      assert offers(timur) == [{"1 ×", [1, 2, 3, 4, 5, 6]}]
+      assert offers(timur) == [{"1 ×", @all}, {"2 ×", @all}]
+      assert has_element?(timur, "button[aria-label='One fewer'][disabled]")
       assert has_element?(timur, "button[aria-label='One more']:not([disabled])")
-      refute has_element?(timur, "button[aria-label='One fewer']")
       assert has_element?(timur, "button[aria-label='Bid one six']")
 
       press(timur, "One more")
-      assert [{"2 ×", _faces}] = offers(timur)
-      assert has_element?(timur, "button[aria-label='Bid two sixes']")
-      assert has_element?(timur, "button[aria-label='One fewer']")
 
-      press(timur, "One more")
-      assert [{"3 ×", _faces}] = offers(timur)
+      assert offers(timur) == [{"2 ×", @all}, {"3 ×", @all}]
+      assert has_element?(timur, "button[aria-label='Bid three sixes']")
+      assert has_element?(timur, "button[aria-label='One fewer']:not([disabled])")
       assert has_element?(timur, "button[aria-label='One more'][disabled]")
+      assert offers(dana) == [{"1 ×", @all}, {"2 ×", @all}]
+      assert has_element?(dana, "button[aria-label='One fewer'][disabled]")
+      assert has_element?(dana, "button[aria-label='One more'][disabled]")
 
       press(timur, "One fewer")
-      assert [{"2 ×", _faces}] = offers(timur)
+
+      assert offers(timur) == [{"1 ×", @all}, {"2 ×", @all}]
     end
 
-    test "after a Bid: what is left at its count, then every face at one more" do
+    test "- and + sit in the stepped block, beside its counts, and not on the row at the Bid's count" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana Malika))
+      start(timur, [[1], [2], [3]])
+      press(timur, "Bid one four")
+
+      assert has_element?(dana, "#my-page .ostep button[aria-label='One fewer']")
+      assert has_element?(dana, "#my-page .ostep button[aria-label='One more']")
+      assert count(dana, "#my-page .ostep .orow") == 2
+      refute has_element?(dana, "#my-page .orow button[phx-click=step]")
+    end
+
+    test "after a Bid: what is left at its count, then every face at one more and two more" do
       %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
       start(timur, [[1], [2], [3]])
 
@@ -142,26 +157,192 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert text(dana, "#my-page .my-page__head") == "Your turn. Raise it, or Check it."
       assert text(malika, "#my-page .my-page__head") == "Waiting for Dana."
       assert has_element?(dana, "button[aria-label='Raise to one five']")
-      assert offers(dana) == [{"1 ×", [5, 6]}, {"2 ×", [1, 2, 3, 4, 5, 6]}]
+      assert offers(dana) == [{"1 ×", [5, 6]}, {"2 ×", @all}, {"3 ×", @all}]
+      assert has_element?(dana, "button[aria-label='One more'][disabled]")
 
-      press(dana, "One more")
       press(dana, "Raise to three sixes")
 
       assert has_element?(malika, "#my-page .opts p", "Nothing higher is left to say.")
       refute has_element?(malika, ".pickdie")
+      refute has_element?(malika, "button[phx-click=step]")
     end
 
     test "the step goes back to none when the Bid changes" do
-      %{timur: timur, dana: dana} = table(~w(Timur Dana Malika))
-      start(timur, [[1], [2], [3]])
+      %{timur: timur, dana: dana} = table(~w(Timur Dana Malika Aziz))
+      start(timur, [[1], [2], [3], [4]])
       press(timur, "Bid one three")
 
       press(dana, "One more")
-      assert [_row, {"3 ×", _faces}] = offers(dana)
+      assert [_row, {"3 ×", _faces}, {"4 ×", _more}] = offers(dana)
 
       press(dana, "Raise to one five")
 
-      assert [{"1 ×", _faces}, {"2 ×", _more}] = offers(dana)
+      assert [{"1 ×", [6]}, {"2 ×", _faces}, {"3 ×", _more}] = offers(dana)
+    end
+  end
+
+  describe "keyboard play" do
+    test "with a Bid of 2 × ⚃, 5 Raises to 2 × ⚄" do
+      %{dana: dana, malika: malika} = two_fours()
+
+      key(dana, "5")
+
+      assert has_element?(malika, "#scrap .bidn[aria-label='two fives']")
+      assert text(malika, "#scrap") == "Dana bids 2 × 6 dice on the table"
+    end
+
+    test "with a Bid of 2 × ⚃, 2 Raises to 3 × ⚁" do
+      %{dana: dana, malika: malika} = two_fours()
+
+      key(dana, "2")
+
+      assert has_element?(malika, "#scrap .bidn[aria-label='three twos']")
+    end
+
+    test "with a Bid of 2 × ⚃, → then 5 Raises to 4 × ⚄" do
+      %{dana: dana, malika: malika} = two_fours()
+
+      key(dana, "ArrowRight")
+      assert [{"2 ×", [5, 6]}, {"4 ×", _faces}, {"5 ×", _more}] = offers(dana)
+      assert [{"2 ×", [5, 6]}, {"3 ×", _faces}, {"4 ×", _more}] = offers(malika)
+
+      key(dana, "5")
+
+      assert has_element?(malika, "#scrap .bidn[aria-label='four fives']")
+    end
+
+    test "keys do nothing off turn: the step stays, and nothing is Raised or Checked" do
+      %{timur: timur, dana: dana, malika: malika} = two_fours()
+      before = offers(malika)
+
+      for player <- [malika, timur], key <- ~w(ArrowRight + 5 1 c C), do: key(player, key)
+
+      assert offers(malika) == before
+      assert offers(timur) == before
+      assert text(dana, "#scrap") == "Timur bids 2 × 6 dice on the table"
+      assert text(dana, "#my-page .my-page__head") == "Your turn. Raise it, or Check it."
+    end
+
+    test "only the Player on turn's page asks for keys, and nobody's does while the reveal runs" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert has_element?(timur, "#my-page[phx-hook=PlayKeys][data-my-turn=true]")
+      assert has_element?(dana, "#my-page[phx-hook=PlayKeys][data-my-turn=false]")
+
+      press(timur, "Bid one five")
+
+      assert has_element?(timur, "#my-page[data-my-turn=false]")
+      assert has_element?(dana, "#my-page[data-my-turn=true]")
+
+      check(dana)
+      reveal(code, {:reveal, 1, 1})
+      key(dana, "c")
+
+      assert has_element?(timur, "#my-page[data-my-turn=false]")
+      assert has_element?(dana, "#my-page[data-my-turn=false]")
+      assert text(timur, "#scrap") == "Bid 1 × ? ×"
+    end
+
+    test "C Checks, but not when opening the Round" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      key(timur, "c")
+      assert text(dana, "#scrap") == "Timur opens the Round. 2 dice on the table"
+
+      press(timur, "Bid one five")
+      key(dana, "C")
+
+      assert text(timur, "#scrap") == "Dana Checks! 1 ×"
+    end
+
+    test "← and -, → and + step both rows as - and + do, and stop at the ends" do
+      %{dana: dana, malika: malika} = two_fours()
+
+      key(dana, "ArrowLeft")
+      assert [_row, {"3 ×", _}, {"4 ×", _}] = offers(dana)
+
+      key(dana, "+")
+      assert [_row, {"4 ×", _}, {"5 ×", _}] = offers(dana)
+
+      for _ <- 1..3, do: key(dana, "ArrowRight")
+      assert [_row, {"5 ×", _}, {"6 ×", _}] = offers(dana)
+      assert has_element?(dana, "button[aria-label='One more'][disabled]")
+
+      key(dana, "-")
+      assert [_row, {"4 ×", _}, {"5 ×", _}] = offers(dana)
+
+      key(dana, "ArrowLeft")
+      assert [_row, {"3 ×", _}, {"4 ×", _}] = offers(dana)
+      assert [_row, {"3 ×", _}, {"4 ×", _}] = offers(malika)
+    end
+
+    test "an unknown key or a junk payload changes nothing" do
+      %{dana: dana, malika: malika} = two_fours()
+
+      for key <- ["0", "7", "x", "=", "Enter", " ", "55", "ArrowUp"], do: key(dana, key)
+
+      for payload <- [%{}, %{"key" => 5}, %{"key" => nil}, %{"key" => ["5"]}],
+          do: dana |> element("#my-page") |> render_hook("key", payload)
+
+      assert [{"2 ×", [5, 6]}, {"3 ×", _}, {"4 ×", _}] = offers(dana)
+      assert text(malika, "#scrap") == "Timur bids 2 × 6 dice on the table"
+
+      key(dana, "6")
+
+      assert has_element?(malika, "#scrap .bidn[aria-label='two sixes']")
+    end
+
+    test "the Check block shows its key, on every seat's page" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      for player <- [timur, dana] do
+        assert has_element?(
+                 player,
+                 "#my-page button.my-page__check[aria-keyshortcuts=c] kbd[aria-hidden=true]",
+                 "C"
+               )
+      end
+    end
+
+    test "a hint line shows the other keys, and the step keys only with room to step" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+      start(timur, [[2], [5], [3]])
+
+      assert text(timur, "#my-page .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
+
+      press(timur, "Bid one four")
+
+      assert offers(dana) == [
+               {"1 ×", [5, 6]},
+               {"2 ×", [1, 2, 3, 4, 5, 6]},
+               {"3 ×", [1, 2, 3, 4, 5, 6]}
+             ]
+
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Raise"
+
+      press(dana, "Raise to three sixes")
+
+      refute has_element?(malika, "#my-page .keyhint")
+    end
+
+    test "two Players on one die each open with no room to step, so the hint has no step keys" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert text(timur, "#my-page .keyhint") == "1 – 6 Bid"
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Bid"
+    end
+
+    test "the hint is dimmed with the picker off turn" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert has_element?(timur, "#my-page .keyhint:not(.is-off)")
+      assert has_element?(dana, "#my-page .keyhint.is-off")
     end
   end
 
@@ -170,7 +351,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
       %{timur: timur, dana: dana} = table(~w(Timur Dana))
       start(timur, [[2], [5]])
 
-      assert count(dana, "#my-page .pickdie") == 6
+      assert count(dana, "#my-page .pickdie") == 12
       assert count(dana, "#my-page button:not([disabled])") == 0
 
       render_click(dana, "raise", %{"count" => "1", "face" => "6"})
@@ -698,6 +879,16 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
   defp press(view, label),
     do: view |> element("#my-page button[aria-label='#{label}']") |> render_click()
+
+  defp two_fours do
+    players = table(~w(Timur Dana Malika Aziz Bobur Cora))
+    %{timur: timur, bobur: _, cora: _} = players
+    start(timur, [[1], [2], [3], [4], [5], [6]])
+    press(timur, "Bid two fours")
+    players
+  end
+
+  defp key(view, key), do: view |> element("#my-page") |> render_hook("key", %{"key" => key})
 
   defp check(view), do: view |> element("#my-page button", "Check") |> render_click()
 
