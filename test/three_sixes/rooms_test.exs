@@ -433,6 +433,125 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "leaving" do
+    test "takes the person out of the Room and every joined process gets its view" do
+      {code, dana} = table()
+
+      assert Rooms.leave(code, "guest:dana") == :ok
+
+      assert_receive {:room_view, %{people: [%{nickname: "Malika"}]}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{me: nil, people: [_]}}}
+    end
+
+    test "mid-reveal leaves the Check standing: the reveal runs on to the loser's Penalty die" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2], [3]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 3, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 1})
+      flush_after(room)
+
+      assert Rooms.leave(code, "guest:timur") == :ok
+
+      assert_receive {:room_view, %{game: %{round: 1, reveal: %{step: 1}, seats: seats}}}
+      assert [false, false, true] == Enum.map(seats, & &1.out?)
+
+      send(room, {:reveal, 1, 3})
+      Scripted.script([[4, 4], [5]])
+      send(room, {:next_round, 1})
+
+      assert_receive {:room_view, %{game: %{round: 2, my_dice: [4, 4], my_turn?: true}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, dice_on_table: 3}}}}
+    end
+
+    test "mid-reveal by one of the last two ends the Game, its reveal's timers reaching no other" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+
+      assert Rooms.leave(code, "guest:dana") == :ok
+      assert %{game: nil} = :sys.get_state(room).room
+
+      Process.sleep(900)
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      flush_after(room)
+
+      refute_receive {:room_view, %{game: %{reveal: %{step: 1}}}}, 600
+    end
+
+    test "by the Host passes the role to someone connected, in the order shuffled" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      {:ok, _view} = Rooms.enter(code, "guest:aziz", "Aziz")
+      timur = join_from_another_process(code, "guest:timur")
+      flush_views()
+      Scripted.script_seats([@host, "guest:timur", "guest:dana"])
+
+      assert Rooms.leave(code, @host) == :ok
+
+      assert_receive {:forwarded, ^timur, {:room_view, %{host?: true}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{host?: false, host_nickname: "Timur"}}}
+    end
+  end
+
+  describe "the Host removing someone" do
+    test "tells each of the removed person's processes, before any view, and the rest see it" do
+      {code, dana} = table()
+      dana_again = join_from_another_process(code, "guest:dana")
+
+      assert Rooms.remove(code, @host, 2) == :ok
+
+      assert_receive {:room_view, %{people: [%{nickname: "Malika"}]}}
+
+      for pid <- [dana, dana_again] do
+        assert_receive {:forwarded, ^pid, first}
+        assert first == :removed
+        assert_receive {:forwarded, ^pid, {:room_view, %{me: nil}}}
+      end
+    end
+  end
+
+  describe "handing over the Host role" do
+    test "makes the new Host, and every joined process gets its view" do
+      {code, dana} = table()
+
+      assert Rooms.make_host(code, @host, 2) == :ok
+
+      assert_receive {:room_view, %{host?: false, host_nickname: "Dana"}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{host?: true, can_start?: true}}}
+      assert Rooms.start_game(code, @host) == {:error, :not_host}
+    end
+  end
+
+  test "a refused leave, removal or handover replies an error and sends nothing" do
+    {code, _dana} = table()
+
+    assert Rooms.leave(code, "guest:aziz") == {:error, :not_member}
+    assert Rooms.remove(code, "guest:dana", 1) == {:error, :not_host}
+    assert Rooms.remove(code, @host, 3) == {:error, :not_member}
+    assert Rooms.remove(code, @host, 1) == {:error, :self}
+    assert Rooms.make_host(code, "guest:dana", 2) == {:error, :not_host}
+    assert Rooms.make_host(code, @host, 1) == {:error, :self}
+    refute_receive {:room_view, _view}
+    refute_receive {:forwarded, _pid, _message}
+
+    close(code)
+
+    assert Rooms.leave(code, @host) == {:error, :closed}
+    assert Rooms.remove(code, @host, 2) == {:error, :closed}
+    assert Rooms.make_host(code, @host, 2) == {:error, :closed}
+  end
+
   defp assert_ignored(room, messages) do
     before = :sys.get_state(room)
     for message <- messages, do: send(room, message)

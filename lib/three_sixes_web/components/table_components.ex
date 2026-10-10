@@ -12,13 +12,21 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :rolled, :any, default: nil
+  attr :tappable, :any, required: true
 
   def game_table(assigns) do
     ~H"""
     <div id="game-table" class="game-table">
       <div class="game-table__ring">
         <ol class="game-table__seats">
-          <.seat :for={{seat, x, y} <- ring(@game)} seat={seat} game={@game} x={x} y={y} />
+          <.seat
+            :for={{seat, x, y} <- ring(@game)}
+            seat={seat}
+            game={@game}
+            x={x}
+            y={y}
+            tappable={@tappable}
+          />
         </ol>
         <.torn_scrap id="scrap" class="game-table__scrap">
           <.scrap game={@game} />
@@ -50,6 +58,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :x, :float, required: true
   attr :y, :float, required: true
+  attr :tappable, :any, required: true
 
   defp seat(assigns) do
     assigns = assign(assigns, :turn?, assigns.seat.on_turn? and assigns.game.reveal == nil)
@@ -61,8 +70,10 @@ defmodule ThreeSixesWeb.TableComponents do
       aria-current={@turn? && "true"}
       style={"--x: #{@x}; --y: #{@y}"}
     >
-      <.person_token person={@seat.person} />
-      <span class="seat__name">{name(@seat.person)}</span>
+      <.person_tap person={@seat.person} tappable={@tappable}>
+        <.person_token person={@seat.person} />
+        <span class="seat__name">{name(@seat.person)}</span>
+      </.person_tap>
       <span :if={@seat.faces} class="seat__dice">
         <.die
           :for={face <- @seat.faces}
@@ -122,6 +133,9 @@ defmodule ThreeSixesWeb.TableComponents do
 
   defp scrap(%{game: %{bid: nil}} = assigns) do
     ~H"""
+    <p :if={@game.voided_by} class="faint">
+      {name(@game.voided_by)} {verb(@game.voided_by, "is", "are")} out. The Round is voided.
+    </p>
     <p class="scrawl">{name(@game.turn)} {verb(@game.turn, "opens", "open")} the Round.</p>
     <p class="faint">{@game.dice_on_table} dice on the table</p>
     """
@@ -315,6 +329,7 @@ defmodule ThreeSixesWeb.TableComponents do
 
   attr :spectators, :list, required: true
   attr :open?, :boolean, required: true
+  attr :tappable, :any, required: true
 
   def spectators(assigns) do
     ~H"""
@@ -331,8 +346,10 @@ defmodule ThreeSixesWeb.TableComponents do
       </button>
       <ul id="spectators" class="spec__list" hidden={!@open?}>
         <li :for={spectator <- @spectators}>
-          <.person_token person={spectator.person} />
-          <span>{name(spectator.person)}</span>
+          <.person_tap person={spectator.person} tappable={@tappable}>
+            <.person_token person={spectator.person} />
+            <span>{name(spectator.person)}</span>
+          </.person_tap>
           <small :if={spectator.out?}>out</small>
         </li>
       </ul>
@@ -342,6 +359,26 @@ defmodule ThreeSixesWeb.TableComponents do
 
   defp spectator_count(1), do: "1 Spectator"
   defp spectator_count(count), do: "#{count} Spectators"
+
+  attr :person, :map, required: true
+  attr :tappable, :any, required: true
+  slot :inner_block, required: true
+
+  def person_tap(assigns) do
+    ~H"""
+    <button
+      :if={@person.n in @tappable}
+      type="button"
+      class="person-button"
+      popovertarget={"person-dialog-#{@person.n}"}
+    >
+      {render_slot(@inner_block)}
+    </button>
+    <%= if @person.n not in @tappable do %>
+      {render_slot(@inner_block)}
+    <% end %>
+    """
+  end
 
   attr :person, :map, required: true
 

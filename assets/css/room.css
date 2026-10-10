@@ -353,6 +353,48 @@
   font: 700 20px/1 var(--font-scrawl);
 }
 
+.person-button {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.person-button:focus-visible {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  .person-button:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+}
+.people .person-button {
+  flex: 1;
+  align-self: stretch;
+}
+.seat .person-button {
+  display: grid;
+  justify-items: center;
+  max-width: 100%;
+}
+.seat .person-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 .copy-link {
   position: relative;
 }
@@ -389,6 +431,7 @@
 }
 .dialog h2 {
   margin: 0 0 var(--spacing-2);
+  overflow-wrap: anywhere;
   font: 700 34px/var(--spacing-rule) var(--font-scrawl);
   letter-spacing: -0.01em;
 }
@@ -403,6 +446,19 @@
 }
 .dialog .row {
   margin-top: var(--spacing-4);
+}
+.dialog p {
+  margin: 0;
+}
+/* The confirm opens from inside the Room menu, which stays open beneath it as its parent popover. */
+#room-menu:has(~ #leave-dialog:popover-open),
+#room-menu:has(~ #leave-dialog:popover-open)::backdrop {
+  visibility: hidden;
+}
+.dialog small {
+  display: block;
+  margin-top: var(--spacing-2);
+  font: 500 15px/1.35 var(--font-ui);
 }
 @keyframes stick {
   from {

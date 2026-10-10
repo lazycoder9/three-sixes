@@ -26,7 +26,8 @@ defmodule ThreeSixes.Rooms.Server do
     if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
       {:stop, :too_many}
     else
-      {:ok, schedule_close(%{room: Room.new(code, host_id), joined: %{}, close_timer: nil})}
+      state = %{room: Room.new(code, host_id), joined: %{}, close_timer: nil, reveal_timers: []}
+      {:ok, schedule_close(state)}
     end
   end
 
@@ -77,13 +78,37 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:check, person_id}, _from, state) do
     case Room.check(state.room, person_id) do
       {:ok, room} ->
-        for {delay, message} <- Room.reveal_schedule(room),
-            do: Process.send_after(self(), message, delay)
+        timers =
+          for {delay, message} <- Room.reveal_schedule(room),
+              do: Process.send_after(self(), message, delay)
 
-        {:reply, :ok, changed(state, room)}
+        {:reply, :ok, changed(%{state | reveal_timers: timers}, room)}
 
       refused ->
         {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:leave, person_id}, _from, state) do
+    case Room.leave(state.room, person_id, connected(state)) do
+      {:roll, room} -> {:reply, :ok, changed(state, roll(room))}
+      {:ok, room} -> {:reply, :ok, state |> changed(room) |> stop_reveal()}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:remove, by, n}, _from, state) do
+    case Room.remove(state.room, by, n, connected(state)) do
+      {:roll, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(roll(room))}
+      {:ok, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(room) |> stop_reveal()}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:make_host, by, n}, _from, state) do
+    case Room.make_host(state.room, by, n) do
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
     end
   end
 
@@ -119,6 +144,24 @@ defmodule ThreeSixes.Rooms.Server do
 
   defp open(creator),
     do: Registry.count_select(ThreeSixes.Rooms.Registry, [{{:_, :_, creator}, [], [true]}])
+
+  defp tell_removed(state, room) do
+    for {pid, id} <- state.joined,
+        Room.member?(state.room, id),
+        not Room.member?(room, id),
+        do: send(pid, :removed)
+
+    state
+  end
+
+  defp stop_reveal(%{room: %{game: nil}} = state) do
+    Enum.each(state.reveal_timers, &Process.cancel_timer/1)
+    %{state | reveal_timers: []}
+  end
+
+  defp stop_reveal(state), do: state
+
+  defp connected(state), do: state.joined |> Map.values() |> Enum.uniq() |> Dice.shuffle()
 
   defp roll(room) do
     dice = Map.new(Game.to_roll(room.game), fn {seat, count} -> {seat, Dice.roll(count)} end)

@@ -438,6 +438,131 @@ defmodule ThreeSixes.GameTest do
     end
   end
 
+  describe "leaving" do
+    test "while bidding Knocks the leaver out at once and voids the Round, no Penalty die taken" do
+      game = round_one() |> raise!("a", 1, 5)
+
+      assert {:void, game} = Game.leave(game, "b")
+
+      assert game.out == ["b"]
+      assert game.counts == %{"a" => 1, "b" => 1, "c" => 1}
+      assert %{turn: nil, bid: nil, said: %{}, dice: %{}, reveal: nil, voided_by: "b"} = game
+    end
+
+    test "the re-rolled Round opens with the next Player in turn order after the leaver" do
+      {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
+      game = Game.start_round(game, %{"a" => [3], "c" => [4]})
+
+      assert %{round: 2, turn: "c", voided_by: "b", dice: %{"a" => [3], "c" => [4]}} = game
+      assert Game.to_roll(game) == [{"a", 1}, {"c", 1}]
+    end
+
+    test "the leaver is named until the Round after the next reveal, which the loser opens" do
+      {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
+
+      game =
+        game
+        |> Game.start_round(%{"a" => [3], "c" => [4]})
+        |> raise!("c", 1, 4)
+        |> check!("a")
+        |> Game.advance_reveal(3)
+        |> Game.start_round(%{"a" => [3, 3], "c" => [4]})
+
+      assert %{turn: "a", voided_by: nil} = game
+    end
+
+    test "during the reveal leaves the Check standing: the loser still takes the Penalty die" do
+      for step <- 0..2 do
+        checked = round_one() |> raise!("a", 3, 5) |> check!("b")
+        game = if step == 0, do: checked, else: Game.advance_reveal(checked, step)
+
+        assert {:ok, game} = Game.leave(game, "c")
+        assert %{out: ["c"], voided_by: nil, reveal: %{step: ^step, loser: "a"}} = game
+        game = Game.advance_reveal(game, 3)
+        assert game.counts == %{"a" => 2, "b" => 1, "c" => 1}
+        assert Game.start_round(game, %{"a" => [1, 1], "b" => [1]}).turn == "a"
+      end
+    end
+
+    test "by the loser during the reveal Knocks them out once, the sixth die adding no second" do
+      game =
+        %{"a" => 5, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> raise!("a", 7, 6)
+        |> check!("b")
+
+      assert {:ok, game} = Game.leave(game, "a")
+      game = Game.advance_reveal(game, 3)
+
+      assert game.out == ["a"]
+      assert Game.start_round(game, %{"b" => [1], "c" => [1]}).turn == "b"
+    end
+
+    test "by one of the last two Players during the reveal ends the Game, the other the winner" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      checked =
+        game
+        |> Game.start_round(%{"a" => [2], "b" => [5]})
+        |> raise!("a", 2, 5)
+        |> check!("b")
+
+      assert {:over, game} = Game.leave(checked, "a")
+      assert Game.placement(game) == ["b", "a", "c"]
+    end
+
+    test "once the Penalty die is taken leaves the Round settled, and the loser opens the next" do
+      settled = round_one() |> raise!("a", 3, 5) |> check!("b") |> Game.advance_reveal(3)
+
+      assert {:ok, game} = Game.leave(settled, "c")
+      assert %{out: ["c"], voided_by: nil, reveal: %{step: 3, loser: "a"}} = game
+      assert game.counts == %{"a" => 2, "b" => 1, "c" => 1}
+      assert Game.start_round(game, %{"a" => [1, 1], "b" => [1]}).turn == "a"
+    end
+
+    test "by one of the last two Players ends the Game, the other the winner, the leaver second" do
+      game =
+        %{"a" => 5, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> lose!("a", "b")
+        |> Game.start_round(%{"b" => [2], "c" => [3]})
+        |> raise!("b", 1, 2)
+
+      assert {:over, game} = Game.leave(game, "c")
+      assert Game.over?(game)
+      assert Game.placement(game) == ["b", "c", "a"]
+    end
+
+    test "by the winner, in the pause after the last Knock out, ends the Game as it stood" do
+      game =
+        %{"a" => 5, "b" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2]})
+        |> lose!("a", "b")
+
+      assert {:over, ^game} = Game.leave(game, "b")
+      assert Game.placement(game) == ["b", "a"]
+    end
+
+    test "by someone not seated, or already Knocked out, changes nothing" do
+      game = raise!(a_knocked_out(), "b", 1, 2)
+
+      assert Game.leave(game, "a") == {:ok, game}
+      assert Game.leave(game, "z") == {:ok, game}
+    end
+
+    test "after the last seat leaves, the opener wraps round to the first" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      assert Game.start_round(game, %{"a" => [3], "b" => [4]}).turn == "a"
+    end
+
+    test "the opener passes over a seat already Knocked out" do
+      {:void, game} = Game.leave(a_knocked_out(), "d")
+
+      assert Game.start_round(game, %{"b" => [1], "c" => [1]}).turn == "b"
+    end
+  end
+
   test "the dice to roll are each seat's count, in seat order" do
     assert ["c", "a", "b"] |> Game.new() |> Game.to_roll() == [{"c", 1}, {"a", 1}, {"b", 1}]
 
