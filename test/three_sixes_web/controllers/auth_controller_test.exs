@@ -135,6 +135,26 @@ defmodule ThreeSixesWeb.AuthControllerTest do
         assert get_session(conn, "account_id") == nil
       end
     end
+
+    test "a failed sign-in from a Room goes back to the Room with the reason, still a Guest" do
+      failure = %Ueberauth.Failure{
+        provider: :google,
+        errors: [%Ueberauth.Failure.Error{message_key: "access_denied", message: "denied"}]
+      }
+
+      no_email = %{@auth | info: %{@auth.info | email: nil}}
+
+      for {assigns, reason} <- [
+            {[ueberauth_failure: failure], "Sign-in failed: denied"},
+            {[ueberauth_auth: no_email], "Signing in didn't work. Please try again."}
+          ] do
+        conn = google_callback(%{"guest_id" => "g1", "return_to" => "/r/ABCD"}, assigns)
+
+        assert redirected_to(conn) == "/r/ABCD"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == reason
+        assert get_session(conn, "account_id") == nil
+      end
+    end
   end
 
   describe "the Google request" do

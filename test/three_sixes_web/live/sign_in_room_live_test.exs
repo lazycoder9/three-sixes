@@ -122,6 +122,15 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
       assert "guest_session:" <> _ = guest_session
       assert get_session(signed_in, "live_socket_id") != guest_session
     end
+
+    test "still joined as the Guest are sent to the Room again once the Account's page joins" do
+      %{dana: {dana_conn, _}, code: code} = table(~w(Dana))
+      {_, other_tab} = visit(guest("dana"), code)
+
+      sign_in(dana_conn, code, "Scully")
+
+      assert_redirect(other_tab, ~p"/r/#{code}")
+    end
   end
 
   describe "the Room restarting from a save before the sign-in" do

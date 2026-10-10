@@ -100,6 +100,7 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:join, pid, person_id, was}, _from, state) do
     unless Map.has_key?(state.joined, pid), do: Process.monitor(pid)
     if state.close_timer, do: Process.cancel_timer(state.close_timer)
+    tell_signed_in(state, was, person_id)
     {moved, room} = move_seat(state.room, was, person_id)
     state = state |> changed_if_new(Room.back(room, person_id)) |> stop_reveal()
 
@@ -327,6 +328,12 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp stop_reveal(state), do: state
+
+  defp tell_signed_in(state, was, to) do
+    if was != to and Room.member?(state.room, was) do
+      for {pid, ^was} <- state.joined, do: send(pid, :signed_in)
+    end
+  end
 
   defp move_seat(room, nil, _to), do: {:ok, room}
 

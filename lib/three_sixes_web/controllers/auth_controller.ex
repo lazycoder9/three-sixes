@@ -16,7 +16,7 @@ defmodule ThreeSixesWeb.AuthController do
 
     conn
     |> put_flash(:error, "Sign-in failed: #{message}")
-    |> redirect(to: sign_in_page(conn))
+    |> redirect(to: after_failure(conn))
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -24,7 +24,7 @@ defmodule ThreeSixesWeb.AuthController do
       {:error, _changeset} ->
         conn
         |> put_flash(:error, "Signing in didn't work. Please try again.")
-        |> redirect(to: sign_in_page(conn))
+        |> redirect(to: after_failure(conn))
 
       found ->
         complete_sign_in(conn, found, get_session(conn, "return_to"))
@@ -105,9 +105,10 @@ defmodule ThreeSixesWeb.AuthController do
     end
   end
 
-  defp sign_in_page(conn) do
+  defp after_failure(conn) do
     case local_path(get_session(conn, "return_to")) do
       nil -> ~p"/signin"
+      "/r/" <> code = room when code != "" -> room
       path -> ~p"/signin?#{[return_to: path]}"
     end
   end

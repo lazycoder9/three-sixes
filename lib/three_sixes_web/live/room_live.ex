@@ -300,6 +300,9 @@ defmodule ThreeSixesWeb.RoomLive do
      |> push_navigate(to: ~p"/")}
   end
 
+  def handle_info(:signed_in, socket),
+    do: {:noreply, redirect(socket, to: ~p"/r/#{socket.assigns.code}")}
+
   def handle_info({:reaction, %{by: by, key: key}}, socket) do
     id = socket.assigns.reactions_seen + 1
     Process.send_after(self(), {:reaction_over, by.n, id}, @reaction_shown)
