@@ -55,7 +55,7 @@ body:has(.game-table) .table-main {
 }
 
 /* The px terms in the unit keep room for Reactions, beside your page and under it (#22). */
-@media (min-width: 720px) {
+@media (width >= 720px) {
   /* With only a min-height on the body, Chrome resolves cqh to 0 inside the flexed container. */
   body:has(.game-table) {
     height: 100dvh;
@@ -66,6 +66,13 @@ body:has(.game-table) .table-main {
   .game-table {
     --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
     min-height: 0;
+  }
+  .seat--compact .seat__dice:has(.is-flip) {
+    gap: calc(1 * var(--u));
+  }
+  .seat--compact .seat__dice .die.is-flip,
+  .seat--compact .seat__dice .die.is-penalty {
+    --d: calc(12 * var(--u));
   }
 }
 @media (min-width: 1000px) {
@@ -190,10 +197,10 @@ body:has(.game-table) .table-main {
 }
 .seat__dice {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: calc(4 * var(--u));
+  min-width: 0;
   min-height: calc(26 * var(--u));
 }
 .seat__dice .die {
@@ -201,7 +208,7 @@ body:has(.game-table) .table-main {
 }
 .seat__dice .die.is-flip,
 .seat__dice .die.is-penalty {
-  --d: calc(30 * var(--u));
+  --d: calc(20 * var(--u));
 }
 .seat__n {
   display: none;
@@ -541,12 +548,18 @@ body:has(.game-table) .table-main {
   font-size: calc(21 * var(--u));
 }
 
-@media (max-width: 719.98px) {
+@media (width < 720px) {
   .game-table {
     padding: 0 var(--spacing-2) var(--spacing-3);
   }
   .game-table__ring {
     min-height: 430px;
+  }
+  .game-table--arc:not(.is-counting) .game-table__ring {
+    min-height: 310px;
+  }
+  .game-table--arc[data-seats="5"] .seat {
+    top: calc(var(--sh) / 2 + (1 + var(--y)) * max(155px, 50% - var(--sh) / 2));
   }
   .roombar:has(.spec) ~ .table-main .game-table__ring {
     margin-top: 52px;
@@ -557,6 +570,7 @@ body:has(.game-table) .table-main {
     padding: 6px 4px 7px;
   }
   .seat__dice {
+    flex-wrap: wrap;
     min-height: 23px;
   }
   .seat .token {
@@ -605,6 +619,17 @@ body:has(.game-table) .table-main {
   }
   .game-table--phone-compact .seat__n {
     display: inline;
+  }
+  .seat--compact .seat__said,
+  .game-table--phone-compact .seat__said {
+    top: 1px;
+    bottom: auto;
+    padding: 0 3px 1px;
+    line-height: 1;
+  }
+  .seat--compact .seat__said .bidn,
+  .game-table--phone-compact .seat__said .bidn {
+    --b: 13px;
   }
   .game-table--phone-compact .die.is-down + .die.is-down,
   .game-table--phone-compact .seat__said:not(.is-now) {

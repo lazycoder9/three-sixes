@@ -1,7 +1,7 @@
 import type { Hook } from "phoenix_live_view";
 import { seatPoints, type Layout } from "../table/seats";
 
-const phone = matchMedia("(max-width: 719.98px)");
+const phone = matchMedia("(width < 720px)");
 
 function layout(table: HTMLElement): Layout {
   const marked = (marker: string) => table.classList.contains(`game-table--${marker}`);
@@ -38,7 +38,7 @@ export const TableSeats: Hook<State> = {
   mounted() {
     this.place = () => place(this.el);
     this.observer = new ResizeObserver(this.place);
-    this.observer.observe(this.el);
+    this.observer.observe(this.el.querySelector(".game-table__seats") ?? this.el);
     phone.addEventListener("change", this.place);
     this.place();
   },

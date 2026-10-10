@@ -70,6 +70,18 @@ describe("seats around a ring", () => {
     expect(evenlySpaced(gapsAlongEdge(equalAngles, 3))).toBe(false);
   });
 
+  test("are spaced evenly along the edge of a tall table, as on a phone", () => {
+    const tall = {
+      seats: 5,
+      seated: false,
+      layout: "ring",
+      width: 300,
+      height: 700,
+      ...seatBox,
+    } as const;
+    expect(evenlySpaced(gapsAlongEdge(seatPoints(tall), 1 / 3))).toBe(true);
+  });
+
   test("leave the bottom spot free for you when you are seated", () => {
     const table = { seats: 6, layout: "ring", width: 700, height: 300, ...seatBox } as const;
     const watching = seatPoints({ ...table, seated: false });

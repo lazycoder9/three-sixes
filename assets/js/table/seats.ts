@@ -65,8 +65,6 @@ export function seatPoints(table: Table): Point[] {
   const a = Math.max(1, (table.width - table.seatWidth) / 2);
   const b = Math.max(1, (table.height - table.seatHeight) / 2);
   const points =
-    table.layout === "long"
-      ? longTable(table.seats, a, b)
-      : ellipse(table.seats, Math.max(1, a / b));
+    table.layout === "long" ? longTable(table.seats, a, b) : ellipse(table.seats, a / b);
   return table.seated ? points.slice(1) : points;
 }
