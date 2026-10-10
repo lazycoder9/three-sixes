@@ -2,6 +2,7 @@ defmodule ThreeSixesWeb.AuthControllerTest do
   use ThreeSixesWeb.ConnCase, async: false
 
   alias ThreeSixes.Accounts
+  alias ThreeSixes.Records
   alias ThreeSixesWeb.AuthController
 
   @auth %Ueberauth.Auth{
@@ -38,6 +39,13 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       assert get_session(conn, "guest_id") == "g1"
       assert get_session(conn, "return_to") == nil
       assert conn.private[:plug_session_info] == :renew
+    end
+
+    test "with no Guest id in the session still signs the Account in" do
+      conn = google_callback(%{}, ueberauth_auth: @auth)
+
+      assert redirected_to(conn) == "/"
+      assert get_session(conn, "account_id")
     end
 
     test "goes to the landing page when no path was stored" do
@@ -163,6 +171,31 @@ defmodule ThreeSixesWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/"
       assert Accounts.get_account(get_session(conn, "account_id")).name == "Dana"
+    end
+
+    test "takes over the device's Guest history, so its Games count for the Account",
+         %{conn: conn} do
+      {:ok, _record} =
+        Records.record_game(%{
+          room_code: "KQXT",
+          rounds: 4,
+          placement: [
+            %{person_id: "guest:g1", nickname: "Foxy", place: 1},
+            %{person_id: "guest:g2", nickname: "Dana", place: 2}
+          ],
+          checks: [%{round: 2, checker: "guest:g1", bidder: "guest:g2", stood?: false}]
+        })
+
+      conn =
+        conn
+        |> init_test_session(%{"guest_id" => "g1"})
+        |> post(~p"/auth/dev", %{"name" => "Fox"})
+
+      fox = Accounts.person_id(Accounts.get_account(get_session(conn, "account_id")))
+      assert %{games: 1, wins: 1, checks_won: 1} = Accounts.stats(fox)
+      assert [%{players: [%{nickname: "Foxy", me?: true}, _]}] = Accounts.recent_games(fox)
+      assert %{games: 0} = Accounts.stats("guest:g1")
+      assert %{games: 1} = Accounts.stats("guest:g2")
     end
 
     test "is refused when the dev login is off", %{conn: conn} do

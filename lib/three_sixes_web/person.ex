@@ -17,13 +17,13 @@ defmodule ThreeSixesWeb.Person do
   defp person(%{"account_id" => account_id} = session) do
     case Accounts.get_account(account_id) do
       nil -> guest(session)
-      account -> {"account:" <> to_string(account.id), account}
+      account -> {Accounts.person_id(account), account}
     end
   end
 
   defp person(session), do: guest(session)
 
-  defp guest(%{"guest_id" => guest_id}), do: {"guest:" <> guest_id, nil}
+  defp guest(%{"guest_id" => guest_id}), do: {Accounts.guest_person_id(guest_id), nil}
 
   defp client_address(socket) do
     forwarded =

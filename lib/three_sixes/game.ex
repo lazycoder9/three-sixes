@@ -11,7 +11,8 @@ defmodule ThreeSixes.Game do
     reveal: nil,
     opener: nil,
     out: [],
-    voided_by: nil
+    voided_by: nil,
+    checks: []
   ]
 
   @knocked_out_at 6
@@ -28,6 +29,12 @@ defmodule ThreeSixes.Game do
           loser: person_id(),
           step: 0..3
         }
+  @type check :: %{
+          round: pos_integer(),
+          checker: person_id(),
+          bidder: person_id(),
+          stood?: boolean()
+        }
   @type t :: %__MODULE__{
           seats: [person_id()],
           counts: %{person_id() => pos_integer()},
@@ -39,7 +46,8 @@ defmodule ThreeSixes.Game do
           reveal: reveal() | nil,
           opener: person_id() | nil,
           out: [person_id()],
-          voided_by: person_id() | nil
+          voided_by: person_id() | nil,
+          checks: [check()]
         }
 
   @spec new([person_id()]) :: t()
@@ -169,8 +177,19 @@ defmodule ThreeSixes.Game do
 
   def advance_reveal(game, _step), do: game
 
-  defp penalize(game, loser) do
-    game = update_in(game.counts[loser], &(&1 + 1))
+  defp penalize(%{reveal: reveal} = game, loser) do
+    check = %{
+      round: game.round,
+      checker: reveal.checker,
+      bidder: reveal.bid.by,
+      stood?: reveal.stood?
+    }
+
+    game = %{
+      game
+      | counts: Map.update!(game.counts, loser, &(&1 + 1)),
+        checks: game.checks ++ [check]
+    }
 
     if game.counts[loser] == @knocked_out_at and loser not in game.out,
       do: %{game | out: game.out ++ [loser]},

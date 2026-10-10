@@ -6,6 +6,7 @@ defmodule ThreeSixes.Rooms.Server do
   alias ThreeSixes.Dice
   alias ThreeSixes.Game
   alias ThreeSixes.Reaction
+  alias ThreeSixes.Records
   alias ThreeSixes.Room
   alias ThreeSixes.Rooms
 
@@ -306,10 +307,28 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp changed(state, room) do
+    record(Room.finished(state.room, room))
     state = unsaved(%{state | room: room})
     send_views(state)
     state
   end
+
+  defp record(nil), do: :ok
+
+  defp record(game) do
+    case Records.record_game(game) do
+      {:ok, _record} -> :ok
+      {:error, changeset} -> not_recorded(game, inspect(traverse_errors(changeset)))
+    end
+  catch
+    kind, reason -> not_recorded(game, Exception.format(kind, reason, __STACKTRACE__))
+  end
+
+  defp traverse_errors(changeset),
+    do: Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+
+  defp not_recorded(game, reason),
+    do: Logger.error("Game in Room #{game.room_code} not recorded: #{reason}")
 
   defp send_views(state) do
     for {pid, person_id} <- state.joined do
