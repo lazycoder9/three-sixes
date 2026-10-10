@@ -893,7 +893,7 @@ defmodule ThreeSixes.RoomTest do
                  %{
                    person: @dana,
                    dice: 1,
-                   said: %{count: 1, face: 6},
+                   said: %{count: 1, face: 6, blind?: false},
                    on_turn?: false,
                    faces: nil,
                    penalty?: false,
@@ -1011,7 +1011,7 @@ defmodule ThreeSixes.RoomTest do
                  %{
                    person: @dana,
                    dice: 1,
-                   said: %{count: 1, face: 6},
+                   said: %{count: 1, face: 6, blind?: false},
                    on_turn?: false,
                    faces: [6],
                    penalty?: false,

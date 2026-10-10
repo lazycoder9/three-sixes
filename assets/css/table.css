@@ -243,6 +243,7 @@ body:has(.game-table) .table-main {
   color: var(--color-graphite);
   box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.4);
   opacity: 0.6;
+  white-space: nowrap;
 }
 .seat__said .bidn {
   --b: calc(21 * var(--u));
@@ -250,6 +251,11 @@ body:has(.game-table) .table-main {
 .seat__said.is-now {
   opacity: 1;
   animation: slam 0.3s var(--ease-press);
+}
+.seat__blind {
+  margin-left: calc(4 * var(--u));
+  color: var(--color-tomato);
+  font: 400 max(12px, calc(15 * var(--u))) / 1 var(--font-hand);
 }
 .seat.is-turn {
   z-index: 2;
@@ -314,14 +320,16 @@ body:has(.game-table) .table-main {
 .seat--compact .seat__n {
   display: inline;
 }
-.seat--compact .die.is-down + .die.is-down {
+.seat--compact .die.is-down + .die.is-down,
+.seat--compact .seat__blind {
   display: none;
 }
 .seat--compact .seat__tag {
-  top: calc(9 * var(--u));
-  left: calc(50% + 9 * var(--u));
+  top: calc(100% - 3 * var(--u));
+  left: 50%;
   padding: 0 calc(3 * var(--u));
   font-size: max(11px, calc(12 * var(--u)));
+  transform: translateX(-50%) rotate(3deg);
 }
 
 .game-table__scrap {
@@ -857,10 +865,11 @@ body:has(.game-table) .table-main {
   }
   .seat--compact .seat__tag,
   .game-table--phone-compact .seat__tag {
-    top: 12px;
-    left: calc(50% + 8px);
+    top: calc(100% - 3px);
+    left: 50%;
     padding: 0 3px;
     font-size: 12px;
+    transform: translateX(-50%) rotate(3deg);
   }
   .seat--compact .seat__said,
   .game-table--phone-compact .seat__said {
@@ -874,7 +883,8 @@ body:has(.game-table) .table-main {
     --b: 13px;
   }
   .game-table--phone-compact .die.is-down + .die.is-down,
-  .game-table--phone-compact .seat__said:not(.is-now) {
+  .game-table--phone-compact .seat__said:not(.is-now),
+  .game-table--phone-compact .seat__blind {
     display: none;
   }
   .game-table__scrap {
@@ -951,13 +961,20 @@ body:has(.game-table) .table-main {
     flex-wrap: wrap;
     row-gap: 10px;
   }
+  .my-dice:has(> .die.is-down:nth-of-type(5)) .die {
+    --d: min(clamp(40px, calc((100vw - 64px) / 6.6), 54px), calc((100vw - 170px) / 5));
+  }
   .my-dice__blind {
-    gap: 10px;
+    gap: 6px;
     margin-left: 0;
   }
+  .my-dice__mark {
+    padding: 1px 6px 2px;
+    font-size: 17px;
+  }
   .my-dice__peek.block {
-    min-height: 40px;
-    padding: 0 16px;
+    min-height: 36px;
+    padding: 0 12px;
     font-size: 15px;
   }
   .my-page__head {

@@ -183,17 +183,22 @@ defmodule ThreeSixes.GameTest do
       game = round_one() |> raise!("a", 1, 5) |> raise!("b", 1, 6)
 
       assert game.bid == %{count: 1, face: 6, by: "b"}
-      assert game.said == %{"a" => %{count: 1, face: 5}, "b" => %{count: 1, face: 6}}
+
+      assert game.said == %{
+               "a" => %{count: 1, face: 5, blind?: false},
+               "b" => %{count: 1, face: 6, blind?: false}
+             }
+
       assert game.turn == "c"
 
       game = raise!(game, "c", 2, 1)
 
       assert game.turn == "a"
-      assert game.said["c"] == %{count: 2, face: 1}
+      assert game.said["c"] == %{count: 2, face: 1, blind?: false}
 
       game = raise!(game, "a", 2, 3)
 
-      assert game.said["a"] == %{count: 2, face: 3}
+      assert game.said["a"] == %{count: 2, face: 3, blind?: false}
       assert game.turn == "b"
     end
 
@@ -928,6 +933,20 @@ defmodule ThreeSixes.GameTest do
       assert raise!(game, "a", 2, 2).bid_blind?
     end
 
+    test "what a seat said keeps whether it was said blind, through a peek and the next Raise" do
+      game = raise!(blind_round(), "a", 1, 5)
+      {:ok, game} = Game.peek(game, "a")
+      game = game |> raise!("b", 1, 6) |> raise!("c", 2, 1)
+
+      assert game.said == %{
+               "a" => %{count: 1, face: 5, blind?: true},
+               "b" => %{count: 1, face: 6, blind?: true},
+               "c" => %{count: 2, face: 1, blind?: false}
+             }
+
+      assert raise!(game, "a", 2, 3).said["a"] == %{count: 2, face: 3, blind?: false}
+    end
+
     test "changes no rule: blind seats Raise, Check and take the Penalty die as anyone does" do
       game = blind_round() |> raise!("a", 2, 5) |> raise!("b", 3, 5) |> check!("c")
 
@@ -966,7 +985,7 @@ defmodule ThreeSixes.GameTest do
       assert game.seats == ["z", "b", "c"]
       assert game.counts == %{"z" => 1, "b" => 1, "c" => 1}
       assert game.dice == %{"z" => [2], "b" => [5], "c" => [5]}
-      assert game.said == %{"z" => %{count: 1, face: 5}}
+      assert game.said == %{"z" => %{count: 1, face: 5, blind?: false}}
       assert game.bid == %{count: 1, face: 5, by: "z"}
       assert %{turn: "b", opener: "z", round: 1} = game
 

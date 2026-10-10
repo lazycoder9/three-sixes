@@ -1042,6 +1042,42 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert text(dana, "#scrap") == "You bid 1 × 2 dice on the table"
     end
 
+    test "a seat's Bid made blind keeps its blind mark after a peek and the next Raise" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      tick_blind(dana, true)
+      start(timur, [[4], [6], [3]])
+      aziz = late_arrival(code)
+
+      press(timur, "Bid one five")
+      press(dana, "Raise to one six")
+      dana |> element("#peek") |> render_click()
+      press(malika, "Raise to two threes")
+
+      for watcher <- [timur, aziz] do
+        assert text(watcher, "#seat-2 .seat__said") == "1 × blind"
+        assert text(watcher, "#seat-2 .seat__tag") == "peeked"
+        refute has_element?(watcher, "#seat-1 .seat__said .seat__blind")
+        refute has_element?(watcher, "#seat-3 .seat__said .seat__blind")
+      end
+
+      assert text(malika, "#seat-2 .seat__said .seat__blind") == "blind"
+      assert text(timur, "#scrap") == "Malika bids 2 × 3 dice on the table"
+    end
+
+    test "a blind Player who leaves during a reveal shows out, with no blind mark" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+      tick_blind(dana, true)
+      start(timur, [[4], [6], [3]])
+
+      press(timur, "Bid one five")
+      press(dana, "Raise to one six")
+      check(malika)
+      dana |> element("#leave-dialog button", "Leave Room") |> render_click()
+
+      assert has_element?(timur, "#seat-2.is-out .seat__out", "out")
+      refute has_element?(timur, "#seat-2 .seat__tag")
+    end
+
     test "a blind Player on turn plays by keys, and a Check shows their dice to all at step 1" do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
       tick_blind(timur, true)

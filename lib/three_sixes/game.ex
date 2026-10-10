@@ -24,6 +24,7 @@ defmodule ThreeSixes.Game do
   @type face :: 1..6
   @type bid :: %{count: pos_integer(), face: face()}
   @type placed_bid :: %{count: pos_integer(), face: face(), by: person_id()}
+  @type said :: %{count: pos_integer(), face: face(), blind?: boolean()}
   @type reveal :: %{
           bid: placed_bid(),
           checker: person_id(),
@@ -45,7 +46,7 @@ defmodule ThreeSixes.Game do
           round: non_neg_integer(),
           dice: %{person_id() => [face()]},
           bid: placed_bid() | nil,
-          said: %{person_id() => bid()},
+          said: %{person_id() => said()},
           turn: person_id() | nil,
           reveal: reveal() | nil,
           opener: person_id() | nil,
@@ -150,7 +151,7 @@ defmodule ThreeSixes.Game do
     %{
       game
       | bid: %{count: count, face: face, by: by},
-        said: Map.put(game.said, by, %{count: count, face: face}),
+        said: Map.put(game.said, by, %{count: count, face: face, blind?: by in game.blind}),
         turn: next_seat(game, by),
         bid_blind?: by in game.blind
     }

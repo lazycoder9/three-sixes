@@ -50,7 +50,7 @@ defmodule ThreeSixes.Room do
             %{
               person: person_ref(),
               dice: pos_integer(),
-              said: Game.bid() | nil,
+              said: Game.said() | nil,
               on_turn?: boolean(),
               faces: [Game.face()] | nil,
               penalty?: boolean(),

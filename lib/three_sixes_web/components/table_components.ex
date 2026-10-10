@@ -127,13 +127,14 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@seat.out?} class="seat__out">out</small>
-      <small :if={blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
+      <small :if={!@seat.out? && blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
       <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
       <span
         :if={@seat.said && !@game.reveal && (!@compact? || said_now?(@seat, @game))}
         class={["seat__said", said_now?(@seat, @game) && "is-now"]}
       >
         <.bidn count={@seat.said.count} face={@seat.said.face} />
+        <em :if={@seat.said.blind?} class="seat__blind">blind</em>
       </span>
       <.reaction :if={@reaction} reaction={@reaction} />
     </li>
