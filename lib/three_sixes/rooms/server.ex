@@ -77,6 +77,7 @@ defmodule ThreeSixes.Rooms.Server do
       close_timer: nil,
       reveal_timers: [],
       waiting: MapSet.new(),
+      now: fn -> System.system_time(:millisecond) end,
       closes_at: closes_at,
       changed?: false,
       save_timer: nil,
@@ -88,6 +89,7 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:join, pid, person_id}, _from, state) do
     unless Map.has_key?(state.joined, pid), do: Process.monitor(pid)
     if state.close_timer, do: Process.cancel_timer(state.close_timer)
+    state = changed_if_new(state, Room.back(state.room, person_id))
 
     state =
       %{state | joined: Map.put(state.joined, pid, person_id), close_timer: nil}
@@ -211,7 +213,15 @@ defmodule ThreeSixes.Rooms.Server do
     do: {:noreply, %{state | waiting: MapSet.delete(state.waiting, person_id)}}
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    {:noreply, schedule_close(%{state | joined: Map.delete(state.joined, pid)})}
+    {person_id, joined} = Map.pop(state.joined, pid)
+    state = %{state | joined: joined}
+
+    state =
+      if person_id in Map.values(joined),
+        do: state,
+        else: changed_if_new(state, Room.away(state.room, person_id, state.now.()))
+
+    {:noreply, schedule_close(state)}
   end
 
   def handle_info({:timeout, timer, :close}, %{close_timer: timer} = state),
@@ -312,6 +322,9 @@ defmodule ThreeSixes.Rooms.Server do
     dice = Map.new(Game.to_roll(room.game), fn {seat, count} -> {seat, Dice.roll(count)} end)
     Room.start_round(room, dice)
   end
+
+  defp changed_if_new(%{room: room} = state, room), do: state
+  defp changed_if_new(state, room), do: changed(state, room)
 
   defp changed(state, room) do
     record(Room.finished(state.room, room))

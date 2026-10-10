@@ -5,7 +5,7 @@ defmodule ThreeSixes.Room do
   @max_nickname_length 16
   @capacity 30
 
-  defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil]
+  defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil, away: %{}]
 
   @type person_id :: String.t()
   @type member :: %{
@@ -74,6 +74,7 @@ defmodule ThreeSixes.Room do
           dealt_in: non_neg_integer(),
           game: game_view() | nil,
           spectators: [%{person: person_ref(), out?: boolean()}],
+          away: %{pos_integer() => integer()},
           over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil
         }
   @type t :: %__MODULE__{
@@ -82,7 +83,8 @@ defmodule ThreeSixes.Room do
           members: [member()],
           game: Game.t() | nil,
           tally: %{person_id() => pos_integer()},
-          last: %{placement: [person_id()], rounds: pos_integer(), checks: [Game.check()]} | nil
+          last: %{placement: [person_id()], rounds: pos_integer(), checks: [Game.check()]} | nil,
+          away: %{person_id() => integer()}
         }
   @type finished :: %{
           room_code: String.t(),
@@ -205,7 +207,7 @@ defmodule ThreeSixes.Room do
   @spec leave(t(), person_id(), [person_id()]) :: {:ok | :roll, t()} | {:error, :not_member}
   def leave(room, id, connected) do
     if member?(room, id) do
-      room
+      %{room | away: Map.delete(room.away, id)}
       |> update_member(id, &%{&1 | left?: true})
       |> pass_host(id, connected)
       |> leave_game(id)
@@ -259,8 +261,23 @@ defmodule ThreeSixes.Room do
     end
   end
 
+  @spec away(t(), person_id(), integer()) :: t()
+  def away(room, id, at) do
+    if member?(room, id),
+      do: %{room | away: Map.put_new(room.away, id, at)},
+      else: room
+  end
+
+  @spec back(t(), person_id()) :: t()
+  def back(room, id), do: %{room | away: Map.delete(room.away, id)}
+
   @spec dealt_in(t()) :: [person_id()]
-  def dealt_in(room), do: for(member <- present(room), not member.sitting_out?, do: member.id)
+  def dealt_in(room) do
+    for member <- present(room),
+        not member.sitting_out?,
+        not Map.has_key?(room.away, member.id),
+        do: member.id
+  end
 
   @spec start_game(t(), person_id(), [person_id()]) ::
           {:ok, t()} | {:error, :not_host | :playing | :too_few | :wrong_seats}
@@ -402,8 +419,17 @@ defmodule ThreeSixes.Room do
       dealt_in: dealt_in,
       game: room.game && game_view(room, room.game, person_id),
       spectators: spectators(room, person_id),
+      away: away_view(room, person_id),
       over: over_view(room, person_id)
     }
+  end
+
+  defp away_view(room, viewer) do
+    for {%{id: id}, n} <- Enum.with_index(room.members, 1),
+        id != viewer,
+        Map.has_key?(room.away, id),
+        into: %{},
+        do: {n, room.away[id]}
   end
 
   defp playing?(%{game: nil}, _id), do: false
