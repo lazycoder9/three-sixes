@@ -72,9 +72,9 @@ defmodule ThreeSixesWeb.Layouts do
 
   attr :flash, :map, required: true
   attr :code, :string, required: true
-  attr :account, :any, required: true, doc: "the signed-in `ThreeSixes.Accounts.Account`, or nil"
+  attr :account, :any, required: true
   attr :my_turn?, :boolean, default: false
-  attr :return_to, :string, required: true, doc: "where Sign in comes back to"
+  attr :return_to, :string, required: true
   attr :sitting_out?, :boolean, required: true
   attr :playing?, :boolean, required: true
   attr :revealing?, :boolean, default: false
