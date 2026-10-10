@@ -48,6 +48,29 @@ defmodule ThreeSixesWeb.AwayLiveTest do
     end
   end
 
+  describe "a Knocked-out Player's LiveView exiting" do
+    test "shows them out and Away, on their seat and in the Spectators list" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[1], [2], [3]])
+
+      for round <- 1..4 do
+        bluff_caught(code, timur, dana, round)
+        reveal(code, {:next_round, round}, [List.duplicate(1, round + 1), [2], [3]])
+      end
+
+      bluff_caught(code, timur, dana, 5)
+      reveal(code, {:next_round, 5}, [[2], [3]])
+      close(timur, code)
+
+      for view <- [dana, malika] do
+        assert text(view, "#seat-1") == "T Timur out away 0:00"
+        assert has_element?(view, "#seat-1.is-out.is-away .seat__away", "away 0:00")
+        view |> element("#spectators-chip") |> render_click()
+        assert items(view, "#spectators li") == ["T Timur out away 0:00"]
+      end
+    end
+  end
+
   describe "reconnecting" do
     test "gives back the same seat and dice, and nobody sees them Away any more" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana Malika))
@@ -201,6 +224,17 @@ defmodule ThreeSixesWeb.AwayLiveTest do
     pid = Rooms.whereis(code)
     send(pid, message)
     :sys.get_state(pid)
+  end
+
+  defp reveal(code, message, rolls) do
+    Scripted.script(rolls)
+    reveal(code, message)
+  end
+
+  defp bluff_caught(code, bidder, checker, round) do
+    press(bidder, "Bid one six")
+    check(checker)
+    for step <- 1..3, do: reveal(code, {:reveal, round, step})
   end
 
   defp table(nicknames) do

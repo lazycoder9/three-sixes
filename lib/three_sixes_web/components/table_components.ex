@@ -119,7 +119,7 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@seat.out?} class="seat__out">out</small>
-      <.away_tag :if={@since && !@seat.out?} class="seat__away" since={@since} now={@now} />
+      <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
       <span
         :if={@seat.said && !@game.reveal}
         class={["seat__said", said_now?(@seat, @game) && "is-now"]}
@@ -404,7 +404,7 @@ defmodule ThreeSixesWeb.TableComponents do
           </.person_tap>
           <small :if={spectator.out?}>out</small>
           <.away_tag
-            :if={!spectator.out? && @away[spectator.person.n]}
+            :if={@away[spectator.person.n]}
             since={@away[spectator.person.n]}
             now={@now}
           />

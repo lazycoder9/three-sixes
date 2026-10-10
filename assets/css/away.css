@@ -5,7 +5,8 @@
   opacity: 0.8;
 }
 .seat__away {
-  font: 400 15px/1 var(--font-hand);
+  color: var(--color-ink-dim);
+  font: 500 14px/1 var(--font-ui);
 }
 .people .is-away,
 .spec__list .is-away {
