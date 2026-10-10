@@ -59,42 +59,76 @@ defmodule ThreeSixes.GameTest do
   end
 
   describe "offers" do
-    test "with no Bid, one row of every face, from one die" do
-      assert Game.offers(nil, 4, 0) == [
-               %{count: 1, faces: [1, 2, 3, 4, 5, 6], step?: true, at_max?: false}
+    @all [1, 2, 3, 4, 5, 6]
+
+    test "opening offers two stepped rows of every face, from one die" do
+      assert Game.offers(nil, 3, 0) == [
+               %{count: 1, faces: @all, stepped?: true},
+               %{count: 2, faces: @all, stepped?: true}
              ]
     end
 
-    test "a Bid offers its count with the higher faces, then one more of every face" do
-      assert Game.offers(@bid, 7, 0) == [
-               %{count: 3, faces: [5, 6]},
-               %{count: 4, faces: [1, 2, 3, 4, 5, 6], step?: true, at_max?: false}
+    test "a Bid offers its count with the higher faces, then two stepped rows from one more" do
+      assert Game.offers(%{count: 2, face: 4}, 6, 0) == [
+               %{count: 2, faces: [5, 6], stepped?: false},
+               %{count: 3, faces: @all, stepped?: true},
+               %{count: 4, faces: @all, stepped?: true}
              ]
     end
 
-    test "a Bid on sixes has no first row" do
+    test "a Bid on sixes has no row at its count" do
       assert Game.offers(%{count: 2, face: 6}, 5, 0) == [
-               %{count: 3, faces: [1, 2, 3, 4, 5, 6], step?: true, at_max?: false}
+               %{count: 3, faces: @all, stepped?: true},
+               %{count: 4, faces: @all, stepped?: true}
              ]
     end
 
-    test "the second row is absent when one more would not fit on the table" do
-      assert Game.offers(%{count: 4, face: 2}, 4, 0) == [%{count: 4, faces: [3, 4, 5, 6]}]
+    test "a stepped row past the dice on the table is not shown" do
+      assert Game.offers(%{count: 3, face: 3}, 4, 0) == [
+               %{count: 3, faces: [4, 5, 6], stepped?: false},
+               %{count: 4, faces: @all, stepped?: true}
+             ]
+
+      assert Game.offers(%{count: 4, face: 2}, 4, 0) == [
+               %{count: 4, faces: [3, 4, 5, 6], stepped?: false}
+             ]
+
       assert Game.offers(%{count: 4, face: 6}, 4, 0) == []
     end
 
-    test "the second row at the dice on the table cannot step" do
-      assert Game.offers(%{count: 3, face: 2}, 4, 0) == [
-               %{count: 3, faces: [3, 4, 5, 6]},
-               %{count: 4, faces: [1, 2, 3, 4, 5, 6], step?: false, at_max?: true}
+    test "the step moves both stepped rows, clamped so the second stops at the dice on the table" do
+      assert Game.offers(nil, 3, 1) == [
+               %{count: 2, faces: @all, stepped?: true},
+               %{count: 3, faces: @all, stepped?: true}
              ]
+
+      assert [_, %{count: 6}, %{count: 7}] = Game.offers(@bid, 7, 2)
+      assert [_, %{count: 6}, %{count: 7}] = Game.offers(@bid, 7, 99)
+      assert [_, %{count: 4}, %{count: 5}] = Game.offers(@bid, 7, -5)
+      assert [_, %{count: 4}] = Game.offers(%{count: 3, face: 3}, 4, 3)
     end
 
-    test "the step raises the second row, clamped between none and the dice on the table" do
-      assert [_, %{count: 6, at_max?: false}] = Game.offers(@bid, 7, 2)
-      assert [_, %{count: 7, at_max?: true}] = Game.offers(@bid, 7, 3)
-      assert [_, %{count: 7, at_max?: true}] = Game.offers(@bid, 7, 99)
-      assert [_, %{count: 4, at_max?: false}] = Game.offers(@bid, 7, -5)
+    test "max_step is how far the second stepped row can climb to the dice on the table" do
+      assert Game.max_step(nil, 3) == 1
+      assert Game.max_step(%{count: 2, face: 4}, 6) == 2
+      assert Game.max_step(%{count: 3, face: 3}, 4) == 0
+      assert Game.max_step(%{count: 4, face: 2}, 4) == 0
+    end
+
+    test "cheapest_offer is the first row on offer holding the face, or the stepped block's first row once stepped" do
+      bid = %{count: 2, face: 4}
+
+      assert Game.cheapest_offer(bid, 6, 0, 5) == {2, 5}
+      assert Game.cheapest_offer(bid, 6, 0, 2) == {3, 2}
+      assert Game.cheapest_offer(bid, 6, 1, 5) == {4, 5}
+      assert Game.cheapest_offer(bid, 6, 1, 6) == {4, 6}
+      assert Game.cheapest_offer(bid, 6, 99, 5) == {5, 5}
+      assert Game.cheapest_offer(nil, 3, 0, 4) == {1, 4}
+    end
+
+    test "cheapest_offer is nil when no row on offer holds the face" do
+      assert Game.cheapest_offer(%{count: 4, face: 2}, 4, 0, 1) == nil
+      assert Game.cheapest_offer(%{count: 4, face: 6}, 4, 0, 6) == nil
     end
 
     test "every Raise on offer is legal, over every Bid on a small and a big table" do
@@ -107,6 +141,27 @@ defmodule ThreeSixes.GameTest do
           face <- faces do
         assert Game.legal_raise?(bid, dice_on_table, count, face),
                "#{inspect(bid)} offered #{count} x #{face} on #{dice_on_table}"
+      end
+    end
+
+    test "every face key Raises to a legal offer, and finds one whenever a row holds the face" do
+      for dice_on_table <- [2, 5, 12],
+          bid <- [
+            nil | for(count <- 1..dice_on_table, face <- 1..6, do: %{count: count, face: face})
+          ],
+          step <- 0..dice_on_table,
+          face <- 1..6 do
+        rows = Game.offers(bid, dice_on_table, step)
+
+        case Game.cheapest_offer(bid, dice_on_table, step, face) do
+          {count, ^face} ->
+            assert Enum.any?(rows, &(&1.count == count and face in &1.faces))
+            assert Game.legal_raise?(bid, dice_on_table, count, face)
+
+          nil ->
+            refute Enum.any?(rows, &(face in &1.faces)),
+                   "#{inspect(bid)} at step #{step} found no #{face} on #{dice_on_table}"
+        end
       end
     end
   end

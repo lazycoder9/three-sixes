@@ -155,30 +155,42 @@ defmodule ThreeSixes.Game do
     Enum.find(rest ++ before, &(&1 not in game.out))
   end
 
-  @spec offers(bid() | nil, non_neg_integer(), integer()) :: [map()]
+  @type offer :: %{count: pos_integer(), faces: [face()], stepped?: boolean()}
+
+  @spec offers(bid() | nil, non_neg_integer(), integer()) :: [offer()]
   def offers(bid, dice_on_table, step),
-    do: higher_faces(bid) ++ more_dice(bid, dice_on_table, step)
+    do: higher_faces(bid) ++ stepped(bid, dice_on_table, step)
+
+  @spec max_step(bid() | nil, non_neg_integer()) :: non_neg_integer()
+  def max_step(bid, dice_on_table), do: max(dice_on_table - least(bid) - 1, 0)
+
+  @spec cheapest_offer(bid() | nil, non_neg_integer(), integer(), face()) ::
+          {pos_integer(), face()} | nil
+  def cheapest_offer(bid, dice_on_table, step, face) do
+    stepped? = clamp(bid, dice_on_table, step) > 0
+    rows = offers(bid, dice_on_table, step)
+
+    case Enum.find(rows, &(face in &1.faces and (&1.stepped? or not stepped?))) do
+      %{count: count} -> {count, face}
+      nil -> nil
+    end
+  end
 
   defp higher_faces(%{face: face} = bid) when face < 6,
-    do: [%{count: bid.count, faces: Enum.to_list((face + 1)..6)}]
+    do: [%{count: bid.count, faces: Enum.to_list((face + 1)..6), stepped?: false}]
 
   defp higher_faces(_bid), do: []
 
-  defp more_dice(bid, dice_on_table, step) do
-    least = if bid, do: bid.count + 1, else: 1
-    count = least + (step |> min(dice_on_table - least) |> max(0))
+  defp stepped(bid, dice_on_table, step) do
+    first = least(bid) + clamp(bid, dice_on_table, step)
 
-    if least > dice_on_table do
-      []
-    else
-      [
-        %{
-          count: count,
-          faces: Enum.to_list(1..6),
-          step?: dice_on_table > least,
-          at_max?: count == dice_on_table
-        }
-      ]
-    end
+    for count <- first..(first + 1)//1,
+        count <= dice_on_table,
+        do: %{count: count, faces: Enum.to_list(1..6), stepped?: true}
   end
+
+  defp clamp(bid, dice_on_table, step), do: step |> min(max_step(bid, dice_on_table)) |> max(0)
+
+  defp least(nil), do: 1
+  defp least(bid), do: bid.count + 1
 end
