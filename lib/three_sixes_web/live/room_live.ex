@@ -524,11 +524,11 @@ defmodule ThreeSixesWeb.RoomLive do
                 <span class="people__name">
                   {if person.me?, do: "You", else: person.nickname}
                   <span :if={person.host?} class="host-tag">Host</span>
+                  <.reaction :if={@reactions[person.n]} reaction={@reactions[person.n]} side? />
                   <small :if={person.sitting_out?}>sitting out</small>
                 </span>
               </.person_tap>
               <.tally count={person.tally} />
-              <.reaction :if={@reactions[person.n]} reaction={@reactions[person.n]} side? />
             </li>
           </ul>
         </.notebook_page>
@@ -548,7 +548,6 @@ defmodule ThreeSixesWeb.RoomLive do
             Sit out the next Game
           </label>
         </form>
-        <.reaction_note waiting?={@waiting?} />
         <div :if={@view.host?} class="lobby__start">
           <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
             {if @view.over, do: "Next Game", else: "Start Game"}
@@ -557,6 +556,7 @@ defmodule ThreeSixesWeb.RoomLive do
         </div>
         <p :if={!@view.host?} class="lobby__wait">{waiting_for_host(@view)}</p>
       </div>
+      <.reaction_note waiting?={@waiting?} />
     </div>
     """
   end

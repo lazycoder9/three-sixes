@@ -43,17 +43,19 @@ defmodule ThreeSixesWeb.TableComponents do
           <.scrap game={@game} />
         </.torn_scrap>
       </div>
-      <.my_page
-        :if={@game.seated?}
-        game={@game}
-        step={@step}
-        rolled={@rolled}
-        reaction={@reactions[hd(@game.seats).person.n]}
-      />
-      <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
-        {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
-      </.torn_scrap>
-      <.reaction_note waiting?={@waiting?} />
+      <div class="game-table__bottom">
+        <.my_page
+          :if={@game.seated?}
+          game={@game}
+          step={@step}
+          rolled={@rolled}
+          reaction={@reactions[hd(@game.seats).person.n]}
+        />
+        <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
+          {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
+        </.torn_scrap>
+        <.reaction_note waiting?={@waiting?} />
+      </div>
     </div>
     """
   end
@@ -360,17 +362,21 @@ defmodule ThreeSixesWeb.TableComponents do
 
     ~H"""
     <div class="spec">
-      <button
-        id="spectators-chip"
-        type="button"
-        class="spec__chip"
-        phx-click="spectators"
-        aria-expanded={to_string(@open?)}
-        aria-controls="spectators"
-      >
-        {spectator_count(length(@spectators))}<i aria-hidden="true"></i>
-      </button>
-      <.reaction :for={{_n, reaction} <- @reactions} :if={!@open?} reaction={reaction} side? />
+      <div class="spec__top">
+        <button
+          id="spectators-chip"
+          type="button"
+          class="spec__chip"
+          phx-click="spectators"
+          aria-expanded={to_string(@open?)}
+          aria-controls="spectators"
+        >
+          {spectator_count(length(@spectators))}<i aria-hidden="true"></i>
+        </button>
+        <span :if={!@open? && @reactions != %{}} class="spec__reactions">
+          <.reaction :for={{_n, reaction} <- @reactions} reaction={reaction} side? />
+        </span>
+      </div>
       <ul id="spectators" class="spec__list" hidden={!@open?}>
         <li :for={spectator <- @spectators} id={"spectator-#{spectator.person.n}"}>
           <.person_tap person={spectator.person} tappable={@tappable}>
@@ -412,7 +418,7 @@ defmodule ThreeSixesWeb.TableComponents do
       <button
         :for={key <- @keys}
         type="button"
-        class="reactions__button"
+        class={["reactions__button", !face?(key) && "is-line"]}
         phx-click="react"
         phx-value-reaction={key}
         aria-label={reaction_label(key)}
@@ -431,7 +437,7 @@ defmodule ThreeSixesWeb.TableComponents do
     ~H"""
     <span
       id={"reaction-#{@reaction.by.n}-#{@reaction.id}"}
-      class={["reaction", @side? && "reaction--side"]}
+      class={["reaction", !face?(@reaction.key) && "is-line", @side? && "reaction--side"]}
       role="img"
       aria-label={"#{name(@reaction.by)}: #{reaction_label(@reaction.key)}"}
     >
@@ -441,6 +447,8 @@ defmodule ThreeSixesWeb.TableComponents do
   end
 
   defp reaction_label(key), do: Map.get(@reaction_labels, key, Reaction.text(key))
+
+  defp face?(key), do: Map.has_key?(@reaction_labels, key)
 
   attr :person, :map, required: true
   attr :tappable, :any, required: true

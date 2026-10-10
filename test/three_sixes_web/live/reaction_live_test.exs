@@ -143,7 +143,7 @@ defmodule ThreeSixesWeb.ReactionLiveTest do
 
       assert has_element?(dana, "#seat-1.is-out .reaction[aria-label='Timur: Clap']", "👏")
       assert has_element?(timur, "#seat-1 .reaction[aria-label='You: Clap']")
-      refute has_element?(dana, "#spectators-chip ~ .reaction")
+      refute has_element?(dana, ".spec__reactions .reaction")
     end
   end
 
@@ -192,14 +192,19 @@ defmodule ThreeSixesWeb.ReactionLiveTest do
 
       assert has_element?(
                timur,
-               "#spectators-chip ~ .reaction--side[aria-label='Malika: Hmm']",
+               "#spectators-chip + .spec__reactions > .reaction--side[aria-label='Malika: Hmm']",
                "🤨"
              )
 
       refute has_element?(timur, "#spectators .reaction")
       assert has_element?(dana, "#spectator-3 .reaction--side[aria-label='Malika: Hmm']", "🤨")
-      refute has_element?(dana, "#spectators-chip ~ .reaction")
-      assert has_element?(malika, "#spectators-chip ~ .reaction[aria-label='You: Hmm']")
+      refute has_element?(dana, ".spec__reactions .reaction")
+
+      assert has_element?(
+               malika,
+               "#spectators-chip + .spec__reactions > .reaction[aria-label='You: Hmm']"
+             )
+
       assert count(timur, ".reaction") == 1
     end
   end
