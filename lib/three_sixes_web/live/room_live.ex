@@ -49,7 +49,7 @@ defmodule ThreeSixesWeb.RoomLive do
       |> assign(nickname: first_nickname(socket))
       |> join()
     else
-      assign(socket, closed?: Rooms.whereis(code) == nil)
+      assign(socket, closed?: not Rooms.open?(code))
     end
   end
 
@@ -63,7 +63,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
     with {:ok, view} <- Rooms.join(code, person_id),
          pid when is_pid(pid) <- Rooms.whereis(code) do
-      assign(socket, view: view, room_ref: Process.monitor(pid))
+      socket |> put_view(view) |> assign(room_ref: Process.monitor(pid))
     else
       _closed -> assign(socket, view: nil, closed?: true)
     end
@@ -261,14 +261,8 @@ defmodule ThreeSixesWeb.RoomLive do
 
   @impl true
   def handle_info({:room_view, view}, socket) do
-    %{view: old, step: step, rolled: rolled} = socket.assigns
-    step = if bid_key(view) == bid_key(old), do: step, else: 0
-    socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
-
-    {:noreply,
-     socket
-     |> assign(view: view, step: step, rolled: rolled(view, old, rolled))
-     |> new_host(old, view)}
+    old = socket.assigns.view
+    {:noreply, socket |> put_view(view) |> new_host(old, view)}
   end
 
   def handle_info(:removed, socket) do
@@ -302,6 +296,13 @@ defmodule ThreeSixesWeb.RoomLive do
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{assigns: %{room_ref: ref}} = socket),
     do: {:noreply, join(socket)}
+
+  defp put_view(socket, view) do
+    %{view: old, step: step, rolled: rolled} = socket.assigns
+    step = if bid_key(view) == bid_key(old), do: step, else: 0
+    socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
+    assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))
+  end
 
   @impl true
   def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do
@@ -614,6 +615,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp new_host(socket, _old, _view), do: socket
 
+  defp rolled(_view, nil, rolled), do: rolled
   defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled
 
   defp rolled(%{game: %{round: round}}, %{game: %{my_dice: [_ | _] = dice}}, _rolled),
