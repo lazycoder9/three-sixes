@@ -12,7 +12,8 @@ defmodule ThreeSixes.Room do
           id: person_id(),
           nickname: String.t(),
           sitting_out?: boolean(),
-          left?: boolean()
+          left?: boolean(),
+          removed?: boolean()
         }
   @type person_ref :: %{nickname: String.t(), me?: boolean(), n: pos_integer()}
   @type bid_view :: %{count: pos_integer(), face: Game.face(), by: person_ref()}
@@ -64,6 +65,7 @@ defmodule ThreeSixes.Room do
             }
           ],
           me: String.t() | nil,
+          removed?: boolean(),
           sitting_out?: boolean(),
           playing?: boolean(),
           host?: boolean(),
@@ -103,9 +105,9 @@ defmodule ThreeSixes.Room do
 
   defp add(room, person_id, nickname) do
     with {:ok, nickname} <- clean(nickname) do
-      case holder(room, nickname) do
+      case holder(room, nickname, person_id) do
         nil -> {:ok, room |> put_member(member(person_id, nickname)) |> claim_host(person_id)}
-        holder -> {:taken, holder.nickname, suggestion(room, holder.nickname)}
+        holder -> {:taken, holder.nickname, suggestion(room, holder.nickname, person_id)}
       end
     end
   end
@@ -130,7 +132,7 @@ defmodule ThreeSixes.Room do
   defp claim_host(room, _person_id), do: room
 
   defp member(person_id, nickname),
-    do: %{id: person_id, nickname: nickname, sitting_out?: false, left?: false}
+    do: %{id: person_id, nickname: nickname, sitting_out?: false, left?: false, removed?: false}
 
   defp present(room), do: Enum.reject(room.members, & &1.left?)
 
@@ -146,18 +148,29 @@ defmodule ThreeSixes.Room do
     end
   end
 
-  defp holder(room, nickname) do
+  defp holder(room, nickname, person_id) do
     wanted = String.downcase(nickname)
-    Enum.find(present(room), &(String.downcase(&1.nickname) == wanted))
+
+    Enum.find(
+      room.members,
+      &(holds_nickname?(room, &1, person_id) and String.downcase(&1.nickname) == wanted)
+    )
   end
 
-  defp suggestion(room, held) do
+  defp holds_nickname?(_room, %{left?: false}, _person_id), do: true
+
+  defp holds_nickname?(%{game: %Game{seats: seats}}, %{id: id}, person_id),
+    do: id != person_id and id in seats
+
+  defp holds_nickname?(_room, _member, _person_id), do: false
+
+  defp suggestion(room, held, person_id) do
     base = String.replace(held, ~r/ \d+$/u, "")
 
     2
     |> Stream.iterate(&(&1 + 1))
     |> Stream.map(&numbered(base, &1))
-    |> Enum.find(&(holder(room, &1) == nil))
+    |> Enum.find(&(holder(room, &1, person_id) == nil))
   end
 
   defp numbered(base, number) do
@@ -198,7 +211,8 @@ defmodule ThreeSixes.Room do
   @spec remove(t(), person_id(), pos_integer(), [person_id()]) ::
           {:ok | :roll, t()} | {:error, :not_host | :not_member | :self}
   def remove(room, by, n, connected) do
-    with {:ok, id} <- other_present(room, by, n), do: leave(room, id, connected)
+    with {:ok, id} <- other_present(room, by, n),
+         do: room |> update_member(id, &%{&1 | removed?: true}) |> leave(id, connected)
   end
 
   @spec make_host(t(), person_id(), pos_integer()) ::
@@ -334,6 +348,7 @@ defmodule ThreeSixes.Room do
           }
         end,
       me: me && me.nickname,
+      removed?: Enum.any?(room.members, &(&1.id == person_id and &1.removed?)),
       sitting_out?: me != nil and me.sitting_out?,
       playing?: playing?(room, person_id),
       host?: host?,

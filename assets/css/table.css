@@ -485,6 +485,10 @@
     top: 48%;
     transform: translate(-50%, 0) rotate(-1.2deg);
   }
+  .game-table:not(:has(.my-page)) .game-table__scrap {
+    top: 46%;
+    width: min(34%, 140px);
+  }
   .game-table__scrap .bidn {
     --b: 40px;
   }

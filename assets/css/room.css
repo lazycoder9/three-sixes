@@ -388,6 +388,12 @@
   justify-items: center;
   max-width: 100%;
 }
+.seat .person-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
 
 .copy-link {
   position: relative;
@@ -425,6 +431,7 @@
 }
 .dialog h2 {
   margin: 0 0 var(--spacing-2);
+  overflow-wrap: anywhere;
   font: 700 34px/var(--spacing-rule) var(--font-scrawl);
   letter-spacing: -0.01em;
 }

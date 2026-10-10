@@ -72,6 +72,7 @@ defmodule ThreeSixesWeb.Layouts do
   attr :code, :string, required: true
   attr :sitting_out?, :boolean, required: true
   attr :playing?, :boolean, required: true
+  attr :revealing?, :boolean, default: false
   slot :under_code
   slot :inner_block, required: true
 
@@ -130,7 +131,9 @@ defmodule ThreeSixesWeb.Layouts do
       aria-labelledby="leave-dialog-title"
     >
       <h2 id="leave-dialog-title">Leave the Room?</h2>
-      <p>You'll be Knocked out of this Game, and the Round in play is voided.</p>
+      <p>
+        You'll be Knocked out of this Game{if !@revealing?, do: ", and the Round in play is voided"}.
+      </p>
       <div class="row">
         <.block variant={:walnut} phx-click="leave">Leave Room</.block>
         <.block popovertarget="room-menu" popovertargetaction="hide">Stay</.block>

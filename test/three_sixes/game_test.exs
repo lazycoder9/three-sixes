@@ -471,16 +471,44 @@ defmodule ThreeSixes.GameTest do
       assert %{turn: "a", voided_by: nil} = game
     end
 
-    test "during the reveal before the Penalty die voids the Round, the loser taking none" do
+    test "during the reveal leaves the Check standing: the loser still takes the Penalty die" do
       for step <- 0..2 do
         checked = round_one() |> raise!("a", 3, 5) |> check!("b")
         game = if step == 0, do: checked, else: Game.advance_reveal(checked, step)
 
-        assert {:void, game} = Game.leave(game, "c")
-        assert %{out: ["c"], reveal: nil, voided_by: "c"} = game
-        assert Game.advance_reveal(game, 3).counts == %{"a" => 1, "b" => 1, "c" => 1}
-        assert Game.start_round(game, %{"a" => [1], "b" => [1]}).turn == "a"
+        assert {:ok, game} = Game.leave(game, "c")
+        assert %{out: ["c"], voided_by: nil, reveal: %{step: ^step, loser: "a"}} = game
+        game = Game.advance_reveal(game, 3)
+        assert game.counts == %{"a" => 2, "b" => 1, "c" => 1}
+        assert Game.start_round(game, %{"a" => [1, 1], "b" => [1]}).turn == "a"
       end
+    end
+
+    test "by the loser during the reveal Knocks them out once, the sixth die adding no second" do
+      game =
+        %{"a" => 5, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> raise!("a", 7, 6)
+        |> check!("b")
+
+      assert {:ok, game} = Game.leave(game, "a")
+      game = Game.advance_reveal(game, 3)
+
+      assert game.out == ["a"]
+      assert Game.start_round(game, %{"b" => [1], "c" => [1]}).turn == "b"
+    end
+
+    test "by one of the last two Players during the reveal ends the Game, the other the winner" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      checked =
+        game
+        |> Game.start_round(%{"a" => [2], "b" => [5]})
+        |> raise!("a", 2, 5)
+        |> check!("b")
+
+      assert {:over, game} = Game.leave(checked, "a")
+      assert Game.placement(game) == ["b", "a", "c"]
     end
 
     test "once the Penalty die is taken leaves the Round settled, and the loser opens the next" do

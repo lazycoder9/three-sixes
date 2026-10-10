@@ -146,6 +146,7 @@ defmodule ThreeSixes.RoomTest do
                }
              ],
              me: "Dana",
+             removed?: false,
              sitting_out?: false,
              playing?: false,
              host?: false,
@@ -881,6 +882,13 @@ defmodule ThreeSixes.RoomTest do
       assert Room.enter(room, "guest:dana", "Dana") == {:taken, "dana", "dana 2"}
     end
 
+    test "mid-Game, the Nickname of a Player who left is held while their seat is at the table" do
+      {:roll, room} = Room.leave(playing(), "guest:dana", [])
+
+      assert Room.enter(room, "guest:aziz", "dana") == {:taken, "Dana", "Dana 2"}
+      assert {:ok, _room} = Room.enter(room, "guest:dana", "Dana")
+    end
+
     test "a Room is full at 30 present, not counting those who left" do
       room = Enum.reduce(1..30, room(), &enter!(&2, "guest:#{&1}", "Person #{&1}"))
       {:ok, room} = Room.leave(room, "guest:1", [])
@@ -897,6 +905,19 @@ defmodule ThreeSixes.RoomTest do
 
       refute Room.member?(room, "guest:dana")
       assert %{out: ["guest:dana"], voided_by: "guest:dana"} = room.game
+    end
+
+    test "tells the removed person so until they enter again, and nobody who left or never came" do
+      {:roll, room} = Room.remove(playing(), @host, 3, [])
+      {:ok, room} = Room.leave(room, "guest:timur", [])
+
+      assert %{removed?: true, me: nil} = Room.view_for(room, "guest:dana")
+      assert %{removed?: false} = Room.view_for(room, "guest:timur")
+      assert %{removed?: false} = Room.view_for(room, "guest:aziz")
+      assert %{removed?: false} = Room.view_for(room, @host)
+
+      assert %{removed?: false, me: "Dana"} =
+               Room.view_for(enter!(room, "guest:dana", "Dana"), "guest:dana")
     end
 
     test "is the Host's alone, of someone present other than the Host" do

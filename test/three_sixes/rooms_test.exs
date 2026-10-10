@@ -443,7 +443,7 @@ defmodule ThreeSixes.RoomsTest do
       assert_receive {:forwarded, ^dana, {:room_view, %{me: nil, people: [_]}}}
     end
 
-    test "mid-reveal voids the Round: everyone re-rolls and the reveal's timers change nothing" do
+    test "mid-reveal leaves the Check standing: the reveal runs on to the loser's Penalty die" do
       {code, dana} = table()
       {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
       room = Rooms.whereis(code)
@@ -454,17 +454,39 @@ defmodule ThreeSixes.RoomsTest do
       send(room, {:reveal, 1, 1})
       flush_after(room)
 
-      Scripted.script([[4], [5]])
       assert Rooms.leave(code, "guest:timur") == :ok
 
-      assert_receive {:room_view,
-                      %{game: %{round: 2, my_dice: [4], my_turn?: true, reveal: nil} = game}}
+      assert_receive {:room_view, %{game: %{round: 1, reveal: %{step: 1}, seats: seats}}}
+      assert [false, false, true] == Enum.map(seats, & &1.out?)
 
-      assert %{voided_by: %{nickname: "Timur"}, dice_on_table: 2} = game
-      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, my_dice: [5]}}}}
+      send(room, {:reveal, 1, 3})
+      Scripted.script([[4, 4], [5]])
+      send(room, {:next_round, 1})
 
-      assert_ignored(room, [{:reveal, 1, 2}, {:reveal, 1, 3}, {:next_round, 1}])
-      assert %{counts: %{@host => 1, "guest:dana" => 1}} = :sys.get_state(room).room.game
+      assert_receive {:room_view, %{game: %{round: 2, my_dice: [4, 4], my_turn?: true}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, dice_on_table: 3}}}}
+    end
+
+    test "mid-reveal by one of the last two ends the Game, its reveal's timers reaching no other" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+
+      assert Rooms.leave(code, "guest:dana") == :ok
+      assert %{game: nil} = :sys.get_state(room).room
+
+      Process.sleep(900)
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      flush_after(room)
+
+      refute_receive {:room_view, %{game: %{reveal: %{step: 1}}}}, 600
     end
 
     test "by the Host passes the role to someone connected, in the order shuffled" do

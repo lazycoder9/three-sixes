@@ -257,10 +257,7 @@ defmodule ThreeSixesWeb.RoomLive do
   def handle_info(:removed, socket) do
     {:noreply,
      socket
-     |> put_flash(
-       :info,
-       "You were removed from Room #{socket.assigns.code}. You can come back with the Room code."
-     )
+     |> put_flash(:info, removed(socket.assigns.code))
      |> push_navigate(to: ~p"/")}
   end
 
@@ -275,6 +272,7 @@ defmodule ThreeSixesWeb.RoomLive do
       code={@view.code}
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
+      revealing?={@view.game.reveal != nil}
     >
       <:under_code :if={@view.spectators != []}>
         <.spectators
@@ -284,7 +282,7 @@ defmodule ThreeSixesWeb.RoomLive do
         />
       </:under_code>
       <.game_table game={@view.game} step={@step} rolled={@rolled} tappable={tappable(@view)} />
-      <.person_dialog :for={person <- tappable_people(@view)} person={person} />
+      <.person_dialog :for={person <- tappable_people(@view)} person={person} game={@view.game} />
     </Layouts.room>
     """
   end
@@ -364,6 +362,7 @@ defmodule ThreeSixesWeb.RoomLive do
       <.person_token :for={person <- @view.people} person={person} />
       <span>{who_is_in(@view)}</span>
     </p>
+    <p :if={@view.removed?} id="removed">{removed(@view.code)}</p>
     <form id="join-form" phx-submit="enter">
       <.write_on_line
         id="nickname"
@@ -411,6 +410,7 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   attr :person, :map, required: true
+  attr :game, :map, default: nil
 
   defp person_dialog(assigns) do
     ~H"""
@@ -443,8 +443,9 @@ defmodule ThreeSixesWeb.RoomLive do
       </div>
       <small>
         {if @person.playing?,
-          do: "Removing a Player mid-Game Knocks them out and voids the Round."}
-        {@person.nickname} can come back with the Room code, as a Spectator.
+          do:
+            "Removing a Player mid-Game Knocks them out#{if !@game.reveal, do: " and voids the Round"}."}
+        {@person.nickname} can come back with the Room code{if @game, do: ", as a Spectator"}.
       </small>
       <div class="row">
         <.block popovertarget={"person-dialog-#{@person.n}"} popovertargetaction="hide">
@@ -527,6 +528,9 @@ defmodule ThreeSixesWeb.RoomLive do
     </.notebook_page>
     """
   end
+
+  defp removed(code),
+    do: "You were removed from Room #{code}. You can come back with the Room code."
 
   defp rounds(1), do: "1 Round"
   defp rounds(count), do: "#{count} Rounds"

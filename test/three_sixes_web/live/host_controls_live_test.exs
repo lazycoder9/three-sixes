@@ -75,6 +75,10 @@ defmodule ThreeSixesWeb.HostControlsLiveTest do
 
       dana = visit(code, "dana")
       assert has_element?(dana, "#join-form")
+
+      assert text(dana, "#removed") ==
+               "You were removed from Room #{code}. You can come back with the Room code."
+
       enter(dana, "Dana")
 
       refute has_element?(dana, "#my-page")
@@ -131,6 +135,19 @@ defmodule ThreeSixesWeb.HostControlsLiveTest do
       refute has_element?(dana, "[popovertarget^=person-dialog]")
     end
 
+    test "during the reveal, the confirm and the Host dialog say only that they are Knocked out" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana Malika))
+      start(timur, [[3], [5], [2]])
+      press(timur, "Bid one five")
+      dana |> element("#my-page .my-page__check") |> render_click()
+
+      assert text(timur, "#leave-dialog p") == "You'll be Knocked out of this Game."
+
+      assert text(timur, "#person-dialog-3 small") ==
+               "Removing a Player mid-Game Knocks them out. " <>
+                 "Malika can come back with the Room code, as a Spectator."
+    end
+
     test "outside a Game leaves at once, and the Host tag moves in the lobby" do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
 
@@ -159,6 +176,8 @@ defmodule ThreeSixesWeb.HostControlsLiveTest do
   describe "handing over the Host role" do
     test "makes the person the Host, the old Host a person like any other, and everyone is told" do
       %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+
+      assert text(timur, "#person-dialog-2 small") == "Dana can come back with the Room code."
 
       timur |> element("#person-dialog-2 button", "Make Dana the Host") |> render_click()
 

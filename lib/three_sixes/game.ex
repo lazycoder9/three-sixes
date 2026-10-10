@@ -149,7 +149,10 @@ defmodule ThreeSixes.Game do
 
   defp penalize(game, loser) do
     game = update_in(game.counts[loser], &(&1 + 1))
-    if game.counts[loser] == @knocked_out_at, do: %{game | out: game.out ++ [loser]}, else: game
+
+    if game.counts[loser] == @knocked_out_at and loser not in game.out,
+      do: %{game | out: game.out ++ [loser]},
+      else: game
   end
 
   defp bidding?(game), do: game.turn != nil and game.reveal == nil
@@ -171,7 +174,7 @@ defmodule ThreeSixes.Game do
   defp knock_out(game, id) do
     cond do
       over?(game) -> {:over, game}
-      match?(%{step: 3}, game.reveal) -> {:ok, game}
+      game.reveal != nil -> {:ok, game}
       true -> {:void, void(game, id)}
     end
   end

@@ -26,7 +26,8 @@ defmodule ThreeSixes.Rooms.Server do
     if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
       {:stop, :too_many}
     else
-      {:ok, schedule_close(%{room: Room.new(code, host_id), joined: %{}, close_timer: nil})}
+      state = %{room: Room.new(code, host_id), joined: %{}, close_timer: nil, reveal_timers: []}
+      {:ok, schedule_close(state)}
     end
   end
 
@@ -77,10 +78,11 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:check, person_id}, _from, state) do
     case Room.check(state.room, person_id) do
       {:ok, room} ->
-        for {delay, message} <- Room.reveal_schedule(room),
-            do: Process.send_after(self(), message, delay)
+        timers =
+          for {delay, message} <- Room.reveal_schedule(room),
+              do: Process.send_after(self(), message, delay)
 
-        {:reply, :ok, changed(state, room)}
+        {:reply, :ok, changed(%{state | reveal_timers: timers}, room)}
 
       refused ->
         {:reply, refused, state}
@@ -90,7 +92,7 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:leave, person_id}, _from, state) do
     case Room.leave(state.room, person_id, connected(state)) do
       {:roll, room} -> {:reply, :ok, changed(state, roll(room))}
-      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      {:ok, room} -> {:reply, :ok, state |> changed(room) |> stop_reveal()}
       refused -> {:reply, refused, state}
     end
   end
@@ -98,7 +100,7 @@ defmodule ThreeSixes.Rooms.Server do
   def handle_call({:remove, by, n}, _from, state) do
     case Room.remove(state.room, by, n, connected(state)) do
       {:roll, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(roll(room))}
-      {:ok, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(room)}
+      {:ok, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(room) |> stop_reveal()}
       refused -> {:reply, refused, state}
     end
   end
@@ -151,6 +153,13 @@ defmodule ThreeSixes.Rooms.Server do
 
     state
   end
+
+  defp stop_reveal(%{room: %{game: nil}} = state) do
+    Enum.each(state.reveal_timers, &Process.cancel_timer/1)
+    %{state | reveal_timers: []}
+  end
+
+  defp stop_reveal(state), do: state
 
   defp connected(state), do: state.joined |> Map.values() |> Enum.uniq() |> Dice.shuffle()
 
