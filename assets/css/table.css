@@ -54,8 +54,7 @@ body:has(.game-table) .table-main {
   list-style: none;
 }
 
-/* #22: one unit sizes the table to the space under the Room bar. The 62px and 124px are the
-   prototype's room for Reactions, beside your page and under it. */
+/* The px terms in the unit keep room for Reactions, beside your page and under it (#22). */
 @media (min-width: 720px) {
   /* With only a min-height on the body, Chrome resolves cqh to 0 inside the flexed container. */
   body:has(.game-table) {
@@ -542,8 +541,6 @@ body:has(.game-table) .table-main {
   font-size: calc(21 * var(--u));
 }
 
-/* The phone layout (#22): sizes in px, a small table as an arc across the top, more seats
-   compact in a ring. */
 @media (max-width: 719.98px) {
   .game-table {
     padding: 0 var(--spacing-2) var(--spacing-3);
