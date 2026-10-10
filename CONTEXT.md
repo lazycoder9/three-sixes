@@ -38,10 +38,10 @@ A sequence of Rounds that ends when one Player is left who is not Knocked out.
 _Avoid_: Match
 
 **Penalty die**:
-The extra die the loser of a Check takes: the Checker if the Bid stood, otherwise the bidder. Every Player starts a Game with one die.
+The extra die the loser of a Check takes: the Checker if the Bid stood, otherwise the bidder. A Check on three sixes (exactly 3 × ⚅) costs two Penalty dice. Every Player starts a Game with one die.
 
 **Knocked out**:
-The state of a Player who has taken their sixth die, at that moment, and plays no further in the Game.
+The state of a Player who has reached six dice or more, at that moment, and plays no further in the Game.
 _Avoid_: Eliminated, dead
 
 **Placement**:

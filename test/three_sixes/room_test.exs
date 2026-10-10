@@ -363,7 +363,7 @@ defmodule ThreeSixes.RoomTest do
     end
 
     test "a reveal step for the current Round's reveal moves it on; any other is stale" do
-      {:ok, room} = Room.raise(playing(), "guest:dana", 3, 6)
+      {:ok, room} = Room.raise(playing(), "guest:dana", 3, 2)
 
       assert Room.reveal(room, 1, 1) == :stale
       assert Room.reveal(lobby(), 1, 1) == :stale
@@ -1137,15 +1137,15 @@ defmodule ThreeSixes.RoomTest do
     end
 
     test "an Away Player not on turn: their dice count in a Check and they take the Penalty die" do
-      {:ok, room} = Room.raise(playing(), "guest:dana", 1, 6)
-      {:ok, room} = Room.raise(room, "guest:timur", 2, 6)
-      {:ok, room} = Room.raise(room, @host, 3, 6)
+      {:ok, room} = Room.raise(playing(), "guest:dana", 1, 5)
+      {:ok, room} = Room.raise(room, "guest:timur", 2, 5)
+      {:ok, room} = Room.raise(room, @host, 3, 5)
       room = Room.away(room, @host, 1_000)
 
       {:ok, room} = Room.check(room, "guest:dana")
       {:ok, room} = Room.reveal(room, 1, 3)
 
-      assert %{count: 2, stood?: false, loser: %{nickname: "Malika"}} =
+      assert %{count: 0, stood?: false, loser: %{nickname: "Malika"}} =
                Room.view_for(room, "guest:dana").game.reveal
 
       assert room.game.counts[@host] == 2

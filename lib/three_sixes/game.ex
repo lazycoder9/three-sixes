@@ -27,6 +27,7 @@ defmodule ThreeSixes.Game do
           count: non_neg_integer(),
           stood?: boolean(),
           loser: person_id(),
+          penalty: 1..2,
           step: 0..3
         }
   @type check :: %{
@@ -163,11 +164,15 @@ defmodule ThreeSixes.Game do
       count: count,
       stood?: stood?,
       loser: if(stood?, do: by, else: bid.by),
+      penalty: if(three_sixes?(bid), do: 2, else: 1),
       step: 0
     }
 
     %{game | turn: nil, reveal: reveal}
   end
+
+  @spec three_sixes?(bid() | placed_bid() | nil) :: boolean()
+  def three_sixes?(bid), do: match?(%{count: 3, face: 6}, bid)
 
   @spec advance_reveal(t(), 1..3) :: t()
   def advance_reveal(%{reveal: %{step: at}} = game, step) when step > at do
@@ -180,11 +185,11 @@ defmodule ThreeSixes.Game do
   defp penalize(game, loser) do
     game = %{
       game
-      | counts: Map.update!(game.counts, loser, &(&1 + 1)),
+      | counts: Map.update!(game.counts, loser, &(&1 + game.reveal.penalty)),
         checks: game.checks ++ [check_of(game)]
     }
 
-    if game.counts[loser] == @knocked_out_at and loser not in game.out,
+    if game.counts[loser] >= @knocked_out_at and loser not in game.out,
       do: %{game | out: game.out ++ [loser]},
       else: game
   end

@@ -332,7 +332,7 @@ defmodule ThreeSixes.RoomsTest do
         send(room, {:next_round, round - 1})
       end
 
-      :ok = Rooms.raise(code, @host, round + 1, 6)
+      :ok = Rooms.raise(code, @host, round + 1, 5)
       :ok = Rooms.check(code, "guest:dana")
       send(room, {:reveal, round, 3})
     end
@@ -674,7 +674,7 @@ defmodule ThreeSixes.RoomsTest do
       room = Rooms.whereis(code)
       Scripted.script([[6], [2], [3]])
       :ok = Rooms.start_game(code, @host)
-      :ok = Rooms.raise(code, @host, 3, 6)
+      :ok = Rooms.raise(code, @host, 2, 6)
       :ok = Rooms.check(code, "guest:dana")
       send(room, {:reveal, 1, 1})
       flush_after(room)
