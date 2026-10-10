@@ -231,6 +231,7 @@ defmodule ThreeSixes.GameTest do
                count: 2,
                stood?: true,
                loser: "b",
+               penalty: 1,
                step: 0
              }
 
@@ -403,7 +404,7 @@ defmodule ThreeSixes.GameTest do
       game =
         %{"a" => 5, "b" => 1, "c" => 1}
         |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
-        |> raise!("a", 3, 6)
+        |> raise!("a", 2, 6)
         |> check!("b")
         |> Game.advance_reveal(2)
 
@@ -503,6 +504,106 @@ defmodule ThreeSixes.GameTest do
 
       assert game.out == ["d", "b", "c"]
       assert Game.placement(game) == ["a", "c", "b", "d"]
+    end
+  end
+
+  describe "three sixes" do
+    test "is a Bid of exactly 3 × ⚅" do
+      assert Game.three_sixes?(%{count: 3, face: 6})
+      assert Game.three_sixes?(%{count: 3, face: 6, by: "a"})
+      refute Game.three_sixes?(%{count: 2, face: 6})
+      refute Game.three_sixes?(%{count: 4, face: 6})
+      refute Game.three_sixes?(%{count: 3, face: 5})
+      refute Game.three_sixes?(nil)
+    end
+
+    test "that stands costs the Checker two Penalty dice" do
+      game =
+        %{"a" => 2, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [6, 6], "b" => [6], "c" => [1]})
+        |> raise!("a", 3, 6)
+        |> check!("b")
+
+      assert %{stood?: true, loser: "b", penalty: 2} = game.reveal
+
+      game = Game.advance_reveal(game, 3)
+
+      assert game.counts == %{"a" => 2, "b" => 3, "c" => 1}
+      assert Game.advance_reveal(game, 3) == game
+    end
+
+    test "caught as a Bluff costs the bidder two Penalty dice" do
+      game = round_one() |> raise!("a", 3, 6) |> check!("b")
+
+      assert %{stood?: false, loser: "a", penalty: 2} = game.reveal
+      assert Game.advance_reveal(game, 3).counts == %{"a" => 3, "b" => 1, "c" => 1}
+    end
+
+    test "Knocks out a Player on five dice, who ends the Game when one Player is left" do
+      game =
+        %{"a" => 5, "b" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2]})
+        |> raise!("a", 3, 6)
+        |> check!("b")
+        |> Game.advance_reveal(3)
+
+      assert game.counts["a"] == 7
+      assert game.out == ["a"]
+      assert Game.over?(game)
+      assert Game.placement(game) == ["b", "a"]
+    end
+
+    test "Knocks out with the same Placement as one Penalty die" do
+      fives = [1, 1, 1, 1, 1]
+
+      game =
+        %{"a" => 5, "b" => 1, "c" => 5}
+        |> holding(%{"a" => fives, "b" => [2], "c" => fives})
+        |> raise!("a", 3, 6)
+        |> check!("b")
+        |> Game.advance_reveal(3)
+
+      assert game.counts["a"] == 7
+      assert game.out == ["a"]
+      refute Game.over?(game)
+      assert Game.to_roll(game) == [{"b", 1}, {"c", 5}]
+
+      game =
+        game
+        |> Game.start_round(%{"b" => [2], "c" => fives})
+        |> raise!("b", 1, 2)
+        |> lose!("c", "b")
+
+      assert Game.placement(game) == ["b", "c", "a"]
+    end
+
+    test "Raised past is an ordinary Bid again: only the Checked Bid counts" do
+      twos = %{"a" => 2, "b" => 2, "c" => 2}
+      dice = %{"a" => [6, 6], "b" => [6, 1], "c" => [2, 3]}
+
+      for raises <- [
+            [{"a", 3, 6}, {"b", 4, 6}],
+            [{"a", 3, 6}, {"b", 4, 2}],
+            [{"a", 2, 6}],
+            [{"a", 4, 6}]
+          ] do
+        game =
+          Enum.reduce(raises, holding(twos, dice), fn {by, count, face}, game ->
+            raise!(game, by, count, face)
+          end)
+
+        {:ok, game} = Game.check(game, game.turn)
+
+        assert game.reveal.penalty == 1
+        game = Game.advance_reveal(game, 3)
+        assert Enum.sum(Map.values(game.counts)) == 7
+      end
+    end
+
+    test "is kept as one Check" do
+      game = round_one() |> raise!("a", 3, 6) |> check!("b") |> Game.advance_reveal(3)
+
+      assert game.checks == [%{round: 1, checker: "b", bidder: "a", stood?: false}]
     end
   end
 
@@ -721,6 +822,32 @@ defmodule ThreeSixes.GameTest do
         |> Game.without_round()
 
       assert %{opener: "b", out: ["a"]} = opener_out
+    end
+
+    test "two Penalty dice on three sixes stay, and a Player they Knocked out stays out" do
+      between =
+        %{"a" => 1, "b" => 5, "c" => 1}
+        |> holding(%{"a" => [2], "b" => [1, 1, 1, 1, 1], "c" => [3]})
+        |> raise!("a", 1, 2)
+        |> raise!("b", 3, 6)
+        |> check!("c")
+        |> Game.advance_reveal(3)
+        |> Game.without_round()
+
+      assert_no_round(between)
+      assert between.counts == %{"a" => 1, "b" => 7, "c" => 1}
+      assert %{opener: "c", out: ["b"]} = between
+      assert Game.to_roll(between) == [{"a", 1}, {"c", 1}]
+
+      between =
+        round_one()
+        |> raise!("a", 3, 6)
+        |> check!("b")
+        |> Game.advance_reveal(3)
+        |> Game.without_round()
+
+      assert between.counts == %{"a" => 3, "b" => 1, "c" => 1}
+      assert %{opener: "a", out: []} = between
     end
 
     test "a re-roll voided by a leave keeps its opener, and the save no longer names the leaver" do

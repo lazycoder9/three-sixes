@@ -39,6 +39,7 @@ defmodule ThreeSixes.Room do
           can_check?: boolean(),
           turn: person_ref() | nil,
           bid: bid_view() | nil,
+          three_sixes?: boolean(),
           seats: [
             %{
               person: person_ref(),
@@ -58,6 +59,7 @@ defmodule ThreeSixes.Room do
               count: non_neg_integer() | nil,
               stood?: boolean() | nil,
               loser: person_ref() | nil,
+              penalty: 1..2 | nil,
               knocked_out?: boolean()
             }
             | nil,
@@ -681,11 +683,15 @@ defmodule ThreeSixes.Room do
       can_check?: my_turn? and game.bid != nil and game.reveal == nil,
       turn: game.turn && ref.(game.turn),
       bid: game.bid && bid_view(game.bid, ref),
+      three_sixes?: three_sixes_unchecked?(game),
       seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
       reveal: game.reveal && reveal_view(game, ref),
       voided_by: game.voided_by && ref.(game.voided_by)
     }
   end
+
+  defp three_sixes_unchecked?(%{reveal: nil, bid: bid}), do: Game.three_sixes?(bid)
+  defp three_sixes_unchecked?(_game), do: false
 
   defp from_seat(seats, viewer) do
     case Enum.find_index(seats, &(&1 == viewer)) do
@@ -722,6 +728,7 @@ defmodule ThreeSixes.Room do
       count: if(counted?, do: reveal.count),
       stood?: if(counted?, do: reveal.stood?),
       loser: if(penalized?, do: ref.(reveal.loser)),
+      penalty: if(penalized?, do: reveal.penalty),
       knocked_out?: penalized? and reveal.loser in game.out
     }
   end

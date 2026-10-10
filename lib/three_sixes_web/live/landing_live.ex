@@ -174,7 +174,7 @@ defmodule ThreeSixesWeb.LandingLive do
           <li>
             <.torn_scrap>
               <b>Check</b>
-              Cups up. Whoever was wrong takes a Penalty die. Take your sixth and you're Knocked out.
+              Cups up. Whoever was wrong takes a Penalty die, two on three sixes. Reach six dice and you're Knocked out.
             </.torn_scrap>
           </li>
         </ol>

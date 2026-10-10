@@ -339,6 +339,11 @@ body:has(.game-table) .table-main {
   gap: calc(6 * var(--u));
   margin-top: calc(4 * var(--u));
 }
+.scrap__penalty {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+}
 .scrap__pen b {
   color: var(--color-tomato);
   font: 700 calc(26 * var(--u)) / 1 var(--font-scrawl);
@@ -350,6 +355,128 @@ body:has(.game-table) .table-main {
 .scrap__pen em {
   flex-basis: 100%;
   font: 700 calc(24 * var(--u)) / 1 var(--font-scrawl);
+}
+.scrap__double {
+  color: var(--color-tomato);
+  font: 700 calc(22 * var(--u)) / 1.1 var(--font-scrawl);
+}
+.hand .slot--pen:has(.die + .die) {
+  grid-auto-flow: column;
+}
+.hand .slot--pen .die + .die {
+  margin-left: calc(-10 * var(--u));
+  rotate: -16deg;
+}
+
+.three-sixes {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  padding: calc(8 * var(--u)) calc(22 * var(--u)) calc(10 * var(--u));
+  border: calc(5 * var(--u)) solid var(--color-tomato);
+  border-radius: calc(16 * var(--u));
+  background: var(--color-sheet);
+  box-shadow:
+    inset 0 0 0 calc(3 * var(--u)) var(--color-sheet),
+    inset 0 0 0 calc(5 * var(--u)) var(--color-tomato),
+    0 calc(10 * var(--u)) calc(18 * var(--u)) calc(-8 * var(--u)) rgba(0, 0, 0, 0.45);
+  color: var(--color-tomato);
+  font: 400 calc(64 * var(--u)) / 1 var(--font-display);
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% -50%;
+  transform: rotate(-9deg);
+  animation: stamp 2s both;
+}
+.three-sixes small {
+  font: 700 0.62em/1 var(--font-scrawl);
+}
+.three-sixes .die {
+  --d: 1em;
+  transform: rotate(7deg);
+  box-shadow:
+    0 calc(3 * var(--u)) 0 rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(120, 95, 50, 0.3);
+}
+.three-sixes::after {
+  content: "";
+  position: absolute;
+  inset: calc(-8 * var(--u));
+  border: calc(4 * var(--u)) solid var(--color-mustard);
+  border-radius: calc(22 * var(--u));
+  opacity: 0;
+  animation: stamp-ring 0.6s ease-out 0.25s forwards;
+}
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(2.4) rotate(-22deg);
+    animation-timing-function: var(--ease-press);
+  }
+  14% {
+    opacity: 1;
+    transform: rotate(-9deg);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-9deg);
+  }
+}
+@keyframes stamp-ring {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@media (width >= 720px) {
+  .seat__dice:has(> .die:nth-of-type(7)) {
+    gap: calc(1 * var(--u));
+  }
+  .seat__dice:has(> .die:nth-of-type(7)) .die.is-flip,
+  .seat__dice:has(> .die:nth-of-type(7)) .die.is-penalty {
+    --d: calc(16 * var(--u));
+  }
+}
+@media (width < 720px) {
+  .scrap__double {
+    font-size: 17px;
+    line-height: 1;
+  }
+  .my-page .hand:has(.slot--pen .die + .die) {
+    column-gap: 8px;
+  }
+  .three-sixes {
+    gap: 6px;
+    padding: 5px 12px 6px;
+    border-width: 3px;
+    border-radius: 10px;
+    box-shadow:
+      inset 0 0 0 2px var(--color-sheet),
+      inset 0 0 0 3px var(--color-tomato),
+      0 6px 12px -6px rgba(0, 0, 0, 0.45);
+    font-size: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Overrides the global no-animation rule: the still stamp must still leave after its time. */
+  .three-sixes {
+    animation: stamp-still 2s step-end both !important;
+  }
+}
+@keyframes stamp-still {
+  to {
+    opacity: 0;
+  }
 }
 
 .my-page {
@@ -605,6 +732,9 @@ body:has(.game-table) .table-main {
   }
   .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(5)) .die {
     --d: 12px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(7)) .die {
+    --d: 10px;
   }
   .seat--compact,
   .game-table--phone-compact .seat {
