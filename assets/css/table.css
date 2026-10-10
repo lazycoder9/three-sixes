@@ -76,6 +76,9 @@ body:has(.game-table) .table-main {
   .seat--compact .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
     --d: calc(12 * var(--u));
   }
+  .game-table[data-seated] .game-table__scrap {
+    top: 54%;
+  }
 }
 @media (min-width: 1000px) {
   .game-table {
@@ -290,7 +293,7 @@ body:has(.game-table) .table-main {
 .game-table__scrap {
   position: absolute;
   left: 50%;
-  top: 52%;
+  top: 50%;
   z-index: 1;
   transform: translate(-50%, -50%) rotate(-1.2deg);
   display: grid;
@@ -357,6 +360,7 @@ body:has(.game-table) .table-main {
     "hand head check"
     "hand opts check"
     "hand opts keys";
+  grid-template-rows: min-content 1fr auto;
   align-items: center;
   gap: calc(3 * var(--u)) calc(20 * var(--u));
   width: calc(770 * var(--u) + 90px);
@@ -420,7 +424,7 @@ body:has(.game-table) .table-main {
   justify-content: start;
   gap: calc(6 * var(--u));
   min-width: 0;
-  min-height: calc(88 * var(--u));
+  min-height: calc(123 * var(--u));
 }
 .opts.is-hidden {
   visibility: hidden;
@@ -703,6 +707,7 @@ body:has(.game-table) .table-main {
   .my-page {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "hand" "head" "opts" "check";
+    grid-template-rows: none;
     gap: 5px;
     width: 100%;
     padding-left: 38px;
@@ -723,7 +728,7 @@ body:has(.game-table) .table-main {
     --step-w: 28px;
     justify-content: center;
     gap: 5px;
-    min-height: 78px;
+    min-height: 109px;
   }
   .orow {
     grid-template-columns: 34px repeat(6, auto);
@@ -767,8 +772,9 @@ body:has(.game-table) .table-main {
     font-size: 19px;
   }
 }
-@media (max-width: 719.98px) and (hover: hover) and (pointer: fine) {
+@media (width < 720px) and (hover: hover) and (pointer: fine) {
   .my-page {
     grid-template-areas: "hand" "head" "opts" "keys" "check";
+    grid-template-rows: repeat(3, auto) minmax(19px, auto) auto;
   }
 }
