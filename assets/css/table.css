@@ -40,7 +40,6 @@ body:has(.game-table) .table-main {
 [data-theme="dark"] .spec {
   --seat: rgba(0, 0, 0, 0.22);
 }
-/* The top seat's Bid chip sits above the seat, so the ring leaves it room under the Room bar. */
 .game-table__ring {
   position: relative;
   flex: 1 1 auto;
@@ -54,7 +53,6 @@ body:has(.game-table) .table-main {
   list-style: none;
 }
 
-/* The px terms in the unit keep room for Reactions, beside your page and under it (#22). */
 @media (width >= 720px) {
   /* With only a min-height on the body, Chrome resolves cqh to 0 inside the flexed container. */
   body:has(.game-table) {
@@ -181,7 +179,6 @@ body:has(.game-table) .table-main {
     background-color 0.2s,
     box-shadow 0.2s;
 }
-/* Until the TableSeats hook places it, a seat would sit in the middle of the table. */
 .seat:not([style]) {
   visibility: hidden;
 }
