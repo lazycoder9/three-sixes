@@ -9,6 +9,7 @@ defmodule ThreeSixes.Game do
     said: %{},
     turn: nil,
     reveal: nil,
+    opener: nil,
     out: [],
     voided_by: nil
   ]
@@ -36,6 +37,7 @@ defmodule ThreeSixes.Game do
           said: %{person_id() => bid()},
           turn: person_id() | nil,
           reveal: reveal() | nil,
+          opener: person_id() | nil,
           out: [person_id()],
           voided_by: person_id() | nil
         }
@@ -45,24 +47,44 @@ defmodule ThreeSixes.Game do
 
   @spec start_round(t(), %{person_id() => [face()]}) :: t()
   def start_round(game, dice) do
+    opener = opener(game)
+
     %{
       game
       | round: game.round + 1,
         dice: dice,
         bid: nil,
         said: %{},
-        turn: opener(game),
+        turn: opener,
         reveal: nil,
+        opener: opener,
         voided_by: if(game.reveal, do: nil, else: game.voided_by)
     }
   end
 
-  defp opener(%{reveal: %{loser: loser}} = game) do
-    if loser in game.out, do: next_seat(game, loser), else: loser
+  defp opener(%{reveal: %{loser: loser}} = game), do: in_play_from(game, loser)
+  defp opener(%{voided_by: leaver} = game) when leaver != nil, do: next_seat(game, leaver)
+  defp opener(%{opener: opener} = game) when opener != nil, do: in_play_from(game, opener)
+  defp opener(game), do: hd(game.seats)
+
+  defp in_play_from(game, seat), do: if(seat in game.out, do: next_seat(game, seat), else: seat)
+
+  @spec without_round(t()) :: t()
+  def without_round(game) do
+    %{
+      game
+      | dice: %{},
+        bid: nil,
+        said: %{},
+        turn: nil,
+        reveal: nil,
+        opener: next_opener(game),
+        voided_by: nil
+    }
   end
 
-  defp opener(%{voided_by: leaver} = game) when leaver != nil, do: next_seat(game, leaver)
-  defp opener(game), do: hd(game.seats)
+  defp next_opener(%{reveal: %{step: 3}} = game), do: opener(game)
+  defp next_opener(game), do: game.opener
 
   @spec to_roll(t()) :: [{person_id(), pos_integer()}]
   def to_roll(game), do: Enum.map(in_play(game), &{&1, game.counts[&1]})

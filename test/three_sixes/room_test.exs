@@ -433,6 +433,94 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
+  describe "a save" do
+    defp second_game do
+      {:ok, room} = Room.start_game(over(), @host, ["guest:dana", "guest:timur", @host])
+      room = Room.start_round(room, %{"guest:dana" => [6], "guest:timur" => [2], @host => [4]})
+      {:ok, room} = Room.raise(room, "guest:dana", 1, 6)
+      room
+    end
+
+    test "holds no die faces, and keeps the members, Host, Tally, counts and Knock outs" do
+      room = dana_loses(%{"guest:dana" => 5}) |> Room.reveal(1, 3) |> elem(1)
+
+      saved = Room.to_save(room)
+
+      assert saved.game.dice == %{}
+      assert saved.game.bid == nil
+      assert saved.game.reveal == nil
+
+      assert Map.take(saved, [:code, :host_id, :members, :tally, :last]) ==
+               Map.take(room, [:code, :host_id, :members, :tally, :last])
+
+      assert %{counts: %{"guest:dana" => 6}, out: ["guest:dana"], round: 1} = saved.game
+    end
+
+    test "of a lobby restores as it is" do
+      room = sit_out!(over(), "guest:timur")
+
+      assert Room.restore(Room.to_save(room)) == {:ok, room}
+    end
+
+    test "mid-Game restores to be rolled again" do
+      room = second_game()
+
+      assert Room.restore(Room.to_save(room)) == {:roll, Room.to_save(room)}
+    end
+
+    test "taken after the Penalty die that ended the Game restores to the Game over" do
+      {:ok, checked} =
+        %{"guest:dana" => 5, @host => 6}
+        |> dana_loses([@host])
+        |> Room.reveal(1, 3)
+
+      assert {:ok, room} = Room.restore(Room.to_save(checked))
+
+      assert room == over()
+      assert room.tally == %{"guest:timur" => 1}
+      assert room.last == %{placement: ["guest:timur", "guest:dana", @host], rounds: 1}
+    end
+
+    test "from before a field existed restores with that field's default" do
+      saved = Room.to_save(second_game())
+
+      older = %{
+        Map.delete(saved, :last)
+        | members: Enum.map(saved.members, &Map.delete(&1, :sitting_out?)),
+          game: Map.delete(saved.game, :opener)
+      }
+
+      assert {:roll, room} = Room.restore(older)
+      assert room.last == nil
+      assert room.game.opener == nil
+      assert Enum.all?(room.members, &(&1.sitting_out? == false))
+      assert room.members |> Enum.map(& &1.nickname) == ["Timur", "Malika", "Dana"]
+    end
+
+    test "from before leaving existed restores every member as present" do
+      saved = Room.to_save(second_game())
+      older = %{saved | members: Enum.map(saved.members, &Map.drop(&1, [:left?, :removed?]))}
+
+      assert {:roll, room} = Room.restore(older)
+      assert Enum.all?(room.members, &(&1.left? == false and &1.removed? == false))
+      assert Enum.all?(["guest:timur", @host, "guest:dana"], &Room.member?(room, &1))
+    end
+
+    test "of a Room everyone left restores with no Host, the next to enter taking the role" do
+      room =
+        Enum.reduce(["guest:timur", @host, "guest:dana"], lobby(), fn id, room ->
+          {:ok, room} = Room.leave(room, id, [])
+          room
+        end)
+
+      assert {:ok, restored} = Room.restore(Room.to_save(room))
+      assert restored == room
+      assert restored.host_id == nil
+
+      assert {:ok, %{host_id: "guest:dana"}} = Room.enter(restored, "guest:dana", "Dana")
+    end
+  end
+
   test "a Check paces the reveal as the prototype does: 1.1 s, 2.7 s, 4.3 s, then 8.2 s" do
     {:ok, room} = Room.raise(playing(), "guest:dana", 1, 6)
     {:ok, room} = Room.check(room, "guest:timur")

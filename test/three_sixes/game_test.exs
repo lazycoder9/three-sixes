@@ -563,6 +563,111 @@ defmodule ThreeSixes.GameTest do
     end
   end
 
+  describe "a Game between Rounds, as a save keeps it" do
+    defp opened_by_c do
+      round_one()
+      |> raise!("a", 1, 2)
+      |> raise!("b", 1, 5)
+      |> check!("c")
+      |> Game.advance_reveal(3)
+      |> Game.start_round(%{"a" => [6], "b" => [1], "c" => [3, 4]})
+    end
+
+    defp assert_no_round(game) do
+      assert game.dice == %{}
+      assert game.bid == nil
+      assert game.said == %{}
+      assert game.turn == nil
+      assert game.reveal == nil
+    end
+
+    test "each Round records the Player who opened it" do
+      assert round_one().opener == "a"
+      assert opened_by_c().opener == "c"
+    end
+
+    test "while bidding, the Round is void, and the re-roll is the next Round with the same opener" do
+      game = opened_by_c() |> raise!("c", 1, 3) |> raise!("a", 2, 3)
+
+      between = Game.without_round(game)
+
+      assert_no_round(between)
+      assert %{round: 2, opener: "c"} = between
+      assert between.counts == game.counts
+
+      game = Game.start_round(between, %{"a" => [1], "b" => [2], "c" => [3, 3]})
+
+      assert game.round == 3
+      assert game.turn == "c"
+    end
+
+    test "during the reveal before the Penalty die, the Round is void and nobody takes a die" do
+      for step <- 0..2 do
+        between =
+          opened_by_c()
+          |> raise!("c", 1, 3)
+          |> check!("a")
+          |> Game.advance_reveal(step)
+          |> Game.without_round()
+
+        assert_no_round(between)
+        assert between.counts == opened_by_c().counts
+        assert between.opener == "c"
+        assert Game.start_round(between, %{"a" => [1], "b" => [2], "c" => [3, 3]}).turn == "c"
+      end
+    end
+
+    test "once the Penalty die is taken it stays, and the loser opens the next Round" do
+      between =
+        opened_by_c()
+        |> raise!("c", 1, 3)
+        |> check!("a")
+        |> Game.advance_reveal(3)
+        |> Game.without_round()
+
+      assert_no_round(between)
+      assert between.counts == %{"a" => 2, "b" => 1, "c" => 2}
+      assert between.opener == "a"
+
+      game = Game.start_round(between, %{"a" => [1, 1], "b" => [2], "c" => [3, 3]})
+
+      assert game.round == 3
+      assert game.turn == "a"
+    end
+
+    test "a loser Knocked out by the Penalty die hands the opening to the next Player in play" do
+      between =
+        %{"a" => 1, "b" => 5, "c" => 1}
+        |> holding(%{"a" => [2], "b" => [1, 1, 1, 1, 1], "c" => [3]})
+        |> raise!("a", 1, 2)
+        |> lose!("b", "c")
+        |> Game.without_round()
+
+      assert %{opener: "c", out: ["b"]} = between
+      assert Game.start_round(between, %{"a" => [4], "c" => [5]}).turn == "c"
+
+      opener_out =
+        %{"a" => 5, "b" => 1, "c" => 1}
+        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> lose!("a", "b")
+        |> Game.without_round()
+
+      assert %{opener: "b", out: ["a"]} = opener_out
+    end
+
+    test "a re-roll voided by a leave keeps its opener, and the save no longer names the leaver" do
+      {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
+      rerolled = Game.start_round(game, %{"a" => [3], "c" => [4]})
+
+      between = Game.without_round(rerolled)
+
+      assert %{opener: "c", voided_by: nil} = between
+
+      assert %{turn: "c", opener: "c", voided_by: nil} =
+               Game.start_round(between, %{"a" => [1], "c" => [2]})
+    end
+  end
+
   test "the dice to roll are each seat's count, in seat order" do
     assert ["c", "a", "b"] |> Game.new() |> Game.to_roll() == [{"c", 1}, {"a", 1}, {"b", 1}]
 
