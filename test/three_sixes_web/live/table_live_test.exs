@@ -970,6 +970,215 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "playing blind" do
+    test "a blind Player's screen holds no faces of their own, only blank dice, and Peek" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      tick_blind(dana, true)
+      start(timur, [[2], [6]])
+
+      refute_own_faces(dana)
+      assert has_element?(dana, "#my-dice[aria-label='Your dice, blind']")
+
+      assert has_element?(
+               dana,
+               "#my-die-1-0.die.is-down.is-rolling[role=img][aria-label='face down']"
+             )
+
+      assert count(dana, "#my-dice > .die") == 1
+      assert text(dana, "#my-dice .my-dice__mark") == "blind"
+      assert has_element?(dana, "#my-dice button#peek[phx-click=peek]", "Peek")
+
+      assert faces(timur) == [2]
+      refute has_element?(timur, "#peek")
+      refute has_element?(timur, "#my-dice .my-dice__mark")
+      assert text(timur, "#seat-2 .seat__tag") == "blind"
+
+      aziz = late_arrival(code)
+      assert text(aziz, "#seat-2 .seat__tag") == "blind"
+      refute has_element?(aziz, "#seat-1 .seat__tag")
+
+      reloaded = visit(code, "dana")
+      refute_own_faces(reloaded)
+      assert count(reloaded, "#my-dice .is-rolling") == 0
+    end
+
+    test "a peek shows the dice to the blind Player, and the peeked mark to everyone" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      tick_blind(dana, true)
+      start(timur, [[2], [6]])
+      aziz = late_arrival(code)
+
+      dana |> element("#peek") |> render_click()
+
+      assert faces(dana) == [6]
+      assert has_element?(dana, "#my-dice[aria-label='Your dice'] .die[aria-label='six']")
+      assert text(dana, "#my-dice .my-dice__mark") == "peeked"
+      refute has_element?(dana, "#peek")
+
+      for watcher <- [timur, aziz] do
+        assert text(watcher, "#seat-2 .seat__tag") == "peeked"
+        refute has_element?(watcher, "#seat-2 .seat__dice .die:not(.is-down)")
+        refute has_element?(watcher, "[aria-label='six']")
+      end
+
+      assert faces(visit(code, "dana")) == [6]
+    end
+
+    test "a Bid made blind says so on every screen, and the next sighted Bid does not" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      tick_blind(timur, true)
+      start(timur, [[2], [6]])
+      aziz = late_arrival(code)
+
+      press(timur, "Bid one five")
+
+      assert text(timur, "#scrap") == "You bid blind 1 × 2 dice on the table"
+      assert text(dana, "#scrap") == "Timur bids blind 1 × 2 dice on the table"
+      assert text(aziz, "#scrap") == "Timur bids blind 1 × 2 dice on the table"
+
+      press(dana, "Raise to one six")
+
+      assert text(timur, "#scrap") == "Dana bids 1 × 2 dice on the table"
+      assert text(dana, "#scrap") == "You bid 1 × 2 dice on the table"
+    end
+
+    test "a seat's Bid made blind keeps its blind mark after a peek and the next Raise" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      tick_blind(dana, true)
+      start(timur, [[4], [6], [3]])
+      aziz = late_arrival(code)
+
+      press(timur, "Bid one five")
+      press(dana, "Raise to one six")
+      dana |> element("#peek") |> render_click()
+      press(malika, "Raise to two threes")
+
+      for watcher <- [timur, aziz] do
+        assert text(watcher, "#seat-2 .seat__said") == "1 × blind"
+        assert text(watcher, "#seat-2 .seat__tag") == "peeked"
+        refute has_element?(watcher, "#seat-1 .seat__said .seat__blind")
+        refute has_element?(watcher, "#seat-3 .seat__said .seat__blind")
+      end
+
+      assert text(malika, "#seat-2 .seat__said .seat__blind") == "blind"
+      assert text(timur, "#scrap") == "Malika bids 2 × 3 dice on the table"
+    end
+
+    test "a blind Player who leaves during a reveal shows out, with no blind mark" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+      tick_blind(dana, true)
+      start(timur, [[4], [6], [3]])
+
+      press(timur, "Bid one five")
+      press(dana, "Raise to one six")
+      check(malika)
+      dana |> element("#leave-dialog button", "Leave Room") |> render_click()
+
+      assert has_element?(timur, "#seat-2.is-out .seat__out", "out")
+      refute has_element?(timur, "#seat-2 .seat__tag")
+    end
+
+    test "a blind Player on turn plays by keys, and a Check shows their dice to all at step 1" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      tick_blind(timur, true)
+      start(timur, [[4], [6], [3]])
+
+      key(timur, "5")
+      assert text(dana, "#scrap") == "Timur bids blind 1 × 3 dice on the table"
+
+      press(dana, "Raise to one six")
+      press(malika, "Raise to two sixes")
+
+      key(timur, "c")
+      refute_own_faces(timur)
+      assert text(dana, "#scrap") == "Timur Checks! 2 ×"
+      assert text(timur, "#my-dice .my-dice__mark") == "blind"
+      refute has_element?(timur, "#peek")
+
+      reveal(code, {:reveal, 1, 1})
+
+      assert faces(timur) == [4]
+      assert has_element?(timur, "#my-dice .die.is-miss[data-face='4']")
+      assert text(timur, "#my-dice .my-dice__mark") == "blind"
+      assert has_element?(dana, "#seat-1 .seat__dice .die.is-flip.is-miss")
+      assert text(dana, "#seat-1 .seat__tag") == "blind"
+    end
+
+    test "the lobby tick box and the Room menu item flip the switch, and say which" do
+      %{dana: dana} = table(~w(Timur Dana))
+
+      assert text(dana, "#blind-form label") == "Play blind"
+      assert has_element?(dana, "#lobby .lobby__side #blind-form[phx-auto-recover=ignore]")
+      refute has_element?(dana, "#blind-form input[type=checkbox][checked]")
+      assert text(dana, "#menu-blind") == "Play blind"
+
+      tick_blind(dana, true)
+
+      assert has_element?(dana, "#blind-form input[type=checkbox][checked]")
+      assert text(dana, "#menu-blind") == "Stop playing blind"
+      refute has_element?(dana, "#menu-blind-note")
+
+      dana |> element("#menu-blind") |> render_click()
+
+      refute has_element?(dana, "#blind-form input[type=checkbox][checked]")
+      assert text(dana, "#menu-blind") == "Play blind"
+
+      dana |> element("#menu-blind") |> render_click()
+
+      assert has_element?(dana, "#blind-form input[type=checkbox][checked]")
+    end
+
+    test "flipped mid-Round, the switch leaves the Round as dealt and turns the next one" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      dana |> element("#menu-blind") |> render_click()
+
+      assert faces(dana) == [5]
+      refute has_element?(timur, "#seat-2 .seat__tag")
+      assert text(dana, "#menu-blind") == "Stop playing blind"
+      assert text(dana, "#menu-blind-note") == "You play blind from the next Round."
+
+      press(timur, "Bid one five")
+      check(dana)
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+      next_round(code, 1, [[3], [4, 1]])
+
+      refute_own_faces(dana)
+      assert count(dana, "#my-dice > .die.is-down.is-rolling") == 2
+      assert has_element?(dana, "#my-die-2-1.is-rolling")
+      assert text(timur, "#seat-2 .seat__tag") == "blind"
+      refute has_element?(dana, "#menu-blind-note")
+
+      dana |> element("#menu-blind") |> render_click()
+
+      refute_own_faces(dana)
+      assert text(dana, "#menu-blind") == "Play blind"
+      assert text(dana, "#menu-blind-note") == "This Round stays blind unless you peek."
+    end
+
+    test "a compact seat at a long table carries the mark too" do
+      {:ok, code} = Rooms.create("guest:p1", "127.0.0.1")
+      [host, blind | _rest] = for n <- 1..9, do: visit(code, "p#{n}") |> tap(&enter(&1, "P#{n}"))
+      tick_blind(blind, true)
+      start(host, List.duplicate([1], 9))
+
+      assert text(host, "#seat-2.seat--compact .seat__tag") == "blind"
+      assert count(host, ".seat__tag") == 1
+      refute_own_faces(blind)
+    end
+
+    test "a blind that is not true or false changes nothing and leaves the Room open" do
+      %{dana: dana, code: code} = table(~w(Timur Dana))
+
+      for params <- [%{"blind" => "yes"}, %{"blind" => ["true"]}, %{}],
+          do: render_click(dana, "blind", params)
+
+      refute has_element?(dana, "#blind-form input[type=checkbox][checked]")
+      assert Rooms.whereis(code)
+    end
+  end
+
   test "someone who enters during a Game watches the table with no page and no dice" do
     %{timur: timur, code: code} = table(~w(Timur Dana))
     start(timur, [[2], [5]])
@@ -1078,6 +1287,26 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
   defp tick_sit_out(view, ticked?) do
     view |> form("#sit-out-form", %{sitting_out: to_string(ticked?)}) |> render_change()
+  end
+
+  defp tick_blind(view, ticked?) do
+    view |> form("#blind-form", %{blind: to_string(ticked?)}) |> render_change()
+  end
+
+  defp refute_own_faces(view) do
+    html = view |> render() |> LazyHTML.from_fragment()
+    band = LazyHTML.query(html, "#my-dice")
+    face_word = ~r/\b(one|two|three|four|five|six)|[1-6]/i
+
+    assert Enum.count(band) == 1
+    assert html |> LazyHTML.query("[data-face]") |> Enum.empty?()
+    assert band |> LazyHTML.query("i, .cube, .die *") |> Enum.empty?()
+    refute LazyHTML.text(band) =~ face_word
+
+    for label <-
+          LazyHTML.attribute(LazyHTML.query(band, "[aria-label]"), "aria-label") ++
+            LazyHTML.attribute(band, "aria-label"),
+        do: refute(label =~ face_word)
   end
 
   defp next_game(host, rolls) do

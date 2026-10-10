@@ -76,6 +76,8 @@ defmodule ThreeSixesWeb.Layouts do
   attr :my_turn?, :boolean, default: false
   attr :return_to, :string, required: true
   attr :sitting_out?, :boolean, required: true
+  attr :blind?, :boolean, required: true
+  attr :blind_note, :string, default: nil
   attr :playing?, :boolean, required: true
   attr :revealing?, :boolean, default: false
   slot :under_code
@@ -119,6 +121,10 @@ defmodule ThreeSixesWeb.Layouts do
         >
           {if @sitting_out?, do: "Sitting out the next Game", else: "Sit out the next Game"}
         </.block>
+        <.block id="menu-blind" phx-click="blind" phx-value-blind={to_string(!@blind?)}>
+          {if @blind?, do: "Stop playing blind", else: "Play blind"}
+        </.block>
+        <small :if={@blind_note} id="menu-blind-note" class="menu-note">{@blind_note}</small>
         <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
       </div>
       <section

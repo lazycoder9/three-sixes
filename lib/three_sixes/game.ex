@@ -12,7 +12,10 @@ defmodule ThreeSixes.Game do
     opener: nil,
     out: [],
     voided_by: nil,
-    checks: []
+    checks: [],
+    blind: [],
+    peeked: [],
+    bid_blind?: false
   ]
 
   @knocked_out_at 6
@@ -21,6 +24,7 @@ defmodule ThreeSixes.Game do
   @type face :: 1..6
   @type bid :: %{count: pos_integer(), face: face()}
   @type placed_bid :: %{count: pos_integer(), face: face(), by: person_id()}
+  @type said :: %{count: pos_integer(), face: face(), blind?: boolean()}
   @type reveal :: %{
           bid: placed_bid(),
           checker: person_id(),
@@ -42,20 +46,23 @@ defmodule ThreeSixes.Game do
           round: non_neg_integer(),
           dice: %{person_id() => [face()]},
           bid: placed_bid() | nil,
-          said: %{person_id() => bid()},
+          said: %{person_id() => said()},
           turn: person_id() | nil,
           reveal: reveal() | nil,
           opener: person_id() | nil,
           out: [person_id()],
           voided_by: person_id() | nil,
-          checks: [check()]
+          checks: [check()],
+          blind: [person_id()],
+          peeked: [person_id()],
+          bid_blind?: boolean()
         }
 
   @spec new([person_id()]) :: t()
   def new(seats), do: %__MODULE__{seats: seats, counts: Map.new(seats, &{&1, 1})}
 
-  @spec start_round(t(), %{person_id() => [face()]}) :: t()
-  def start_round(game, dice) do
+  @spec start_round(t(), %{person_id() => [face()]}, [person_id()]) :: t()
+  def start_round(game, dice, blind \\ []) do
     opener = opener(game)
 
     %{
@@ -67,7 +74,10 @@ defmodule ThreeSixes.Game do
         turn: opener,
         reveal: nil,
         opener: opener,
-        voided_by: if(game.reveal, do: nil, else: game.voided_by)
+        voided_by: if(game.reveal, do: nil, else: game.voided_by),
+        blind: Enum.filter(in_play(game), &(&1 in blind)),
+        peeked: [],
+        bid_blind?: false
     }
   end
 
@@ -88,7 +98,10 @@ defmodule ThreeSixes.Game do
         turn: nil,
         reveal: nil,
         opener: next_opener(game),
-        voided_by: nil
+        voided_by: nil,
+        blind: [],
+        peeked: [],
+        bid_blind?: false
     }
   end
 
@@ -138,8 +151,9 @@ defmodule ThreeSixes.Game do
     %{
       game
       | bid: %{count: count, face: face, by: by},
-        said: Map.put(game.said, by, %{count: count, face: face}),
-        turn: next_seat(game, by)
+        said: Map.put(game.said, by, %{count: count, face: face, blind?: by in game.blind}),
+        turn: next_seat(game, by),
+        bid_blind?: by in game.blind
     }
   end
 
@@ -169,6 +183,15 @@ defmodule ThreeSixes.Game do
     }
 
     %{game | turn: nil, reveal: reveal}
+  end
+
+  @spec peek(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_blind}
+  def peek(game, id) do
+    cond do
+      not bidding?(game) -> {:error, :not_bidding}
+      id not in game.blind -> {:error, :not_blind}
+      true -> {:ok, %{game | blind: game.blind -- [id], peeked: game.peeked ++ [id]}}
+    end
   end
 
   @spec three_sixes?(bid() | placed_bid() | nil) :: boolean()
@@ -227,8 +250,20 @@ defmodule ThreeSixes.Game do
 
   defp keep_unsettled_check(game), do: game
 
-  defp void(game, leaver),
-    do: %{game | turn: nil, bid: nil, said: %{}, dice: %{}, reveal: nil, voided_by: leaver}
+  defp void(game, leaver) do
+    %{
+      game
+      | turn: nil,
+        bid: nil,
+        said: %{},
+        dice: %{},
+        reveal: nil,
+        voided_by: leaver,
+        blind: [],
+        peeked: [],
+        bid_blind?: false
+    }
+  end
 
   @spec move_seat(t(), person_id(), person_id()) :: t()
   def move_seat(game, from, to) do
@@ -247,6 +282,8 @@ defmodule ThreeSixes.Game do
         turn: swap.(game.turn),
         opener: swap.(game.opener),
         out: Enum.map(game.out, swap),
+        blind: Enum.map(game.blind, swap),
+        peeked: Enum.map(game.peeked, swap),
         voided_by: swap.(game.voided_by),
         bid: game.bid && %{game.bid | by: swap.(game.bid.by)},
         reveal: game.reveal && swap_reveal(game.reveal, swap),

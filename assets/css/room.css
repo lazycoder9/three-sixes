@@ -451,6 +451,10 @@
 .menu-sign-in {
   margin-top: var(--spacing-5);
 }
+.dialog .menu-note {
+  margin-top: calc(-1 * var(--spacing-1));
+  color: var(--color-graphite-faint);
+}
 .dialog .menu-sign-in__turn {
   margin-bottom: var(--spacing-3);
 }

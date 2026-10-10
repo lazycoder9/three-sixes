@@ -24,11 +24,17 @@ defmodule ThreeSixes.Room do
           id: person_id(),
           nickname: String.t(),
           sitting_out?: boolean(),
+          blind?: boolean(),
           left?: boolean(),
           removed?: boolean()
         }
   @type person_ref :: %{nickname: String.t(), me?: boolean(), n: pos_integer()}
-  @type bid_view :: %{count: pos_integer(), face: Game.face(), by: person_ref()}
+  @type bid_view :: %{
+          count: pos_integer(),
+          face: Game.face(),
+          by: person_ref(),
+          blind?: boolean()
+        }
   @type game_view :: %{
           round: pos_integer(),
           dice_on_table: pos_integer(),
@@ -44,11 +50,13 @@ defmodule ThreeSixes.Room do
             %{
               person: person_ref(),
               dice: pos_integer(),
-              said: Game.bid() | nil,
+              said: Game.said() | nil,
               on_turn?: boolean(),
               faces: [Game.face()] | nil,
               penalty?: boolean(),
-              out?: boolean()
+              out?: boolean(),
+              blind?: boolean(),
+              peeked?: boolean()
             }
           ],
           reveal:
@@ -81,6 +89,7 @@ defmodule ThreeSixes.Room do
           me: String.t() | nil,
           removed?: boolean(),
           sitting_out?: boolean(),
+          blind?: boolean(),
           playing?: boolean(),
           host?: boolean(),
           host_nickname: String.t() | nil,
@@ -176,8 +185,16 @@ defmodule ThreeSixes.Room do
   defp claim_host(%{host_id: nil} = room, person_id), do: %{room | host_id: person_id}
   defp claim_host(room, _person_id), do: room
 
-  defp member(person_id, nickname),
-    do: %{id: person_id, nickname: nickname, sitting_out?: false, left?: false, removed?: false}
+  defp member(person_id, nickname) do
+    %{
+      id: person_id,
+      nickname: nickname,
+      sitting_out?: false,
+      blind?: false,
+      left?: false,
+      removed?: false
+    }
+  end
 
   defp present(room), do: Enum.reject(room.members, & &1.left?)
 
@@ -236,6 +253,15 @@ defmodule ThreeSixes.Room do
   def sit_out(room, person_id, sitting_out?) when is_boolean(sitting_out?) do
     if member?(room, person_id) do
       {:ok, update_member(room, person_id, &%{&1 | sitting_out?: sitting_out?})}
+    else
+      {:error, :not_member}
+    end
+  end
+
+  @spec blind(t(), person_id(), boolean()) :: {:ok, t()} | {:error, :not_member}
+  def blind(room, person_id, on?) when is_boolean(on?) do
+    if member?(room, person_id) do
+      {:ok, update_member(room, person_id, &%{&1 | blind?: on?})}
     else
       {:error, :not_member}
     end
@@ -486,7 +512,10 @@ defmodule ThreeSixes.Room do
   end
 
   @spec start_round(t(), %{person_id() => [Game.face()]}) :: t()
-  def start_round(room, dice), do: %{room | game: Game.start_round(room.game, dice)}
+  def start_round(room, dice) do
+    blind = for %{blind?: true, id: id} <- room.members, do: id
+    %{room | game: Game.start_round(room.game, dice, blind)}
+  end
 
   @spec raise(t(), person_id(), term(), term()) ::
           {:ok, t()} | {:error, :not_bidding | :not_your_turn | :illegal}
@@ -502,6 +531,13 @@ defmodule ThreeSixes.Room do
 
   def check(room, by) do
     with {:ok, game} <- Game.check(room.game, by), do: {:ok, %{room | game: game}}
+  end
+
+  @spec peek(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_blind}
+  def peek(%{game: nil}, _id), do: {:error, :not_bidding}
+
+  def peek(room, id) do
+    with {:ok, game} <- Game.peek(room.game, id), do: {:ok, %{room | game: game}}
   end
 
   @spec reveal(t(), pos_integer(), 1..3) :: {:ok, t()} | :stale
@@ -604,6 +640,7 @@ defmodule ThreeSixes.Room do
       me: me && me.nickname,
       removed?: Enum.any?(room.members, &(&1.id == person_id and &1.removed?)),
       sitting_out?: me != nil and me.sitting_out?,
+      blind?: blind?(me),
       playing?: playing?(room, person_id),
       host?: host?,
       host_nickname: host && host.nickname,
@@ -616,6 +653,9 @@ defmodule ThreeSixes.Room do
       over: over_view(room, person_id)
     }
   end
+
+  defp blind?(nil), do: false
+  defp blind?(member), do: member.blind?
 
   defp host_away_view(%{handover: nil}, _viewer), do: nil
   defp host_away_view(%{handover: %{host: viewer}}, viewer), do: nil
@@ -678,17 +718,20 @@ defmodule ThreeSixes.Room do
       dice_on_table: Game.dice_on_table(game),
       seated?: seated?,
       knocked_out?: knocked_out?,
-      my_dice: game.dice[viewer],
+      my_dice: my_dice(game, viewer),
       my_turn?: my_turn?,
       can_check?: my_turn? and game.bid != nil and game.reveal == nil,
       turn: game.turn && ref.(game.turn),
-      bid: game.bid && bid_view(game.bid, ref),
+      bid: game.bid && bid_view(game, game.bid, ref),
       three_sixes?: three_sixes_unchecked?(game),
       seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
       reveal: game.reveal && reveal_view(game, ref),
       voided_by: game.voided_by && ref.(game.voided_by)
     }
   end
+
+  defp my_dice(%{reveal: %{step: step}} = game, viewer) when step >= 1, do: game.dice[viewer]
+  defp my_dice(game, viewer), do: if(viewer not in game.blind, do: game.dice[viewer])
 
   defp three_sixes_unchecked?(%{reveal: nil, bid: bid}), do: Game.three_sixes?(bid)
   defp three_sixes_unchecked?(_game), do: false
@@ -710,7 +753,9 @@ defmodule ThreeSixes.Room do
       on_turn?: game.turn == seat,
       faces: if(reveal.step >= 1, do: game.dice[seat]),
       penalty?: reveal.step >= 3 and reveal.loser == seat,
-      out?: out?(game, seat)
+      out?: out?(game, seat),
+      blind?: seat in game.blind,
+      peeked?: seat in game.peeked
     }
   end
 
@@ -724,7 +769,7 @@ defmodule ThreeSixes.Room do
     %{
       step: reveal.step,
       checker: ref.(reveal.checker),
-      bid: bid_view(reveal.bid, ref),
+      bid: bid_view(game, reveal.bid, ref),
       count: if(counted?, do: reveal.count),
       stood?: if(counted?, do: reveal.stood?),
       loser: if(penalized?, do: ref.(reveal.loser)),
@@ -733,7 +778,8 @@ defmodule ThreeSixes.Room do
     }
   end
 
-  defp bid_view(bid, ref), do: %{count: bid.count, face: bid.face, by: ref.(bid.by)}
+  defp bid_view(game, bid, ref),
+    do: %{count: bid.count, face: bid.face, by: ref.(bid.by), blind?: game.bid_blind?}
 
   @spec person_ref(t(), person_id(), person_id()) :: person_ref()
   def person_ref(room, person_id, viewer) do

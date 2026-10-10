@@ -33,6 +33,10 @@ The one Player who may act right now, by Raising or Checking.
 **Round**:
 One cycle of rolling, Bids and Raises, ending in a Check.
 
+**Blind**:
+A Player who has chosen not to see their own dice this Round and Bids without looking, under the same rules as everyone. The choice is a switch that holds from Round to Round until turned off, and a blind Player may peek, which shows their dice for the rest of the Round and tells everyone they peeked.
+_Avoid_: Dark, hidden hand
+
 **Game**:
 A sequence of Rounds that ends when one Player is left who is not Knocked out.
 _Avoid_: Match
