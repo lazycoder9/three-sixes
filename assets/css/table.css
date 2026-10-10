@@ -259,7 +259,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "hand head check"
-    "hand opts check";
+    "hand opts check"
+    "hand opts keys";
   align-items: center;
   gap: 3px 20px;
   width: 860px;
@@ -387,13 +388,23 @@
 .pickdie:disabled {
   cursor: default;
 }
-.opts.is-off .pickdie {
+.opts.is-off .pickdie,
+.keyhint.is-off {
   opacity: 0.45;
 }
 .keyhint {
-  margin: 2px 0 0 calc(var(--step-w) + 6px);
+  grid-area: keys;
+  align-self: start;
+  margin: 0;
   color: var(--color-graphite-faint);
   font: 500 13px/1.4 var(--font-ui);
+  text-align: center;
+}
+.keyhint > span {
+  display: block;
+}
+.keyhint__dot {
+  display: none;
 }
 .my-page kbd {
   display: inline-block;
@@ -522,9 +533,12 @@
   .pickgap {
     width: 33px;
   }
-  .opts > .orow,
-  .keyhint {
+  .opts > .orow {
     margin-left: calc(var(--step-w) + 4px);
+  }
+  .keyhint > span,
+  .keyhint__dot {
+    display: inline;
   }
   .ostep {
     gap: 4px;
@@ -545,5 +559,10 @@
     min-height: 50px;
     margin-top: 4px;
     font-size: 19px;
+  }
+}
+@media (max-width: 720px) and (hover: hover) and (pointer: fine) {
+  .my-page {
+    grid-template-areas: "hand" "head" "opts" "keys" "check";
   }
 }

@@ -248,11 +248,13 @@ defmodule ThreeSixesWeb.TableComponents do
           <.orow :for={row <- @stepped} row={row} opening?={@opening?} off?={@off?} />
         </div>
       </div>
-      <p :if={@rows != []} class="keyhint">
-        <kbd>1</kbd>–<kbd>6</kbd> {if @opening?, do: "Bid", else: "Raise"}
-        <span :if={@stepped != []}>· <kbd>←</kbd> <kbd>→</kbd> fewer or more dice</span>
-      </p>
     </div>
+    <p :if={@rows != []} class={["keyhint", @off? && "is-off"]}>
+      <span><kbd>1</kbd>–<kbd>6</kbd> {if @opening?, do: "Bid", else: "Raise"}</span>
+      <span :if={@max_step > 0}>
+        <span class="keyhint__dot">·</span> <kbd>←</kbd> <kbd>→</kbd> fewer or more dice
+      </span>
+    </p>
     """
   end
 

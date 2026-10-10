@@ -307,25 +307,42 @@ defmodule ThreeSixesWeb.TableLiveTest do
       end
     end
 
-    test "a hint line under the Raises shows the other keys, and the step keys only with a stepped block" do
-      %{timur: timur, dana: dana} = table(~w(Timur Dana))
-      start(timur, [[2], [5]])
+    test "a hint line shows the other keys, and the step keys only with room to step" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+      start(timur, [[2], [5], [3]])
 
-      assert text(timur, "#my-page .opts .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
-      assert text(dana, "#my-page .opts .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
+      assert text(timur, "#my-page .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Bid · ← → fewer or more dice"
 
       press(timur, "Bid one four")
 
-      assert text(dana, "#my-page .keyhint") == "1 – 6 Raise · ← → fewer or more dice"
+      assert offers(dana) == [
+               {"1 ×", [5, 6]},
+               {"2 ×", [1, 2, 3, 4, 5, 6]},
+               {"3 ×", [1, 2, 3, 4, 5, 6]}
+             ]
 
-      press(dana, "Raise to two threes")
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Raise"
 
-      assert offers(timur) == [{"2 ×", [4, 5, 6]}]
-      assert text(timur, "#my-page .keyhint") == "1 – 6 Raise"
+      press(dana, "Raise to three sixes")
 
-      press(timur, "Raise to two sixes")
+      refute has_element?(malika, "#my-page .keyhint")
+    end
 
-      refute has_element?(dana, "#my-page .keyhint")
+    test "two Players on one die each open with no room to step, so the hint has no step keys" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert text(timur, "#my-page .keyhint") == "1 – 6 Bid"
+      assert text(dana, "#my-page .keyhint") == "1 – 6 Bid"
+    end
+
+    test "the hint is dimmed with the picker off turn" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert has_element?(timur, "#my-page .keyhint:not(.is-off)")
+      assert has_element?(dana, "#my-page .keyhint.is-off")
     end
   end
 
