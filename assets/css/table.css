@@ -66,7 +66,7 @@ body:has(.game-table) .table-main {
     min-height: 0;
   }
   .game-table[data-seated] {
-    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 630), 1.8px);
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 618), 1.8px);
   }
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
@@ -94,7 +94,7 @@ body:has(.game-table) .table-main {
   .game-table[data-seated] {
     --u: clamp(
       0.75px,
-      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 630),
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 618),
       1.8px
     );
   }
@@ -507,7 +507,7 @@ body:has(.game-table) .table-main {
   justify-content: center;
   align-items: center;
   gap: calc(14 * var(--u));
-  margin: calc(8 * var(--u)) 0 calc(20 * var(--u));
+  margin: calc(8 * var(--u)) 0 max(12px, calc(8 * var(--u)));
 }
 .my-dice .die {
   --d: calc(60 * var(--u));

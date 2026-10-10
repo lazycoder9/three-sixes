@@ -183,6 +183,8 @@
     --x: -1;
     top: -10px;
     bottom: auto;
+    animation-name: reaction-in, reaction-in;
+    animation-direction: normal, reverse;
   }
 }
 @keyframes reaction-in {
