@@ -275,7 +275,7 @@ defmodule ThreeSixesWeb.RoomLiveTest do
 
   defp close(code) do
     ref = code |> Rooms.whereis() |> Process.monitor()
-    :ok = DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, Rooms.whereis(code))
+    :ok = code |> Rooms.whereis() |> GenServer.stop()
     assert_receive {:DOWN, ^ref, :process, _pid, _reason}
   end
 
