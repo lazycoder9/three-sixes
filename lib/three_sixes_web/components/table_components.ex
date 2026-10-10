@@ -228,7 +228,7 @@ defmodule ThreeSixesWeb.TableComponents do
     ~H"""
     <div id="my-dice" class="my-dice" role="group" aria-label="Your dice">
       <.die
-        :for={{face, i} <- Enum.with_index(@game.my_dice)}
+        :for={{face, i} <- Enum.with_index(@game.my_dice || [])}
         id={"my-die-#{@game.round}-#{i}"}
         face={face}
         data-face={face}

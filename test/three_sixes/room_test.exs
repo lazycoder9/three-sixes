@@ -148,6 +148,7 @@ defmodule ThreeSixes.RoomTest do
              me: "Dana",
              removed?: false,
              sitting_out?: false,
+             blind?: false,
              playing?: false,
              host?: false,
              host_nickname: "Malika",
@@ -291,6 +292,178 @@ defmodule ThreeSixes.RoomTest do
 
       room = sit_out!(room, "guest:timur")
       assert %{dealt_in: 1, can_start?: false} = Room.view_for(room, @host)
+    end
+  end
+
+  describe "playing blind" do
+    defp blind!(room, person_id, on? \\ true) do
+      {:ok, room} = Room.blind(room, person_id, on?)
+      room
+    end
+
+    test "is a switch each member turns on and off, and the view tells them their own" do
+      room = blind!(lobby(), "guest:dana")
+
+      assert %{blind?: true} = Room.view_for(room, "guest:dana")
+      assert %{blind?: false} = Room.view_for(room, "guest:timur")
+      assert %{blind?: false} = Room.view_for(room, "guest:aziz")
+      assert %{blind?: false} = Room.view_for(blind!(room, "guest:dana", false), "guest:dana")
+    end
+
+    test "only a member can turn it on" do
+      assert Room.blind(lobby(), "guest:aziz", true) == {:error, :not_member}
+    end
+
+    defp deal(lobby) do
+      {:ok, room} = Room.start_game(lobby, @host, ["guest:dana", "guest:timur", @host])
+      Room.start_round(room, %{"guest:dana" => [6], "guest:timur" => [2], @host => [6]})
+    end
+
+    defp timur_blind, do: lobby() |> blind!("guest:timur") |> deal()
+
+    test "a blind Player holds no faces of their own until reveal step 1, then sees them" do
+      {:ok, raised} = Room.raise(timur_blind(), "guest:dana", 1, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+      {:ok, at_one} = Room.reveal(checked, 1, 1)
+
+      for room <- [timur_blind(), raised, checked] do
+        assert %{seated?: true, my_dice: nil} = Room.view_for(room, "guest:timur").game
+        assert %{my_dice: [6]} = Room.view_for(room, "guest:dana").game
+      end
+
+      assert %{my_dice: [2], seats: [%{faces: [2]} | _]} =
+               Room.view_for(at_one, "guest:timur").game
+    end
+
+    defp marks(room, viewer),
+      do: for(seat <- Room.view_for(room, viewer).game.seats, do: {seat.blind?, seat.peeked?})
+
+    test "every Player and Spectator sees the blind seat marked, and after a peek, marked peeked" do
+      room = enter!(timur_blind(), "guest:aziz", "Aziz")
+
+      for viewer <- ["guest:dana", @host, "guest:aziz"] do
+        assert {true, false} in marks(room, viewer)
+        assert Enum.count(marks(room, viewer), &(&1 == {false, false})) == 2
+      end
+
+      assert {:ok, peeked} = Room.peek(room, "guest:timur")
+      assert %{my_dice: [2]} = Room.view_for(peeked, "guest:timur").game
+
+      for viewer <- ["guest:timur", "guest:dana", @host, "guest:aziz"] do
+        assert {false, true} in marks(peeked, viewer)
+        refute {true, false} in marks(peeked, viewer)
+      end
+
+      assert Enum.map(Room.view_for(peeked, "guest:dana").game.seats, & &1.faces) ==
+               [nil, nil, nil]
+    end
+
+    test "a peek is refused to a seat not blind, after a Check, and with no Game" do
+      assert Room.peek(timur_blind(), "guest:dana") == {:error, :not_blind}
+
+      {:ok, raised} = Room.raise(timur_blind(), "guest:dana", 1, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+
+      assert Room.peek(checked, "guest:timur") == {:error, :not_bidding}
+      assert Room.peek(blind!(lobby(), "guest:timur"), "guest:timur") == {:error, :not_bidding}
+    end
+
+    test "a Bid made blind says so to everyone, and one made after a peek does not" do
+      {:ok, dana} = Room.raise(timur_blind(), "guest:dana", 1, 6)
+      {:ok, blind_bid} = Room.raise(dana, "guest:timur", 2, 6)
+      {:ok, peeked} = Room.peek(dana, "guest:timur")
+      {:ok, sighted_bid} = Room.raise(peeked, "guest:timur", 2, 6)
+
+      for viewer <- ["guest:timur", "guest:dana", @host] do
+        assert %{bid: %{blind?: false}} = Room.view_for(dana, viewer).game
+        assert %{bid: %{blind?: true, count: 2}} = Room.view_for(blind_bid, viewer).game
+        assert %{bid: %{blind?: false, count: 2}} = Room.view_for(sighted_bid, viewer).game
+      end
+    end
+
+    test "the marks stay through the reveal, and the next Round is dealt from the switches then" do
+      {:ok, raised} = Room.raise(timur_blind(), "guest:dana", 1, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+      {:ok, settled} = Room.reveal(checked, 1, 3)
+
+      assert {true, false} in marks(settled, @host)
+
+      {:roll, next} = Room.next_round(settled, 1)
+      next = blind!(next, "guest:timur", false) |> blind!("guest:dana")
+      next = Room.start_round(next, %{"guest:dana" => [1], "guest:timur" => [2, 3], @host => [4]})
+
+      assert marks(next, @host) == [{false, false}, {true, false}, {false, false}]
+      assert %{my_dice: [2, 3]} = Room.view_for(next, "guest:timur").game
+      assert %{my_dice: nil} = Room.view_for(next, "guest:dana").game
+    end
+
+    test "a Round voided by a leave is dealt again blind, a peek before it forgotten" do
+      {:ok, room} =
+        lobby()
+        |> blind!("guest:timur")
+        |> blind!("guest:dana")
+        |> deal()
+        |> Room.peek("guest:dana")
+
+      {:roll, room} = Room.leave(room, @host, [])
+      room = Room.start_round(room, %{"guest:dana" => [3], "guest:timur" => [4]})
+
+      assert %{my_dice: nil} = Room.view_for(room, "guest:timur").game
+      assert %{my_dice: nil} = Room.view_for(room, "guest:dana").game
+      assert marks(room, "guest:timur") == [{true, false}, {false, false}, {true, false}]
+    end
+
+    test "flipped mid-Round, the switch leaves the Round as it was dealt" do
+      on = blind!(deal(lobby()), "guest:dana")
+      off = blind!(timur_blind(), "guest:timur", false)
+
+      assert %{blind?: true, game: %{my_dice: [6]}} = Room.view_for(on, "guest:dana")
+      assert %{blind?: false, game: %{my_dice: nil}} = Room.view_for(off, "guest:timur")
+    end
+
+    test "a save keeps each switch and no Round's blind, and restores to be dealt again" do
+      {:ok, room} = Room.raise(timur_blind(), "guest:dana", 1, 6)
+
+      saved = Room.to_save(room)
+
+      assert %{blind: [], peeked: [], bid_blind?: false} = saved.game
+      assert {:roll, restored} = Room.restore(saved)
+      assert Enum.map(restored.members, & &1.blind?) == [true, false, false]
+
+      dealt =
+        Room.start_round(restored, %{"guest:dana" => [1], "guest:timur" => [2], @host => [3]})
+
+      assert %{my_dice: nil} = Room.view_for(dealt, "guest:timur").game
+    end
+
+    test "a save from before the switch restores everyone sighted, and its Game with no one blind" do
+      saved = Room.to_save(timur_blind())
+
+      older = %{
+        saved
+        | members: Enum.map(saved.members, &Map.delete(&1, :blind?)),
+          game: Map.drop(saved.game, [:blind, :peeked, :bid_blind?])
+      }
+
+      assert {:roll, room} = Room.restore(older)
+      assert Enum.all?(room.members, &(&1.blind? == false))
+      assert %{blind: [], peeked: [], bid_blind?: false} = room.game
+      assert %{blind?: false} = Room.view_for(room, "guest:timur")
+    end
+
+    test "a Guest's seat moved to their Account keeps the switch and the blind Round" do
+      {:ok, room} =
+        lobby() |> blind!("guest:timur") |> blind!(@host) |> deal() |> Room.peek(@host)
+
+      assert {:moved, room} = Room.move_seat(room, "guest:timur", "account:1")
+
+      assert %{blind?: true, game: %{my_dice: nil}} = Room.view_for(room, "account:1")
+      assert marks(room, "guest:dana") == [{false, false}, {true, false}, {false, true}]
+
+      assert {:moved, room} = Room.move_seat(room, @host, "account:2")
+
+      assert %{blind?: true, game: %{my_dice: [6]}} = Room.view_for(room, "account:2")
+      assert marks(room, "guest:dana") == [{false, false}, {true, false}, {false, true}]
     end
   end
 
@@ -692,7 +865,7 @@ defmodule ThreeSixes.RoomTest do
                my_turn?: true,
                can_check?: true,
                turn: @timur,
-               bid: %{count: 1, face: 6, by: @dana},
+               bid: %{count: 1, face: 6, by: @dana, blind?: false},
                three_sixes?: false,
                seats: [
                  %{
@@ -702,7 +875,9 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: true,
                    faces: nil,
                    penalty?: false,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  },
                  %{
                    person: @malika,
@@ -711,7 +886,9 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: false,
                    faces: nil,
                    penalty?: false,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  },
                  %{
                    person: @dana,
@@ -720,7 +897,9 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: false,
                    faces: nil,
                    penalty?: false,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  }
                ],
                reveal: nil,
@@ -770,7 +949,7 @@ defmodule ThreeSixes.RoomTest do
       assert Room.view_for(checked(), "guest:timur").game.reveal == %{
                step: 0,
                checker: @timur,
-               bid: %{count: 1, face: 6, by: @dana},
+               bid: %{count: 1, face: 6, by: @dana, blind?: false},
                count: nil,
                stood?: nil,
                loser: nil,
@@ -804,7 +983,7 @@ defmodule ThreeSixes.RoomTest do
                my_turn?: false,
                can_check?: false,
                turn: nil,
-               bid: %{count: 1, face: 6, by: @dana},
+               bid: %{count: 1, face: 6, by: @dana, blind?: false},
                three_sixes?: false,
                seats: [
                  %{
@@ -814,7 +993,9 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: false,
                    faces: [2],
                    penalty?: true,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  },
                  %{
                    person: @malika,
@@ -823,7 +1004,9 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: false,
                    faces: [6],
                    penalty?: false,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  },
                  %{
                    person: @dana,
@@ -832,13 +1015,15 @@ defmodule ThreeSixes.RoomTest do
                    on_turn?: false,
                    faces: [6],
                    penalty?: false,
-                   out?: false
+                   out?: false,
+                   blind?: false,
+                   peeked?: false
                  }
                ],
                reveal: %{
                  step: 3,
                  checker: @timur,
-                 bid: %{count: 1, face: 6, by: @dana},
+                 bid: %{count: 1, face: 6, by: @dana, blind?: false},
                  count: 2,
                  stood?: true,
                  loser: @timur,

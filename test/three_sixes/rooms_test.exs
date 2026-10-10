@@ -287,6 +287,73 @@ defmodule ThreeSixes.RoomsTest do
     assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 1}}}}
   end
 
+  describe "playing blind" do
+    defp dana_blind do
+      {code, dana} = table()
+      :ok = Rooms.blind(code, "guest:dana", true)
+      start(code, dana)
+      flush_views()
+      {code, dana}
+    end
+
+    test "the switch reaches every joined process, and the Round is dealt blind to that Player" do
+      {code, dana} = table()
+
+      assert Rooms.blind(code, "guest:dana", true) == :ok
+      assert_receive {:forwarded, ^dana, {:room_view, %{blind?: true}}}
+      assert_receive {:room_view, %{blind?: false}}
+
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{my_dice: nil, seats: [%{blind?: true} | _]}}}}
+
+      assert_receive {:room_view, %{game: %{my_dice: [6], seats: [_, %{blind?: true}]}}}
+    end
+
+    test "a peek shows the blind Player their dice, and every joined process the mark" do
+      {code, dana} = dana_blind()
+
+      assert Rooms.peek(code, "guest:dana") == :ok
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{my_dice: [2], seats: [%{peeked?: true} | _]}}}}
+
+      assert_receive {:room_view, %{game: %{seats: [_, %{blind?: false, peeked?: true}]}}}
+    end
+
+    test "a refused switch or peek replies an error and sends no view" do
+      {code, _dana} = dana_blind()
+
+      assert Rooms.blind(code, "guest:aziz", true) == {:error, :not_member}
+      assert Rooms.peek(code, @host) == {:error, :not_blind}
+
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      flush_after(Rooms.whereis(code))
+
+      assert Rooms.peek(code, "guest:dana") == {:error, :not_bidding}
+      refute_receive {:room_view, _view}
+      refute_receive {:forwarded, _pid, {:room_view, _view}}
+
+      close(code)
+
+      assert Rooms.blind(code, @host, true) == {:error, :closed}
+      assert Rooms.peek(code, @host) == {:error, :closed}
+    end
+
+    test "a restored Room keeps the switch, and deals its re-rolled Round blind to that Player" do
+      {code, _dana} = dana_blind()
+      shut_down(code)
+      Scripted.script([[4], [5]])
+
+      assert {:ok, %{blind?: true, game: game}} = Rooms.join(code, "guest:dana")
+      assert %{round: 2, my_dice: nil, seats: [%{blind?: true, peeked?: false} | _]} = game
+      assert %{blind?: false, game: %{my_dice: [4]}} = Rooms.join(code, @host) |> elem(1)
+    end
+  end
+
   describe "a Round" do
     test "runs from a Raise and a Check through the reveal to the next Round, opened by the loser" do
       {code, dana} = started()
