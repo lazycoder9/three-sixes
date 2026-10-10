@@ -62,7 +62,7 @@ defmodule ThreeSixesWeb.AccountLiveTest do
     assert_stat(view, "Average Placement", "2.2")
     assert_stat(view, "Checks won", "4")
     assert_stat(view, "Bluffs caught", "3")
-    assert has_element?(view, ~s(dl.score dd .tally[aria-label="2 wins"]))
+    assert has_element?(view, ~s(dl.score dd .tally[aria-hidden="true"]))
   end
 
   test "Recent Games lists my Games newest first, with the date, my Placement and the full Placement list",

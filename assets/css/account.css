@@ -64,7 +64,7 @@
   display: flex;
   align-items: baseline;
   gap: var(--spacing-2);
-  height: calc(var(--spacing-rule) * 2);
+  min-height: calc(var(--spacing-rule) * 2);
 }
 .score div::after {
   content: "";
@@ -86,6 +86,11 @@
   margin: 0;
   font: 700 40px/1 var(--font-scrawl);
 }
+.score .tally {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 
 .games {
   list-style: none;
@@ -94,7 +99,7 @@
 }
 .games > li {
   display: grid;
-  grid-template-columns: 58px 84px 1fr;
+  grid-template-columns: 58px minmax(84px, max-content) 1fr;
   gap: 0 var(--spacing-3);
   align-content: center;
   min-height: calc(var(--spacing-rule) * 2);

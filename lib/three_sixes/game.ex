@@ -177,23 +177,20 @@ defmodule ThreeSixes.Game do
 
   def advance_reveal(game, _step), do: game
 
-  defp penalize(%{reveal: reveal} = game, loser) do
-    check = %{
-      round: game.round,
-      checker: reveal.checker,
-      bidder: reveal.bid.by,
-      stood?: reveal.stood?
-    }
-
+  defp penalize(game, loser) do
     game = %{
       game
       | counts: Map.update!(game.counts, loser, &(&1 + 1)),
-        checks: game.checks ++ [check]
+        checks: game.checks ++ [check_of(game)]
     }
 
     if game.counts[loser] == @knocked_out_at and loser not in game.out,
       do: %{game | out: game.out ++ [loser]},
       else: game
+  end
+
+  defp check_of(%{reveal: reveal} = game) do
+    %{round: game.round, checker: reveal.checker, bidder: reveal.bid.by, stood?: reveal.stood?}
   end
 
   defp bidding?(game), do: game.turn != nil and game.reveal == nil
@@ -214,11 +211,16 @@ defmodule ThreeSixes.Game do
 
   defp knock_out(game, id) do
     cond do
-      over?(game) -> {:over, game}
+      over?(game) -> {:over, keep_unsettled_check(game)}
       game.reveal != nil -> {:ok, game}
       true -> {:void, void(game, id)}
     end
   end
+
+  defp keep_unsettled_check(%{reveal: %{step: step}} = game) when step < 3,
+    do: %{game | checks: game.checks ++ [check_of(game)]}
+
+  defp keep_unsettled_check(game), do: game
 
   defp void(game, leaver),
     do: %{game | turn: nil, bid: nil, said: %{}, dice: %{}, reveal: nil, voided_by: leaver}

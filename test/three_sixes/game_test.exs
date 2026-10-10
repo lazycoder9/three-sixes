@@ -345,6 +345,36 @@ defmodule ThreeSixes.GameTest do
              ]
     end
 
+    test "a leave that ends the Game during the reveal keeps that Check, with no Penalty die" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      checked =
+        game |> Game.start_round(%{"a" => [2], "b" => [5]}) |> raise!("a", 2, 5) |> check!("b")
+
+      for step <- 0..2 do
+        game = if step == 0, do: checked, else: Game.advance_reveal(checked, step)
+
+        assert {:over, game} = Game.leave(game, "a")
+        assert game.checks == [%{round: 2, checker: "b", bidder: "a", stood?: false}]
+        assert game.counts == %{"a" => 1, "b" => 1, "c" => 1}
+        assert Game.placement(game) == ["b", "a", "c"]
+      end
+    end
+
+    test "a leave that ends the Game after the Penalty die keeps the Check once" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      settled =
+        game
+        |> Game.start_round(%{"a" => [2], "b" => [5]})
+        |> raise!("a", 2, 5)
+        |> check!("b")
+        |> Game.advance_reveal(3)
+
+      assert {:over, game} = Game.leave(settled, "b")
+      assert game.checks == [%{round: 2, checker: "b", bidder: "a", stood?: false}]
+    end
+
     test "a Round voided before any Check keeps none" do
       {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
 

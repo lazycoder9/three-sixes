@@ -1126,7 +1126,7 @@ defmodule ThreeSixes.RoomTest do
              }
     end
 
-    test "after a leave that ends the Game keeps the leaver's Nickname, place and earlier Checks" do
+    test "after a leave in the reveal that ends the Game keeps the leaver's Nickname, place and every Check" do
       {:roll, room} = Room.next_round(dana_loses(%{}, [@host]), 1)
 
       {:ok, before} =
@@ -1134,6 +1134,7 @@ defmodule ThreeSixes.RoomTest do
         |> Room.start_round(%{"guest:dana" => [2, 2], "guest:timur" => [3]})
         |> Room.raise("guest:dana", 1, 2)
 
+      {:ok, before} = Room.check(before, "guest:timur")
       {:ok, room} = Room.leave(before, "guest:timur", [])
 
       assert %{
@@ -1143,7 +1144,10 @@ defmodule ThreeSixes.RoomTest do
                  %{person_id: "guest:timur", nickname: "Timur", place: 2},
                  %{person_id: @host, nickname: "Malika", place: 3}
                ],
-               checks: [%{round: 1, checker: "guest:timur", bidder: "guest:dana", stood?: false}]
+               checks: [
+                 %{round: 1, checker: "guest:timur", bidder: "guest:dana", stood?: false},
+                 %{round: 2, checker: "guest:timur", bidder: "guest:dana", stood?: true}
+               ]
              } = Room.finished(before, room)
     end
   end
