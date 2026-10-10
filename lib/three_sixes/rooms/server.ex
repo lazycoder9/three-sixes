@@ -49,16 +49,19 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp restored(saved, closes_at) do
-    case Room.restore(saved) do
-      {:roll, room} ->
-        room |> roll() |> state(closes_at) |> all_away() |> unsaved()
+    state =
+      case Room.restore(saved) do
+        {:roll, room} ->
+          room |> roll() |> state(closes_at) |> all_away() |> unsaved()
 
-      {:ok, room} ->
-        room
-        |> state(closes_at)
-        |> all_away()
-        |> finished_on_restore(Room.finished(saved, room))
-    end
+        {:ok, room} ->
+          room
+          |> state(closes_at)
+          |> all_away()
+          |> finished_on_restore(Room.finished(saved, room))
+      end
+
+    arm_handover(state)
   end
 
   defp all_away(%{room: room} = state) do
@@ -92,7 +95,9 @@ defmodule ThreeSixes.Rooms.Server do
       closes_at: closes_at,
       changed?: false,
       save_timer: nil,
-      refresh_timer: nil
+      refresh_timer: nil,
+      handover_timer: nil,
+      vote_timer: nil
     })
   end
 
@@ -118,7 +123,8 @@ defmodule ThreeSixes.Rooms.Server do
         {:reply, {:ok, Room.view_for(room, person_id)}, state}
 
       {:ok, room} ->
-        {:reply, {:ok, Room.view_for(room, person_id)}, changed(state, room)}
+        state = changed(state, room)
+        {:reply, {:ok, Room.view_for(state.room, person_id)}, state}
 
       refused ->
         {:reply, refused, state}
@@ -185,6 +191,20 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
+  def handle_call({:start_vote, person_id}, _from, state) do
+    case Room.start_vote(state.room, person_id, state.now.()) do
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:vote, person_id, yes?}, _from, state) do
+    case Room.vote(state.room, person_id, yes?, state.now.()) do
+      {:ok, room} -> {:reply, :ok, changed_if_new(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
   def handle_call({:react, person_id, key}, _from, state) do
     cond do
       not Room.member?(state.room, person_id) ->
@@ -246,6 +266,16 @@ defmodule ThreeSixes.Rooms.Server do
     do: {:noreply, refresh(%{state | refresh_timer: nil})}
 
   def handle_info({:timeout, _stale, :refresh}, state), do: {:noreply, state}
+
+  def handle_info({:timeout, timer, :handover}, %{handover_timer: {timer, _ends_at}} = state),
+    do: {:noreply, changed_if_new(state, Room.hand_over(state.room, &Dice.shuffle/1))}
+
+  def handle_info({:timeout, _stale, :handover}, state), do: {:noreply, state}
+
+  def handle_info({:timeout, timer, :vote}, %{vote_timer: {timer, _ends_at}} = state),
+    do: {:noreply, changed_if_new(state, Room.vote_over(state.room, state.now.()))}
+
+  def handle_info({:timeout, _stale, :vote}, state), do: {:noreply, state}
 
   def handle_info(:save, state), do: {:noreply, save(%{state | save_timer: nil})}
 
@@ -355,10 +385,35 @@ defmodule ThreeSixes.Rooms.Server do
   defp changed_if_new(state, room), do: changed(state, room)
 
   defp changed(state, room) do
+    room = Room.settle_handover(room, state.now.(), &Dice.shuffle/1)
     record(Room.finished(state.room, room))
-    state = unsaved(%{state | room: room})
+    state = arm_handover(unsaved(%{state | room: room}))
     send_views(state)
     state
+  end
+
+  defp arm_handover(%{room: %{handover: handover}} = state) do
+    state
+    |> arm(:handover_timer, :handover, get_in(handover, [:ends_at]))
+    |> arm(:vote_timer, :vote, get_in(handover, [:vote, :ends_at]))
+  end
+
+  defp arm(state, key, message, ends_at) do
+    case Map.fetch!(state, key) do
+      {_timer, ^ends_at} ->
+        state
+
+      {timer, _old} ->
+        :erlang.cancel_timer(timer)
+        arm(%{state | key => nil}, key, message, ends_at)
+
+      nil when ends_at == nil ->
+        state
+
+      nil ->
+        wait = max(ends_at - state.now.(), 0)
+        %{state | key => {:erlang.start_timer(wait, self(), message), ends_at}}
+    end
   end
 
   defp record(nil), do: :ok

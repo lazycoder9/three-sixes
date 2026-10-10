@@ -234,6 +234,18 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  test "a change that passes no Host role leaves the scripted seat order for the Game" do
+    {code, dana} = table()
+    Scripted.script_seats(["guest:dana", @host])
+    :ok = Rooms.sit_out(code, "guest:dana", false)
+    Scripted.script([[3], [5]])
+
+    assert Rooms.start_game(code, @host) == :ok
+
+    assert_receive {:forwarded, ^dana,
+                    {:room_view, %{game: %{turn: %{nickname: "Dana"}, my_dice: [3]}}}}
+  end
+
   describe "sitting out" do
     test "every joined process gets the flag, and the next Game is dealt to the others" do
       {code, dana} = table()
@@ -803,6 +815,178 @@ defmodule ThreeSixes.RoomsTest do
 
       :sys.get_state(Rooms.whereis(code))
       refute_receive {:room_view, _view}
+    end
+  end
+
+  describe "the Host Away" do
+    defp host_away do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      host = join_from_another_process(code, @host)
+      dana = join_from_another_process(code, "guest:dana")
+      timur = join_from_another_process(code, "guest:timur")
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+      leave(host)
+      flush_after(room)
+      {code, room, dana, timur}
+    end
+
+    defp timeout(room, key, message) do
+      assert {timer, _ends_at} = Map.fetch!(:sys.get_state(room), key)
+      {:timeout, timer, message}
+    end
+
+    test "the Host's last process exiting arms the handover for 2 minutes on, and the rest see it" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      host = join_from_another_process(code, @host)
+      dana = join_from_another_process(code, "guest:dana")
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+
+      leave(host)
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{host_away: %{since: 1_000, ends_at: 121_000, vote: nil}}}}
+
+      assert %{handover_timer: {timer, 121_000}, vote_timer: nil} = :sys.get_state(room)
+      assert :erlang.read_timer(timer) in 119_000..120_000
+    end
+
+    test "the handover timeout hands the role to someone connected, and every process sees it" do
+      {_code, room, dana, timur} = host_away()
+      Scripted.script_seats(["guest:timur", "guest:dana"])
+
+      send(room, timeout(room, :handover_timer, :handover))
+
+      assert_receive {:forwarded, ^timur, {:room_view, %{host?: true, host_away: nil}}}
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{host_nickname: "Timur", host_away: nil}}}
+
+      assert %{handover_timer: nil, room: %{host_id: "guest:timur"}} = :sys.get_state(room)
+    end
+
+    test "a stale handover or vote timeout changes nothing" do
+      {_code, room, _dana, _timur} = host_away()
+
+      assert_ignored(room, [
+        {:timeout, make_ref(), :handover},
+        {:timeout, make_ref(), :vote}
+      ])
+    end
+
+    test "a vote arms its 30 seconds, and their timeout fails it for everyone" do
+      {code, room, dana, timur} = host_away()
+
+      assert Rooms.start_vote(code, "guest:dana") == :ok
+
+      assert_receive {:forwarded, ^timur,
+                      {:room_view, %{host_away: %{vote: %{yes: 1, of: 2, ends_at: 31_000}}}}}
+
+      assert %{vote_timer: {timer, 31_000}} = :sys.get_state(room)
+      assert :erlang.read_timer(timer) in 29_000..30_000
+
+      send(room, timeout(room, :vote_timer, :vote))
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{host_away: %{vote: nil, vote_again_at: 31_000}}}}
+
+      assert %{vote_timer: nil, room: %{host_id: @host}} = :sys.get_state(room)
+      assert Rooms.start_vote(code, "guest:timur") == {:error, :too_soon}
+    end
+
+    test "a yes from everyone connected hands the role over at once, and both timers stop" do
+      {code, room, dana, timur} = host_away()
+      :ok = Rooms.start_vote(code, "guest:dana")
+      Scripted.script_seats(["guest:dana", "guest:timur"])
+
+      assert Rooms.vote(code, "guest:timur", true) == :ok
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{host?: true, host_away: nil}}}
+      assert_receive {:forwarded, ^timur, {:room_view, %{host_nickname: "Dana"}}}
+      assert %{handover_timer: nil, vote_timer: nil} = :sys.get_state(room)
+    end
+
+    test "a no fails the vote, and the Host stays" do
+      {code, room, _dana, timur} = host_away()
+      :ok = Rooms.start_vote(code, "guest:dana")
+
+      assert Rooms.vote(code, "guest:timur", false) == :ok
+
+      assert_receive {:forwarded, ^timur,
+                      {:room_view, %{host_away: %{vote: nil, vote_again_at: 31_000}}}}
+
+      assert %{vote_timer: nil, room: %{host_id: @host}} = :sys.get_state(room)
+    end
+
+    test "the Host joining again cancels the handover and the vote, and they stay Host" do
+      {code, room, dana, _timur} = host_away()
+      :ok = Rooms.start_vote(code, "guest:dana")
+
+      assert {:ok, %{host?: true, host_away: nil}} = Rooms.join(code, @host)
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{host_nickname: "Malika", host_away: nil}}}
+
+      assert %{handover_timer: nil, vote_timer: nil} = :sys.get_state(room)
+    end
+
+    test "with nobody connected when the 2 minutes run out, the next to enter takes the role" do
+      {:ok, code} = Rooms.create(@host, @address)
+      host = join_from_another_process(code, @host)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+      leave(host)
+      send(room, timeout(room, :handover_timer, :handover))
+
+      assert %{room: %{host_id: @host}} = :sys.get_state(room)
+
+      :sys.replace_state(room, &%{&1 | now: fn -> 200_000 end})
+
+      assert {:ok, %{host?: true, host_away: nil}} = Rooms.enter(code, "guest:dana", "Dana")
+    end
+
+    test "a refused vote replies an error and sends nothing" do
+      {code, _room, _dana, _timur} = host_away()
+
+      assert Rooms.vote(code, "guest:dana", true) == {:error, :no_vote}
+      assert Rooms.start_vote(code, "guest:aziz") == {:error, :not_member}
+      :ok = Rooms.start_vote(code, "guest:dana")
+      flush_views()
+
+      assert Rooms.start_vote(code, "guest:timur") == {:error, :voting}
+      assert Rooms.vote(code, "guest:dana", true) == :ok
+      refute_receive {:forwarded, _pid, {:room_view, _view}}
+
+      close(code)
+
+      assert Rooms.start_vote(code, "guest:dana") == {:error, :closed}
+      assert Rooms.vote(code, "guest:dana", true) == {:error, :closed}
+    end
+
+    test "a restored Room arms the handover and the vote again from their saved deadlines" do
+      now = System.system_time(:millisecond)
+      {:ok, room} = "KQXT" |> Room.new(@host) |> Room.enter(@host, "Malika")
+      {:ok, room} = Room.enter(room, "guest:dana", "Dana")
+      room = room |> Room.away(@host, now) |> Room.settle_handover(now, & &1)
+      {:ok, room} = Room.start_vote(room, "guest:dana", now)
+      room = Room.away(room, "guest:dana", now)
+      Repo.insert!(%Save{code: "KQXT", room: :erlang.term_to_binary(Room.to_save(room))})
+
+      assert Rooms.sit_out("KQXT", "guest:aziz", true) == {:error, :not_member}
+
+      state = :sys.get_state(Rooms.whereis("KQXT"))
+      handover_ends_at = now + :timer.minutes(2)
+      vote_ends_at = now + :timer.seconds(30)
+
+      assert {handover, ^handover_ends_at} = state.handover_timer
+      assert {vote, ^vote_ends_at} = state.vote_timer
+      assert :erlang.read_timer(handover) in :timer.seconds(110)..:timer.seconds(120)
+      assert :erlang.read_timer(vote) in :timer.seconds(20)..:timer.seconds(30)
     end
   end
 

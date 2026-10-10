@@ -4,8 +4,20 @@ defmodule ThreeSixes.Room do
   @enforce_keys [:code, :host_id]
   @max_nickname_length 16
   @capacity 30
+  @handover_after :timer.minutes(2)
+  @vote_for :timer.seconds(30)
+  @vote_again_after :timer.seconds(30)
 
-  defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil, away: %{}]
+  defstruct [
+    :code,
+    :host_id,
+    members: [],
+    game: nil,
+    tally: %{},
+    last: nil,
+    away: %{},
+    handover: nil
+  ]
 
   @type person_id :: String.t()
   @type member :: %{
@@ -75,7 +87,29 @@ defmodule ThreeSixes.Room do
           game: game_view() | nil,
           spectators: [%{person: person_ref(), out?: boolean()}],
           away: %{pos_integer() => integer()},
+          host_away:
+            %{
+              since: integer(),
+              ends_at: integer(),
+              vote:
+                %{
+                  by: person_ref(),
+                  yes: non_neg_integer(),
+                  of: non_neg_integer(),
+                  ends_at: integer(),
+                  said_yes?: boolean()
+                }
+                | nil,
+              vote_again_at: integer() | nil
+            }
+            | nil,
           over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil
+        }
+  @type handover :: %{
+          host: person_id(),
+          ends_at: integer(),
+          vote: %{by: person_id(), yes: [person_id()], ends_at: integer()} | nil,
+          vote_again_at: integer() | nil
         }
   @type t :: %__MODULE__{
           code: String.t(),
@@ -84,7 +118,8 @@ defmodule ThreeSixes.Room do
           game: Game.t() | nil,
           tally: %{person_id() => pos_integer()},
           last: %{placement: [person_id()], rounds: pos_integer(), checks: [Game.check()]} | nil,
-          away: %{person_id() => integer()}
+          away: %{person_id() => integer()},
+          handover: handover() | nil
         }
   @type finished :: %{
           room_code: String.t(),
@@ -279,7 +314,29 @@ defmodule ThreeSixes.Room do
         {wins, tally} -> Map.update(tally, to, wins, &(&1 + wins))
       end
 
-    %{room | host_id: host_after_move(room, from, to), tally: tally}
+    %{
+      room
+      | host_id: host_after_move(room, from, to),
+        tally: tally,
+        handover: room.handover && handover_after_move(room.handover, from, to)
+    }
+  end
+
+  defp handover_after_move(handover, from, to) do
+    rename = fn
+      ^from -> to
+      id -> id
+    end
+
+    vote =
+      handover.vote &&
+        %{
+          handover.vote
+          | by: rename.(handover.vote.by),
+            yes: handover.vote.yes |> Enum.map(rename) |> Enum.uniq()
+        }
+
+    %{handover | host: rename.(handover.host), vote: vote}
   end
 
   defp host_after_move(%{host_id: from}, from, to), do: to
@@ -325,6 +382,84 @@ defmodule ThreeSixes.Room do
 
   @spec back(t(), person_id()) :: t()
   def back(room, id), do: %{room | away: Map.delete(room.away, id)}
+
+  defp connected(room),
+    do: for(%{id: id} <- present(room), not Map.has_key?(room.away, id), do: id)
+
+  @spec settle_handover(t(), integer(), ([person_id()] -> [person_id()])) :: t()
+  def settle_handover(room, now, shuffle) do
+    room = %{room | handover: handover(room, now)}
+
+    if room.handover != nil and (now >= room.handover.ends_at or vote_passes?(room)),
+      do: hand_over(room, shuffle),
+      else: room
+  end
+
+  defp vote_passes?(%{handover: %{vote: %{yes: yes}}} = room) do
+    case voters(room) do
+      [] -> false
+      voters -> Enum.all?(voters, &(&1 in yes))
+    end
+  end
+
+  defp vote_passes?(_room), do: false
+
+  defp voters(room), do: connected(room) -- [room.handover.host]
+
+  defp handover(%{host_id: id, handover: handover} = room, now) do
+    cond do
+      not Map.has_key?(room.away, id) -> nil
+      match?(%{host: ^id}, handover) -> handover
+      true -> %{host: id, ends_at: now + @handover_after, vote: nil, vote_again_at: nil}
+    end
+  end
+
+  @spec hand_over(t(), ([person_id()] -> [person_id()])) :: t()
+  def hand_over(%{handover: %{}} = room, shuffle) do
+    case shuffle.(voters(room)) do
+      [id | _] -> %{room | host_id: id, handover: nil}
+      [] -> room
+    end
+  end
+
+  def hand_over(room, _shuffle), do: room
+
+  @spec start_vote(t(), person_id(), integer()) ::
+          {:ok, t()} | {:error, :no_handover | :not_member | :voting | :too_soon}
+  def start_vote(%{handover: nil}, _by, _now), do: {:error, :no_handover}
+
+  def start_vote(%{handover: handover} = room, by, now) do
+    cond do
+      by not in connected(room) -> {:error, :not_member}
+      handover.vote != nil -> {:error, :voting}
+      now < (handover.vote_again_at || now) -> {:error, :too_soon}
+      true -> {:ok, put_vote(room, %{by: by, yes: [by], ends_at: now + @vote_for})}
+    end
+  end
+
+  @spec vote(t(), person_id(), boolean(), integer()) ::
+          {:ok, t()} | {:error, :no_vote | :not_member}
+  def vote(%{handover: %{vote: %{} = vote}} = room, by, yes?, now) when is_boolean(yes?) do
+    cond do
+      by not in connected(room) -> {:error, :not_member}
+      not yes? -> {:ok, vote_failed(room, now)}
+      by in vote.yes -> {:ok, room}
+      true -> {:ok, put_vote(room, %{vote | yes: vote.yes ++ [by]})}
+    end
+  end
+
+  def vote(_room, _by, yes?, _now) when is_boolean(yes?), do: {:error, :no_vote}
+
+  @spec vote_over(t(), integer()) :: t()
+  def vote_over(%{handover: %{vote: %{ends_at: ends_at}}} = room, now),
+    do: vote_failed(room, min(now, ends_at))
+
+  def vote_over(room, _now), do: room
+
+  defp put_vote(room, vote), do: %{room | handover: %{room.handover | vote: vote}}
+
+  defp vote_failed(room, now),
+    do: %{room | handover: %{room.handover | vote: nil, vote_again_at: now + @vote_again_after}}
 
   @spec dealt_in(t()) :: [person_id()]
   def dealt_in(room) do
@@ -475,7 +610,32 @@ defmodule ThreeSixes.Room do
       game: room.game && game_view(room, room.game, person_id),
       spectators: spectators(room, person_id),
       away: away_view(room, person_id),
+      host_away: host_away_view(room, person_id),
       over: over_view(room, person_id)
+    }
+  end
+
+  defp host_away_view(%{handover: nil}, _viewer), do: nil
+  defp host_away_view(%{handover: %{host: viewer}}, viewer), do: nil
+
+  defp host_away_view(%{handover: handover} = room, viewer) do
+    %{
+      since: room.away[handover.host],
+      ends_at: handover.ends_at,
+      vote: handover.vote && vote_view(room, handover.vote, viewer),
+      vote_again_at: handover.vote_again_at
+    }
+  end
+
+  defp vote_view(room, vote, viewer) do
+    voters = voters(room)
+
+    %{
+      by: person_ref(room, vote.by, viewer),
+      yes: Enum.count(voters, &(&1 in vote.yes)),
+      of: length(voters),
+      ends_at: vote.ends_at,
+      said_yes?: viewer in vote.yes
     }
   end
 

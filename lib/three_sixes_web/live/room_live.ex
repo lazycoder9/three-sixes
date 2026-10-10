@@ -206,8 +206,23 @@ defmodule ThreeSixesWeb.RoomLive do
     end
   end
 
-  def handle_event(event, _params, socket) when event in ~w(raise step sit_out key react),
-    do: {:noreply, socket}
+  def handle_event("pass_host_now", _params, socket) do
+    %{code: code, person_id: person_id} = socket.assigns
+
+    with {:error, :voting} <- Rooms.start_vote(code, person_id),
+         do: Rooms.vote(code, person_id, true)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("vote", %{"yes" => yes}, socket) when yes in ~w(true false) do
+    Rooms.vote(socket.assigns.code, socket.assigns.person_id, yes == "true")
+    {:noreply, socket}
+  end
+
+  def handle_event(event, _params, socket)
+      when event in ~w(raise step sit_out key react vote),
+      do: {:noreply, socket}
 
   defp enter(socket, nickname) do
     case Rooms.enter(socket.assigns.code, socket.assigns.person_id, nickname) do
@@ -369,6 +384,9 @@ defmodule ThreeSixesWeb.RoomLive do
           host?={@view.host?}
         />
       </:banner>
+      <:banner :if={@view.host_away}>
+        <.host_away_banner host={@view.host_nickname} away={@view.host_away} now={@now} />
+      </:banner>
       <.game_table
         game={@view.game}
         step={@step}
@@ -394,6 +412,9 @@ defmodule ThreeSixesWeb.RoomLive do
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
     >
+      <:banner :if={@view.host_away}>
+        <.host_away_banner host={@view.host_nickname} away={@view.host_away} now={@now} />
+      </:banner>
       <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} now={@now} />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>

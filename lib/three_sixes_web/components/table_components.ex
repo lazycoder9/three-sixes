@@ -443,6 +443,43 @@ defmodule ThreeSixesWeb.TableComponents do
     """
   end
 
+  attr :host, :string, required: true
+  attr :away, :map, required: true
+  attr :now, :integer, required: true
+
+  def host_away_banner(%{away: %{vote: nil}} = assigns) do
+    ~H"""
+    <.sticky_note id="host-away" class="banner">
+      <span>
+        Host <b>{@host}</b> is away {clock(@now - @away.since)}.
+        The role passes on in {clock(@away.ends_at - @now)}.
+      </span>
+      <span :if={too_soon?(@away, @now)}>
+        The vote failed. Ask again in {clock(@away.vote_again_at - @now)}.
+      </span>
+      <.block :if={!too_soon?(@away, @now)} phx-click="pass_host_now">Pass Host now</.block>
+    </.sticky_note>
+    """
+  end
+
+  def host_away_banner(%{away: %{vote: vote}} = assigns) do
+    assigns = assign(assigns, vote: vote, left: clock(vote.ends_at - assigns.now))
+
+    ~H"""
+    <.sticky_note id="host-away" class="banner">
+      <span>
+        <b>Pass Host now?</b> {name(@vote.by)} asked. {@vote.yes} of {@vote.of} said yes. {@left} left.
+      </span>
+      <span :if={@vote.said_yes?} class="faint">You said yes.</span>
+      <.block :if={!@vote.said_yes?} phx-click="vote" phx-value-yes="true">Yes</.block>
+      <.block :if={!@vote.said_yes?} phx-click="vote" phx-value-yes="false">No</.block>
+    </.sticky_note>
+    """
+  end
+
+  defp too_soon?(%{vote_again_at: at}, now) when is_integer(at), do: now < at
+  defp too_soon?(_away, _now), do: false
+
   attr :since, :integer, required: true
   attr :now, :integer, required: true
   attr :class, :string, default: nil

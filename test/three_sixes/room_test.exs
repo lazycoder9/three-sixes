@@ -156,6 +156,7 @@ defmodule ThreeSixes.RoomTest do
              game: nil,
              spectators: [],
              away: %{},
+             host_away: nil,
              over: nil
            }
 
@@ -1151,6 +1152,256 @@ defmodule ThreeSixes.RoomTest do
     end
   end
 
+  describe "the Host Away" do
+    defp no_shuffle(_connected), do: flunk("shuffled with no handover")
+
+    defp host_away(room \\ lobby(), at \\ 1_000),
+      do: room |> Room.away(@host, at) |> Room.settle_handover(at, &no_shuffle/1)
+
+    test "starts the handover: the role passes on 2 minutes after the Host went Away" do
+      room = host_away()
+
+      assert room.handover == %{host: @host, ends_at: 121_000, vote: nil, vote_again_at: nil}
+      assert Room.settle_handover(room, 120_999, &no_shuffle/1).host_id == @host
+      assert Room.settle_handover(room, 121_000, &Enum.reverse/1).host_id == "guest:dana"
+    end
+
+    test "settling again keeps the handover running from when it started" do
+      room = Room.settle_handover(host_away(), 50_000, &no_shuffle/1)
+
+      assert room.handover.ends_at == 121_000
+    end
+
+    test "is nothing while the Host is connected, or with no Host" do
+      assert Room.settle_handover(lobby(), 1_000, &no_shuffle/1).handover == nil
+
+      {:ok, hostless} = Room.leave(enter!(room(), @host, "Malika"), @host, [])
+      assert Room.settle_handover(hostless, 1_000, &no_shuffle/1).handover == nil
+    end
+
+    test "the Host coming back cancels it and any vote, and they stay Host" do
+      {:ok, room} = Room.start_vote(host_away(), "guest:dana", 2_000)
+
+      room = room |> Room.back(@host) |> Room.settle_handover(200_000, &no_shuffle/1)
+
+      assert room.handover == nil
+      assert room.host_id == @host
+    end
+
+    test "a new Host who is Away gets their own fresh 2 minutes" do
+      room = lobby() |> Room.away("guest:dana", 1_000) |> host_away(2_000)
+      {:ok, room} = Room.make_host(room, @host, 3)
+
+      room = Room.settle_handover(room, 50_000, &no_shuffle/1)
+
+      assert room.handover == %{
+               host: "guest:dana",
+               ends_at: 170_000,
+               vote: nil,
+               vote_again_at: nil
+             }
+    end
+
+    test "when the 2 minutes run out, the role goes to someone connected, in the order shuffled" do
+      room =
+        lobby() |> enter!("guest:aziz", "Aziz") |> host_away() |> Room.away("guest:dana", 5_000)
+
+      assert %{host_id: "guest:timur", handover: nil} = Room.settle_handover(room, 121_000, & &1)
+      assert %{host_id: "guest:aziz"} = Room.settle_handover(room, 121_000, &Enum.reverse/1)
+    end
+
+    test "with nobody connected the role stays, and goes to the first person back" do
+      room = host_away() |> Room.away("guest:dana", 1_000) |> Room.away("guest:timur", 1_000)
+
+      room = Room.settle_handover(room, 121_000, & &1)
+
+      assert room.host_id == @host
+      assert room.handover.ends_at == 121_000
+
+      room = room |> Room.back("guest:timur") |> Room.settle_handover(130_000, & &1)
+
+      assert room.host_id == "guest:timur"
+      assert room.handover == nil
+    end
+
+    test "the timer's handover passes the role before the deadline, to someone connected" do
+      room = Room.away(host_away(), "guest:dana", 5_000)
+      nobody = Room.away(room, "guest:timur", 5_000)
+
+      assert %{host_id: "guest:timur", handover: nil} = Room.hand_over(room, & &1)
+      assert Room.hand_over(nobody, & &1) == nobody
+      assert Room.hand_over(lobby(), &no_shuffle/1) == lobby()
+    end
+  end
+
+  describe "the vote to pass the Host role" do
+    defp voting(room \\ lobby()) do
+      {:ok, room} = room |> host_away() |> Room.start_vote("guest:dana", 5_000)
+      room
+    end
+
+    defp vote!(room, by, yes? \\ true, at \\ 6_000) do
+      {:ok, room} = Room.vote(room, by, yes?, at)
+      room
+    end
+
+    defp settle(room), do: Room.settle_handover(room, 7_000, & &1)
+
+    test "passes once every connected person said yes, a Spectator included, the starter counted" do
+      room = playing() |> enter!("guest:aziz", "Aziz") |> voting() |> vote!("guest:timur")
+
+      assert settle(room).host_id == @host
+
+      passed = room |> vote!("guest:aziz") |> settle()
+
+      assert passed.host_id == "guest:timur"
+      assert passed.handover == nil
+    end
+
+    test "an Away person is neither needed nor counted, so a lone connected starter passes it" do
+      room = voting() |> Room.away("guest:timur", 5_500)
+
+      assert settle(room).host_id == "guest:dana"
+    end
+
+    test "with nobody connected it never passes" do
+      room = voting() |> Room.away("guest:dana", 5_500) |> Room.away("guest:timur", 5_500)
+
+      assert settle(room).host_id == @host
+    end
+
+    test "a yes from someone already in, or a second yes, changes nothing" do
+      room = vote!(voting(), "guest:timur")
+
+      assert Room.vote(room, "guest:timur", true, 6_500) == {:ok, room}
+      assert Room.vote(room, "guest:dana", true, 6_500) == {:ok, room}
+    end
+
+    test "fails on the first no, and a new vote cannot start for 30 seconds" do
+      room = vote!(voting(), "guest:timur", false, 10_000)
+
+      assert room.handover.vote == nil
+      assert room.handover.vote_again_at == 40_000
+      assert settle(room).host_id == @host
+      assert Room.start_vote(room, "guest:timur", 39_999) == {:error, :too_soon}
+
+      assert {:ok, %{handover: %{vote: %{by: "guest:timur"}}}} =
+               Room.start_vote(room, "guest:timur", 40_000)
+    end
+
+    test "fails when its 30 seconds run out, the same as a no" do
+      assert voting().handover.vote.ends_at == 35_000
+
+      room = Room.vote_over(voting(), 35_000)
+
+      assert room.handover.vote == nil
+      assert room.handover.vote_again_at == 65_000
+      assert Room.vote_over(room, 70_000) == room
+    end
+
+    test "ended late, as after a restore, still waits from its deadline, not from when it ended" do
+      room = Room.vote_over(voting(), 50_000)
+
+      assert room.handover.vote_again_at == 65_000
+    end
+
+    test "starts only while the Host is Away, from someone connected, with no vote open" do
+      {:ok, left} = Room.leave(host_away(), "guest:timur", [])
+      room = Room.away(host_away(), "guest:timur", 2_000)
+
+      assert Room.start_vote(lobby(), "guest:dana", 5_000) == {:error, :no_handover}
+      assert Room.start_vote(room, "guest:timur", 5_000) == {:error, :not_member}
+      assert Room.start_vote(room, "guest:aziz", 5_000) == {:error, :not_member}
+      assert Room.start_vote(left, "guest:timur", 5_000) == {:error, :not_member}
+      assert Room.start_vote(voting(), "guest:timur", 5_000) == {:error, :voting}
+    end
+
+    test "a vote is taken only while one is open, from someone connected" do
+      room = Room.away(voting(), "guest:timur", 5_500)
+
+      assert Room.vote(host_away(), "guest:dana", true, 6_000) == {:error, :no_vote}
+      assert Room.vote(room, "guest:timur", true, 6_000) == {:error, :not_member}
+      assert Room.vote(room, "guest:timur", false, 6_000) == {:error, :not_member}
+      assert Room.vote(room, "guest:aziz", false, 6_000) == {:error, :not_member}
+    end
+  end
+
+  describe "the view of the Host Away" do
+    defp host_away_view(room, viewer), do: Room.view_for(room, viewer).host_away
+
+    test "shows everyone but the Host since when, and when the role passes on" do
+      room = host_away()
+
+      for viewer <- ["guest:timur", "guest:dana", "guest:aziz"] do
+        assert host_away_view(room, viewer) ==
+                 %{since: 1_000, ends_at: 121_000, vote: nil, vote_again_at: nil}
+      end
+
+      assert host_away_view(room, @host) == nil
+      assert host_away_view(lobby(), "guest:dana") == nil
+    end
+
+    test "during a vote, shows who asked, how many of those connected said yes, and the time left" do
+      room = playing() |> enter!("guest:aziz", "Aziz") |> voting() |> vote!("guest:aziz")
+
+      assert host_away_view(room, "guest:timur") == %{
+               since: 1_000,
+               ends_at: 121_000,
+               vote: %{
+                 by: %{nickname: "Dana", me?: false, n: 3},
+                 yes: 2,
+                 of: 3,
+                 ends_at: 35_000,
+                 said_yes?: false
+               },
+               vote_again_at: nil
+             }
+
+      assert %{by: %{me?: true}, said_yes?: true} = host_away_view(room, "guest:dana").vote
+      assert %{yes: 2, of: 3, said_yes?: true} = host_away_view(room, "guest:aziz").vote
+      assert host_away_view(room, @host) == nil
+    end
+
+    test "counts neither yes nor voter for someone who went Away or left" do
+      {:ok, room} = voting() |> vote!("guest:timur") |> Room.leave("guest:timur", [])
+
+      assert %{yes: 1, of: 1} = host_away_view(room, "guest:dana").vote
+
+      room = voting() |> vote!("guest:timur") |> Room.away("guest:timur", 6_500)
+
+      assert %{yes: 1, of: 1} = host_away_view(room, "guest:dana").vote
+    end
+
+    test "after a failed vote, says when a new one may start" do
+      room = vote!(voting(), "guest:timur", false, 10_000)
+
+      assert %{vote: nil, vote_again_at: 40_000} = host_away_view(room, "guest:timur")
+    end
+
+    test "carries no person id" do
+      room = playing() |> enter!("guest:aziz", "Aziz") |> voting() |> vote!("guest:aziz")
+      ids = [@host, "guest:dana", "guest:timur", "guest:aziz"]
+
+      for viewer <- ids, id <- ids do
+        refute inspect(Room.view_for(room, viewer)) =~ id
+      end
+    end
+  end
+
+  describe "a save of the Host Away" do
+    test "keeps the handover and its vote, deadlines and all" do
+      room = vote!(voting(), "guest:timur")
+
+      assert Room.restore(Room.to_save(room)) == {:ok, room}
+    end
+
+    test "from before the handover existed restores with none" do
+      older = Map.delete(Room.to_save(lobby()), :handover)
+
+      assert {:ok, %{handover: nil}} = Room.restore(older)
+    end
+  end
+
   describe "the view of a voided Round" do
     defp dana_left do
       {:roll, room} = Room.leave(playing(), "guest:dana", [@host])
@@ -1437,6 +1688,46 @@ defmodule ThreeSixes.RoomTest do
                [{1, "Timur", 0}, {2, "Malika", 0}, {3, "Dana", 3}]
 
       assert Room.enter(room, "guest:bek", "Aziz") == {:taken, "Aziz", "Aziz 2"}
+    end
+
+    test "of the vote's starter carries the vote: they still asked, by their Nickname, and their yes counts" do
+      assert {:moved, room} = Room.move_seat(voting(), "guest:dana", @account)
+
+      for viewer <- [@host, "guest:timur", @account, "guest:dana"],
+          do: Room.view_for(room, viewer)
+
+      assert %{by: %{nickname: "Dana", me?: false, n: 3}, yes: 1, of: 2} =
+               host_away_view(room, "guest:timur").vote
+
+      assert %{by: %{me?: true}, said_yes?: true} = host_away_view(room, @account).vote
+      assert settle(vote!(room, "guest:timur")).host_id == "guest:timur"
+    end
+
+    test "onto an Account with a seat, a yes said from both counts once, as the Account's, and the vote passes" do
+      room = lobby() |> enter!(@account, "Aziz") |> voting() |> vote!("guest:timur")
+
+      assert {:ok, room} = room |> vote!(@account) |> Room.move_seat("guest:timur", @account)
+
+      assert room.handover.vote.yes == ["guest:dana", @account]
+
+      room = lobby() |> enter!(@account, "Aziz") |> voting() |> vote!("guest:timur")
+
+      assert {:ok, room} = Room.move_seat(room, "guest:timur", @account)
+
+      assert %{yes: 2, of: 2, said_yes?: true} = host_away_view(room, @account).vote
+      assert settle(room).host_id == "guest:dana"
+    end
+
+    test "of the Host who is Away keeps the handover running and its vote open" do
+      before = voting()
+
+      assert {:moved, room} = Room.move_seat(before, @host, @account)
+
+      assert host_away_view(room, @account) == nil
+      assert host_away_view(room, "guest:dana") == host_away_view(before, "guest:dana")
+
+      assert Room.settle_handover(room, 50_000, &no_shuffle/1).handover ==
+               %{before.handover | host: @account}
     end
   end
 end
