@@ -56,7 +56,8 @@
 }
 @media (min-width: 1000px) {
   .game-table__bottom {
-    flex-flow: row wrap;
+    contain: inline-size;
+    flex-direction: row;
     justify-content: center;
     align-items: flex-end;
   }
@@ -205,11 +206,14 @@
   z-index: 4;
 }
 
-/* Left at its static place, the pop-up starts where the name's text ends. */
+.people li {
+  position: relative;
+}
 .people .reaction--side {
-  left: auto;
-  top: auto;
-  margin-top: 11px;
+  inset: 0 0 0 auto;
+  height: fit-content;
+  margin: auto 0;
+  translate: none;
 }
 .spec__list li {
   position: relative;
@@ -221,11 +225,14 @@
 .spec__reactions {
   position: absolute;
   left: 100%;
-  top: 50%;
-  translate: 0 -50%;
+  top: calc(50% - 22 * var(--u, 1px));
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  width: max-content;
+  max-width: calc(100vw - 230px);
   margin-left: 8px;
+  pointer-events: none;
 }
 .spec__reactions > .reaction {
   position: relative;
