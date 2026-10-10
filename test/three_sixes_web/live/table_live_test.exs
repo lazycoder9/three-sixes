@@ -551,7 +551,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
                "Bid 3 × 3 × The Bid stands. You +2 Three sixes counts double."
 
       for view <- [timur, dana, malika] do
-        assert count(view, "#scrap .scrap__pen .die.is-penalty") == 2
+        assert count(view, "#scrap .scrap__pen .scrap__penalty .die.is-penalty") == 2
+        assert has_element?(view, "#scrap .scrap__pen .scrap__penalty b", "+2")
       end
 
       assert count(timur, "#seat-2.is-loser .seat__dice .die.is-penalty") == 2

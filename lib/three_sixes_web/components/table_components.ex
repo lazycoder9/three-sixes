@@ -168,8 +168,11 @@ defmodule ThreeSixesWeb.TableComponents do
       {if @reveal.stood?, do: "The Bid stands.", else: "Bluff caught."}
     </p>
     <p :if={@reveal.loser} class="scrap__pen">
-      {name(@reveal.loser)} <b>+{if @reveal.penalty > 1, do: @reveal.penalty}</b>
-      <.penalty_dice count={@reveal.penalty} />
+      {name(@reveal.loser)}
+      <span class="scrap__penalty">
+        <b>+{if @reveal.penalty > 1, do: @reveal.penalty}</b>
+        <.penalty_dice count={@reveal.penalty} />
+      </span>
       <em :if={@reveal.knocked_out?} class="red">Knocked out</em>
     </p>
     <p :if={@reveal.penalty == 2} class="scrap__double">Three sixes counts double.</p>

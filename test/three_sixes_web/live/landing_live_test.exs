@@ -32,6 +32,12 @@ defmodule ThreeSixesWeb.LandingLiveTest do
 
     assert view |> select("ol.rules > li b") |> Enum.map(&LazyHTML.text/1) ==
              ["Roll in secret", "Bid, or Raise", "Check"]
+
+    assert has_element?(
+             view,
+             "ol.rules > li",
+             "Cups up. Whoever was wrong takes a Penalty die, two on three sixes. Reach six dice and you're Knocked out."
+           )
   end
 
   test "the header offers Sign in, which comes back to the landing page", %{conn: conn} do

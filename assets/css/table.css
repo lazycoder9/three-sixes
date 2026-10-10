@@ -339,6 +339,11 @@ body:has(.game-table) .table-main {
   gap: calc(6 * var(--u));
   margin-top: calc(4 * var(--u));
 }
+.scrap__penalty {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+}
 .scrap__pen b {
   color: var(--color-tomato);
   font: 700 calc(26 * var(--u)) / 1 var(--font-scrawl);
@@ -727,6 +732,9 @@ body:has(.game-table) .table-main {
   }
   .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(5)) .die {
     --d: 12px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(7)) .die {
+    --d: 10px;
   }
   .seat--compact,
   .game-table--phone-compact .seat {
