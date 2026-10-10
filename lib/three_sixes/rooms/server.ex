@@ -267,10 +267,8 @@ defmodule ThreeSixes.Rooms.Server do
 
   def handle_info({:timeout, _stale, :refresh}, state), do: {:noreply, state}
 
-  def handle_info({:timeout, timer, :handover}, %{handover_timer: {timer, _ends_at}} = state) do
-    room = Room.hand_over(state.room, Dice.shuffle(Room.connected(state.room)))
-    {:noreply, changed_if_new(state, room)}
-  end
+  def handle_info({:timeout, timer, :handover}, %{handover_timer: {timer, _ends_at}} = state),
+    do: {:noreply, changed_if_new(state, Room.hand_over(state.room, &Dice.shuffle/1))}
 
   def handle_info({:timeout, _stale, :handover}, state), do: {:noreply, state}
 
@@ -387,7 +385,7 @@ defmodule ThreeSixes.Rooms.Server do
   defp changed_if_new(state, room), do: changed(state, room)
 
   defp changed(state, room) do
-    room = Room.settle_handover(room, state.now.(), Dice.shuffle(Room.connected(room)))
+    room = Room.settle_handover(room, state.now.(), &Dice.shuffle/1)
     record(Room.finished(state.room, room))
     state = arm_handover(unsaved(%{state | room: room}))
     send_views(state)

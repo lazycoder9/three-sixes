@@ -1153,34 +1153,36 @@ defmodule ThreeSixes.RoomTest do
   end
 
   describe "the Host Away" do
+    defp no_shuffle(_connected), do: flunk("shuffled with no handover")
+
     defp host_away(room \\ lobby(), at \\ 1_000),
-      do: room |> Room.away(@host, at) |> Room.settle_handover(at, [])
+      do: room |> Room.away(@host, at) |> Room.settle_handover(at, &no_shuffle/1)
 
     test "starts the handover: the role passes on 2 minutes after the Host went Away" do
       room = host_away()
 
       assert room.handover == %{host: @host, ends_at: 121_000, vote: nil, vote_again_at: nil}
-      assert Room.settle_handover(room, 120_999, ["guest:dana"]).host_id == @host
-      assert Room.settle_handover(room, 121_000, ["guest:dana"]).host_id == "guest:dana"
+      assert Room.settle_handover(room, 120_999, &no_shuffle/1).host_id == @host
+      assert Room.settle_handover(room, 121_000, &Enum.reverse/1).host_id == "guest:dana"
     end
 
     test "settling again keeps the handover running from when it started" do
-      room = Room.settle_handover(host_away(), 50_000, [])
+      room = Room.settle_handover(host_away(), 50_000, &no_shuffle/1)
 
       assert room.handover.ends_at == 121_000
     end
 
     test "is nothing while the Host is connected, or with no Host" do
-      assert Room.settle_handover(lobby(), 1_000, []).handover == nil
+      assert Room.settle_handover(lobby(), 1_000, &no_shuffle/1).handover == nil
 
       {:ok, hostless} = Room.leave(enter!(room(), @host, "Malika"), @host, [])
-      assert Room.settle_handover(hostless, 1_000, []).handover == nil
+      assert Room.settle_handover(hostless, 1_000, &no_shuffle/1).handover == nil
     end
 
     test "the Host coming back cancels it and any vote, and they stay Host" do
       {:ok, room} = Room.start_vote(host_away(), "guest:dana", 2_000)
 
-      room = room |> Room.back(@host) |> Room.settle_handover(200_000, ["guest:dana"])
+      room = room |> Room.back(@host) |> Room.settle_handover(200_000, &no_shuffle/1)
 
       assert room.handover == nil
       assert room.host_id == @host
@@ -1190,7 +1192,7 @@ defmodule ThreeSixes.RoomTest do
       room = lobby() |> Room.away("guest:dana", 1_000) |> host_away(2_000)
       {:ok, room} = Room.make_host(room, @host, 3)
 
-      room = Room.settle_handover(room, 50_000, [])
+      room = Room.settle_handover(room, 50_000, &no_shuffle/1)
 
       assert room.handover == %{
                host: "guest:dana",
@@ -1200,38 +1202,35 @@ defmodule ThreeSixes.RoomTest do
              }
     end
 
-    test "when the 2 minutes run out, the role goes to the first connected candidate" do
-      room = Room.away(host_away(), "guest:dana", 5_000)
-      candidates = [@host, "guest:visitor", "guest:dana", "guest:timur"]
+    test "when the 2 minutes run out, the role goes to someone connected, in the order shuffled" do
+      room =
+        lobby() |> enter!("guest:aziz", "Aziz") |> host_away() |> Room.away("guest:dana", 5_000)
 
-      room = Room.settle_handover(room, 121_000, candidates)
-
-      assert room.host_id == "guest:timur"
-      assert room.handover == nil
+      assert %{host_id: "guest:timur", handover: nil} = Room.settle_handover(room, 121_000, & &1)
+      assert %{host_id: "guest:aziz"} = Room.settle_handover(room, 121_000, &Enum.reverse/1)
     end
 
     test "with nobody connected the role stays, and goes to the first person back" do
       room = host_away() |> Room.away("guest:dana", 1_000) |> Room.away("guest:timur", 1_000)
 
-      room = Room.settle_handover(room, 121_000, [])
+      room = Room.settle_handover(room, 121_000, & &1)
 
       assert room.host_id == @host
       assert room.handover.ends_at == 121_000
 
-      room = room |> Room.back("guest:timur") |> Room.settle_handover(130_000, ["guest:timur"])
+      room = room |> Room.back("guest:timur") |> Room.settle_handover(130_000, & &1)
 
       assert room.host_id == "guest:timur"
       assert room.handover == nil
     end
 
-    test "the timer's handover passes the role before the deadline, to a connected candidate" do
+    test "the timer's handover passes the role before the deadline, to someone connected" do
       room = Room.away(host_away(), "guest:dana", 5_000)
+      nobody = Room.away(room, "guest:timur", 5_000)
 
-      assert %{host_id: "guest:timur", handover: nil} =
-               Room.hand_over(room, [@host, "guest:dana", "guest:timur"])
-
-      assert Room.hand_over(room, [@host, "guest:dana"]) == room
-      assert Room.hand_over(lobby(), ["guest:dana"]) == lobby()
+      assert %{host_id: "guest:timur", handover: nil} = Room.hand_over(room, & &1)
+      assert Room.hand_over(nobody, & &1) == nobody
+      assert Room.hand_over(lobby(), &no_shuffle/1) == lobby()
     end
   end
 
@@ -1246,8 +1245,7 @@ defmodule ThreeSixes.RoomTest do
       room
     end
 
-    defp settle(room, candidates \\ ["guest:timur", "guest:dana", "guest:aziz"]),
-      do: Room.settle_handover(room, 7_000, candidates)
+    defp settle(room), do: Room.settle_handover(room, 7_000, & &1)
 
     test "passes once every connected person said yes, a Spectator included, the starter counted" do
       room = playing() |> enter!("guest:aziz", "Aziz") |> voting() |> vote!("guest:timur")
@@ -1263,13 +1261,13 @@ defmodule ThreeSixes.RoomTest do
     test "an Away person is neither needed nor counted, so a lone connected starter passes it" do
       room = voting() |> Room.away("guest:timur", 5_500)
 
-      assert settle(room, ["guest:dana"]).host_id == "guest:dana"
+      assert settle(room).host_id == "guest:dana"
     end
 
     test "with nobody connected it never passes" do
       room = voting() |> Room.away("guest:dana", 5_500) |> Room.away("guest:timur", 5_500)
 
-      assert settle(room, []).host_id == @host
+      assert settle(room).host_id == @host
     end
 
     test "a yes from someone already in, or a second yes, changes nothing" do

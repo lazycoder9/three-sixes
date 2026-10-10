@@ -361,16 +361,15 @@ defmodule ThreeSixes.Room do
   @spec back(t(), person_id()) :: t()
   def back(room, id), do: %{room | away: Map.delete(room.away, id)}
 
-  @spec connected(t()) :: [person_id()]
-  def connected(room),
+  defp connected(room),
     do: for(%{id: id} <- present(room), not Map.has_key?(room.away, id), do: id)
 
-  @spec settle_handover(t(), integer(), [person_id()]) :: t()
-  def settle_handover(room, now, candidates) do
+  @spec settle_handover(t(), integer(), ([person_id()] -> [person_id()])) :: t()
+  def settle_handover(room, now, shuffle) do
     room = %{room | handover: handover(room, now)}
 
     if room.handover != nil and (now >= room.handover.ends_at or vote_passes?(room)),
-      do: hand_over(room, candidates),
+      do: hand_over(room, shuffle),
       else: room
   end
 
@@ -393,17 +392,15 @@ defmodule ThreeSixes.Room do
     end
   end
 
-  @spec hand_over(t(), [person_id()]) :: t()
-  def hand_over(%{handover: %{host: host}} = room, candidates) do
-    connected = connected(room)
-
-    case Enum.find(candidates, &(&1 != host and &1 in connected)) do
-      nil -> room
-      id -> %{room | host_id: id, handover: nil}
+  @spec hand_over(t(), ([person_id()] -> [person_id()])) :: t()
+  def hand_over(%{handover: %{}} = room, shuffle) do
+    case shuffle.(voters(room)) do
+      [id | _] -> %{room | host_id: id, handover: nil}
+      [] -> room
     end
   end
 
-  def hand_over(room, _candidates), do: room
+  def hand_over(room, _shuffle), do: room
 
   @spec start_vote(t(), person_id(), integer()) ::
           {:ok, t()} | {:error, :no_handover | :not_member | :voting | :too_soon}

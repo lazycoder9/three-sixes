@@ -234,6 +234,18 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  test "a change that passes no Host role leaves the scripted seat order for the Game" do
+    {code, dana} = table()
+    Scripted.script_seats(["guest:dana", @host])
+    :ok = Rooms.sit_out(code, "guest:dana", false)
+    Scripted.script([[3], [5]])
+
+    assert Rooms.start_game(code, @host) == :ok
+
+    assert_receive {:forwarded, ^dana,
+                    {:room_view, %{game: %{turn: %{nickname: "Dana"}, my_dice: [3]}}}}
+  end
+
   describe "sitting out" do
     test "every joined process gets the flag, and the next Game is dealt to the others" do
       {code, dana} = table()
@@ -960,7 +972,7 @@ defmodule ThreeSixes.RoomsTest do
       now = System.system_time(:millisecond)
       {:ok, room} = "KQXT" |> Room.new(@host) |> Room.enter(@host, "Malika")
       {:ok, room} = Room.enter(room, "guest:dana", "Dana")
-      room = room |> Room.away(@host, now) |> Room.settle_handover(now, [])
+      room = room |> Room.away(@host, now) |> Room.settle_handover(now, & &1)
       {:ok, room} = Room.start_vote(room, "guest:dana", now)
       room = Room.away(room, "guest:dana", now)
       Repo.insert!(%Save{code: "KQXT", room: :erlang.term_to_binary(Room.to_save(room))})
