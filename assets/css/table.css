@@ -1,13 +1,38 @@
+@property --u {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 1px;
+}
+@property --sw {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --sh {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 .game-table,
 .spec {
   --seat: rgba(255, 255, 255, 0.2);
 }
+body:has(.game-table) {
+  display: flex;
+  flex-direction: column;
+}
+body:has(.game-table) .table-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 .game-table {
-  grid-row: 1 / -1;
+  flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 1300px;
+  max-width: calc(1300 * var(--u));
   margin: 0 auto;
   padding: 0 var(--spacing-3) var(--spacing-4);
 }
@@ -19,8 +44,7 @@
 .game-table__ring {
   position: relative;
   flex: 1 1 auto;
-  min-height: 440px;
-  margin-top: 26px;
+  margin-top: calc(26 * var(--u));
 }
 .game-table__seats {
   position: absolute;
@@ -28,6 +52,31 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* #22: one unit sizes the table to the space under the Room bar. The 62px and 124px are the
+   prototype's room for Reactions, beside your page and under it. */
+@media (min-width: 720px) {
+  /* With only a min-height on the body, Chrome resolves cqh to 0 inside the flexed container. */
+  body:has(.game-table) {
+    height: 100dvh;
+  }
+  body:has(.game-table) .table-main {
+    container-type: size;
+  }
+  .game-table {
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
+    min-height: 0;
+  }
+}
+@media (min-width: 1000px) {
+  .game-table {
+    --u: clamp(
+      0.75px,
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 596),
+      1.8px
+    );
+  }
 }
 
 .die.is-down {
@@ -103,18 +152,18 @@
 }
 
 .seat {
-  --sw: 128px;
-  --sh: 118px;
+  --sw: calc(128 * var(--u));
+  --sh: calc(118 * var(--u));
   position: absolute;
   left: calc(50% + var(--x) * (50% - var(--sw) / 2));
   top: calc(50% + var(--y) * (50% - var(--sh) / 2));
   transform: translate(-50%, -50%);
   display: grid;
   justify-items: center;
-  gap: 3px;
+  gap: calc(3 * var(--u));
   width: var(--sw);
-  padding: 8px 5px 10px;
-  border-radius: 18px;
+  padding: calc(8 * var(--u)) calc(5 * var(--u)) calc(10 * var(--u));
+  border-radius: calc(18 * var(--u));
   background: var(--seat);
   text-align: center;
   transition:
@@ -122,15 +171,19 @@
     background-color 0.2s,
     box-shadow 0.2s;
 }
+/* Until the TableSeats hook places it, a seat would sit in the middle of the table. */
+.seat:not([style]) {
+  visibility: hidden;
+}
 .seat .token {
-  width: 46px;
-  height: 46px;
-  font-size: 19px;
+  width: calc(46 * var(--u));
+  height: calc(46 * var(--u));
+  font-size: calc(19 * var(--u));
 }
 .seat__name {
   max-width: 100%;
   overflow: hidden;
-  font-size: 16px;
+  font-size: max(12px, calc(16 * var(--u)));
   font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -140,29 +193,35 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px;
-  min-height: 26px;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  min-height: calc(26 * var(--u));
 }
 .seat__dice .die {
-  --d: 25px;
+  --d: calc(25 * var(--u));
 }
 .seat__dice .die.is-flip,
 .seat__dice .die.is-penalty {
-  --d: 30px;
+  --d: calc(30 * var(--u));
+}
+.seat__n {
+  display: none;
+  font-size: max(11px, calc(13 * var(--u)));
+  line-height: 1;
 }
 .seat__said {
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 8px);
+  bottom: calc(100% - 8 * var(--u));
   transform: translateX(-50%) rotate(-3deg);
-  padding: 1px 8px 2px;
+  padding: calc(1 * var(--u)) calc(8 * var(--u)) calc(2 * var(--u));
   background: var(--color-sheet);
   color: var(--color-graphite);
   box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.4);
   opacity: 0.6;
 }
 .seat__said .bidn {
-  --b: 21px;
+  --b: calc(21 * var(--u));
 }
 .seat__said.is-now {
   opacity: 1;
@@ -189,7 +248,36 @@
   text-decoration-thickness: 2px;
 }
 .seat__out {
-  font: 400 15px/1 var(--font-hand);
+  font: 400 max(12px, calc(15 * var(--u))) / 1 var(--font-hand);
+}
+
+.seat--compact {
+  --sw: calc(66 * var(--u));
+  --sh: calc(70 * var(--u));
+  gap: calc(2 * var(--u));
+  padding: calc(3 * var(--u)) calc(2 * var(--u)) calc(4 * var(--u));
+  border-radius: calc(12 * var(--u));
+}
+.seat--compact .token {
+  width: calc(31 * var(--u));
+  height: calc(31 * var(--u));
+  font-size: calc(13 * var(--u));
+}
+.seat--compact .seat__name {
+  font-size: max(10.5px, calc(11.5 * var(--u)));
+}
+.seat--compact .seat__dice {
+  gap: calc(3 * var(--u));
+  min-height: calc(15 * var(--u));
+}
+.seat--compact .seat__dice .die {
+  --d: calc(15 * var(--u));
+}
+.seat--compact .seat__n {
+  display: inline;
+}
+.seat--compact .die.is-down + .die.is-down {
+  display: none;
 }
 
 .game-table__scrap {
@@ -200,57 +288,57 @@
   transform: translate(-50%, -50%) rotate(-1.2deg);
   display: grid;
   justify-items: center;
-  gap: 2px;
-  width: min(46%, 310px);
-  padding: 14px 14px 18px;
+  gap: calc(2 * var(--u));
+  width: min(46%, calc(310 * var(--u)));
+  padding: calc(14 * var(--u)) calc(14 * var(--u)) calc(18 * var(--u));
   text-align: center;
-  font-size: 20px;
+  font-size: calc(20 * var(--u));
   line-height: 1.2;
 }
 .game-table__scrap .bidn {
-  --b: 60px;
-  margin: 4px 0;
+  --b: calc(60 * var(--u));
+  margin: calc(4 * var(--u)) 0;
 }
 .game-table__scrap .scrawl {
-  font-size: 32px;
+  font-size: calc(32 * var(--u));
 }
 .scrap__bid {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(8 * var(--u));
 }
 .game-table__scrap .scrap__bid .bidn {
-  --b: 22px;
+  --b: calc(22 * var(--u));
   margin: 0;
 }
 .game-table__scrap .scrap__found .bidn {
-  --b: 50px;
-  margin: 10px 0 12px;
+  --b: calc(50 * var(--u));
+  margin: calc(10 * var(--u)) 0 calc(12 * var(--u));
 }
 .scrap__found .die {
   box-shadow:
-    0 0 0 4px var(--color-mustard),
-    0 6px 10px rgba(0, 0, 0, 0.3);
+    0 0 0 calc(4 * var(--u)) var(--color-mustard),
+    0 calc(6 * var(--u)) calc(10 * var(--u)) rgba(0, 0, 0, 0.3);
 }
 .scrap__pen {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 4px;
+  gap: calc(6 * var(--u));
+  margin-top: calc(4 * var(--u));
 }
 .scrap__pen b {
   color: var(--color-tomato);
-  font: 700 26px/1 var(--font-scrawl);
+  font: 700 calc(26 * var(--u)) / 1 var(--font-scrawl);
 }
 .scrap__pen .die {
-  --d: 24px;
+  --d: calc(24 * var(--u));
   animation: none;
 }
 .scrap__pen em {
   flex-basis: 100%;
-  font: 700 24px/1 var(--font-scrawl);
+  font: 700 calc(24 * var(--u)) / 1 var(--font-scrawl);
 }
 
 .my-page {
@@ -262,28 +350,28 @@
     "hand opts check"
     "hand opts keys";
   align-items: center;
-  gap: 3px 20px;
-  width: 860px;
+  gap: calc(3 * var(--u)) calc(20 * var(--u));
+  width: calc(770 * var(--u) + 90px);
   max-width: 100%;
-  margin-top: 6px;
-  padding-top: 21px;
-  padding-bottom: 10px;
+  margin-top: calc(6 * var(--u));
+  padding-top: calc(var(--spacing-rule) * 0.75);
+  padding-bottom: calc(10 * var(--u));
 }
 .my-page.is-turn::after {
   box-shadow:
-    0 0 0 4px var(--color-mustard),
+    0 0 0 calc(4 * var(--u)) var(--color-mustard),
     0 18px 24px -12px rgba(0, 0, 0, 0.55);
 }
 .my-page .hand {
-  --s: 44px;
+  --s: calc(44 * var(--u));
   grid-area: hand;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 12px 16px;
-  max-width: 196px;
-  padding: 8px 6px;
+  gap: calc(12 * var(--u)) calc(16 * var(--u));
+  max-width: calc(196 * var(--u));
+  padding: calc(8 * var(--u)) calc(6 * var(--u));
 }
 .hand .slot {
   transition:
@@ -292,7 +380,8 @@
 }
 .hand .slot.is-hit {
   translate: 0 -14%;
-  filter: drop-shadow(0 0 2px var(--color-mustard)) drop-shadow(0 0 7px var(--color-mustard));
+  filter: drop-shadow(0 0 calc(2 * var(--u)) var(--color-mustard))
+    drop-shadow(0 0 calc(7 * var(--u)) var(--color-mustard));
 }
 .hand .slot.is-miss {
   opacity: 0.45;
@@ -305,52 +394,52 @@
   display: none;
 }
 .hand .slot--pen .die {
-  --d: 34px;
+  --d: calc(34 * var(--u));
 }
 .my-page__head {
   grid-area: head;
   min-height: 1.1em;
   margin: 0;
-  font-size: 24px;
+  font-size: calc(24 * var(--u));
   line-height: 1.1;
 }
 
 .opts {
-  --step-w: 70px;
+  --step-w: calc(70 * var(--u));
   grid-area: opts;
   display: grid;
   align-content: center;
   justify-content: start;
-  gap: 6px;
+  gap: calc(6 * var(--u));
   min-width: 0;
-  min-height: 88px;
+  min-height: calc(88 * var(--u));
 }
 .opts.is-hidden {
   visibility: hidden;
 }
 .orow {
   display: grid;
-  grid-template-columns: 48px repeat(6, auto);
+  grid-template-columns: calc(48 * var(--u)) repeat(6, auto);
   align-items: center;
-  gap: 6px;
+  gap: calc(6 * var(--u));
 }
 .opts > .orow {
-  margin-left: calc(var(--step-w) + 6px);
+  margin-left: calc(var(--step-w) + 6 * var(--u));
 }
 .ostep {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6 * var(--u));
 }
 .ostep__buttons {
   display: flex;
-  gap: 6px;
+  gap: calc(6 * var(--u));
   width: var(--step-w);
 }
 .ostep__buttons .round-button {
-  width: 32px;
-  height: 32px;
-  font: 700 18px/1 var(--font-ui);
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+  font: 700 calc(18 * var(--u)) / 1 var(--font-ui);
 }
 .ostep__buttons .round-button:disabled {
   opacity: 0.4;
@@ -358,10 +447,10 @@
 }
 .ostep__rows {
   display: grid;
-  gap: 6px;
+  gap: calc(6 * var(--u));
 }
 .orow b {
-  font: 700 27px/1 var(--font-scrawl);
+  font: 700 calc(27 * var(--u)) / 1 var(--font-scrawl);
   text-align: right;
   white-space: nowrap;
 }
@@ -372,14 +461,14 @@
   border-radius: 22%;
 }
 .pickdie .die {
-  --d: 37px;
+  --d: calc(37 * var(--u));
   display: grid;
   transition:
     transform 0.12s,
     box-shadow 0.12s;
 }
 .pickgap {
-  width: 37px;
+  width: calc(37 * var(--u));
 }
 .pickdie:focus-visible {
   outline: 3px solid var(--color-mustard);
@@ -397,7 +486,7 @@
   align-self: start;
   margin: 0;
   color: var(--color-graphite-faint);
-  font: 500 13px/1.4 var(--font-ui);
+  font: 500 max(12px, calc(13 * var(--u))) / 1.4 var(--font-ui);
   text-align: center;
 }
 .keyhint > span {
@@ -409,16 +498,16 @@
 .my-page kbd {
   display: inline-block;
   min-width: 1.5em;
-  padding: 0 4px;
+  padding: 0 calc(4 * var(--u));
   border: 1px solid currentColor;
-  border-radius: 4px;
-  font: 600 11px/1.45 var(--font-ui);
+  border-radius: calc(4 * var(--u));
+  font: 600 max(11px, calc(11 * var(--u))) / 1.45 var(--font-ui);
   text-align: center;
   opacity: 0.7;
 }
 .my-page__check kbd {
-  margin-left: 6px;
-  vertical-align: 2px;
+  margin-left: calc(6 * var(--u));
+  vertical-align: calc(2 * var(--u));
 }
 @media (hover: none), (pointer: coarse) {
   .keyhint,
@@ -429,10 +518,12 @@
 .block.my-page__check {
   grid-area: check;
   align-self: center;
-  min-width: 136px;
-  min-height: 90px;
+  width: calc(136 * var(--u));
+  min-height: calc(90 * var(--u));
   margin: 0 0 5px;
-  font-size: 20px;
+  padding: 0;
+  border-radius: calc(13 * var(--u));
+  font-size: calc(20 * var(--u));
 }
 @media (hover: hover) and (pointer: fine) {
   .pickdie:not(:disabled):hover .die {
@@ -445,25 +536,31 @@
 
 .game-table__watching {
   align-self: center;
-  max-width: 420px;
-  margin-top: var(--spacing-2);
+  max-width: calc(420 * var(--u));
+  margin-top: calc(8 * var(--u));
   text-align: center;
-  font-size: 21px;
+  font-size: calc(21 * var(--u));
 }
 
-@media (max-width: 720px) {
+/* The phone layout (#22): sizes in px, a small table as an arc across the top, more seats
+   compact in a ring. */
+@media (max-width: 719.98px) {
   .game-table {
     padding: 0 var(--spacing-2) var(--spacing-3);
   }
   .game-table__ring {
-    min-height: 390px;
+    min-height: 430px;
   }
   .roombar:has(.spec) ~ .table-main .game-table__ring {
     margin-top: 52px;
   }
   .seat {
     --sw: 88px;
-    --sh: 92px;
+    --sh: 100px;
+    padding: 6px 4px 7px;
+  }
+  .seat__dice {
+    min-height: 23px;
   }
   .seat .token {
     width: 40px;
@@ -477,17 +574,53 @@
   .seat__dice .die.is-penalty {
     --d: 23px;
   }
+  .seat--compact,
+  .game-table--phone-compact .seat {
+    --sw: 52px;
+    --sh: 58px;
+    gap: 1px;
+    padding: 3px 2px 4px;
+    border-radius: 12px;
+  }
+  .seat--compact .token,
+  .game-table--phone-compact .seat .token {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+  .seat--compact .seat__name,
+  .game-table--phone-compact .seat__name {
+    font-size: 11px;
+    line-height: 1.1;
+  }
+  .seat--compact .seat__dice,
+  .game-table--phone-compact .seat__dice {
+    gap: 3px;
+    min-height: 12px;
+  }
+  .seat--compact .seat__dice .die,
+  .game-table--phone-compact .seat__dice .die {
+    --d: 12px;
+  }
+  .seat--compact .seat__n,
+  .game-table--phone-compact .seat__n {
+    font-size: 12px;
+  }
+  .game-table--phone-compact .seat__n {
+    display: inline;
+  }
+  .game-table--phone-compact .die.is-down + .die.is-down,
+  .game-table--phone-compact .seat__said:not(.is-now) {
+    display: none;
+  }
   .game-table__scrap {
-    width: min(48%, 190px);
-    padding: 10px 8px 14px;
+    top: 50%;
+    width: min(42%, 190px);
+    padding: 10px 6px 14px;
+    font-size: 17px;
   }
-  .game-table:has(.my-page) .game-table__scrap {
-    top: 48%;
-    transform: translate(-50%, 0) rotate(-1.2deg);
-  }
-  .game-table:not(:has(.my-page)) .game-table__scrap {
-    top: 46%;
-    width: min(34%, 140px);
+  .game-table--arc .game-table__scrap {
+    top: 68%;
   }
   .game-table__scrap .bidn {
     --b: 40px;
@@ -560,12 +693,13 @@
     font-size: 16px;
   }
   .block.my-page__check {
+    width: auto;
     min-height: 50px;
     margin-top: 4px;
     font-size: 19px;
   }
 }
-@media (max-width: 720px) and (hover: hover) and (pointer: fine) {
+@media (max-width: 719.98px) and (hover: hover) and (pointer: fine) {
   .my-page {
     grid-template-areas: "hand" "head" "opts" "keys" "check";
   }
