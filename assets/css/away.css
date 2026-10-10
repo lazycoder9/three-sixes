@@ -1,0 +1,42 @@
+.seat.is-away:not(.is-out) {
+  opacity: 0.5;
+}
+.seat.is-away.is-turn {
+  opacity: 0.8;
+}
+.seat__away {
+  font: 400 15px/1 var(--font-hand);
+}
+.people .is-away,
+.spec__list .is-away {
+  opacity: 0.5;
+}
+
+#banners {
+  display: grid;
+  gap: var(--spacing-2);
+  justify-items: center;
+  padding: 0 var(--spacing-3);
+}
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2) var(--spacing-4);
+  max-width: 720px;
+  padding: 8px 18px 10px;
+  transform: rotate(-0.4deg);
+  animation: stick 0.3s var(--ease-press);
+}
+.banner b {
+  font-weight: 400;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0 6px;
+}
+.banner .block {
+  min-height: 40px;
+  margin-bottom: 3px;
+  padding: 0 16px;
+  font-size: 15px;
+}

@@ -11,6 +11,7 @@ defmodule ThreeSixesWeb.RoomLive do
   @fits_zoomed 16
   @reaction_wait 2000
   @reaction_shown 3000
+  @tick 1000
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -41,7 +42,9 @@ defmodule ThreeSixesWeb.RoomLive do
         spectators_open?: false,
         reactions: %{},
         reactions_seen: 0,
-        reaction_wait: nil
+        reaction_wait: nil,
+        now: now(),
+        tick: nil
       )
 
     if connected?(socket) do
@@ -265,6 +268,9 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket |> put_view(view) |> new_host(old, view)}
   end
 
+  def handle_info(:tick, socket),
+    do: {:noreply, socket |> assign(now: now(), tick: nil) |> keep_ticking()}
+
   def handle_info(:removed, socket) do
     {:noreply,
      socket
@@ -301,7 +307,9 @@ defmodule ThreeSixesWeb.RoomLive do
     %{view: old, step: step, rolled: rolled} = socket.assigns
     step = if bid_key(view) == bid_key(old), do: step, else: 0
     socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
-    assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))
+    socket
+    |> assign(view: view, step: step, rolled: rolled(view, old, rolled), now: now())
+    |> keep_ticking()
   end
 
   @impl true
@@ -320,8 +328,18 @@ defmodule ThreeSixesWeb.RoomLive do
           open?={@spectators_open?}
           tappable={tappable(@view)}
           reactions={@reactions}
+          away={@view.away}
+          now={@now}
         />
       </:under_code>
+      <:banner :if={turn_away_since(@view)}>
+        <.turn_away_banner
+          person={@view.game.turn}
+          since={turn_away_since(@view)}
+          now={@now}
+          host?={@view.host?}
+        />
+      </:banner>
       <.game_table
         game={@view.game}
         step={@step}
@@ -329,6 +347,8 @@ defmodule ThreeSixesWeb.RoomLive do
         tappable={tappable(@view)}
         reactions={@reactions}
         waiting?={@reaction_wait != nil}
+        away={@view.away}
+        now={@now}
       />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} game={@view.game} />
     </Layouts.room>
@@ -343,7 +363,7 @@ defmodule ThreeSixesWeb.RoomLive do
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
     >
-      <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} />
+      <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} now={@now} />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
     """
@@ -507,6 +527,7 @@ defmodule ThreeSixesWeb.RoomLive do
   attr :view, :map, required: true
   attr :reactions, :map, required: true
   attr :waiting?, :boolean, required: true
+  attr :now, :integer, required: true
 
   defp lobby(assigns) do
     ~H"""
@@ -519,14 +540,23 @@ defmodule ThreeSixesWeb.RoomLive do
         <.notebook_page>
           <h1>{if @view.over, do: "Next Game", else: "Who's playing"}</h1>
           <ul id="people" class="people">
-            <li :for={person <- @view.people} id={"person-#{person.n}"}>
+            <li
+              :for={person <- @view.people}
+              id={"person-#{person.n}"}
+              class={@view.away[person.n] && "is-away"}
+            >
               <.person_tap person={person} tappable={tappable(@view)}>
                 <.person_token person={person} />
                 <span class="people__name">
                   {if person.me?, do: "You", else: person.nickname}
                   <span :if={person.host?} class="host-tag">Host</span>
                   <.reaction :if={@reactions[person.n]} reaction={@reactions[person.n]} side? />
-                  <small :if={person.sitting_out?}>sitting out</small>
+                  <.away_tag
+                    :if={@view.away[person.n]}
+                    since={@view.away[person.n]}
+                    now={@now}
+                  />
+                  <small :if={person.sitting_out? && !@view.away[person.n]}>sitting out</small>
                 </span>
               </.person_tap>
               <.tally count={person.tally} />
@@ -626,6 +656,16 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
   defp bid_key(_view), do: nil
+
+  defp turn_away_since(%{game: %{turn: %{n: n}, reveal: nil}, away: away}), do: away[n]
+  defp turn_away_since(_view), do: nil
+
+  defp keep_ticking(%{assigns: %{view: %{away: away}, tick: nil}} = socket) when away != %{},
+    do: assign(socket, tick: Process.send_after(self(), :tick, @tick))
+
+  defp keep_ticking(socket), do: socket
+
+  defp now, do: System.system_time(:millisecond)
 
   defp tappable_people(%{host?: true, people: people}), do: Enum.reject(people, & &1.me?)
   defp tappable_people(_view), do: []

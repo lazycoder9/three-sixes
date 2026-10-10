@@ -23,6 +23,8 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :tappable, :any, required: true
   attr :reactions, :map, required: true
   attr :waiting?, :boolean, required: true
+  attr :away, :map, required: true
+  attr :now, :integer, required: true
 
   def game_table(assigns) do
     ~H"""
@@ -37,6 +39,8 @@ defmodule ThreeSixesWeb.TableComponents do
             y={y}
             tappable={@tappable}
             reaction={@reactions[seat.person.n]}
+            since={@away[seat.person.n]}
+            now={@now}
           />
         </ol>
         <.torn_scrap id="scrap" class="game-table__scrap">
@@ -80,6 +84,8 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :y, :float, required: true
   attr :tappable, :any, required: true
   attr :reaction, :map, default: nil
+  attr :since, :integer, default: nil
+  attr :now, :integer, required: true
 
   defp seat(assigns) do
     assigns = assign(assigns, :turn?, assigns.seat.on_turn? and assigns.game.reveal == nil)
@@ -87,7 +93,13 @@ defmodule ThreeSixesWeb.TableComponents do
     ~H"""
     <li
       id={"seat-#{@seat.person.n}"}
-      class={["seat", @turn? && "is-turn", @seat.penalty? && "is-loser", @seat.out? && "is-out"]}
+      class={[
+        "seat",
+        @turn? && "is-turn",
+        @seat.penalty? && "is-loser",
+        @seat.out? && "is-out",
+        @since && "is-away"
+      ]}
       aria-current={@turn? && "true"}
       style={"--x: #{@x}; --y: #{@y}"}
     >
@@ -107,6 +119,7 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@seat.out?} class="seat__out">out</small>
+      <.away_tag :if={@since && !@seat.out?} class="seat__away" since={@since} now={@now} />
       <span
         :if={@seat.said && !@game.reveal}
         class={["seat__said", said_now?(@seat, @game) && "is-now"]}
@@ -355,6 +368,8 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :open?, :boolean, required: true
   attr :tappable, :any, required: true
   attr :reactions, :map, required: true
+  attr :away, :map, required: true
+  attr :now, :integer, required: true
 
   def spectators(assigns) do
     assigns =
@@ -378,12 +393,21 @@ defmodule ThreeSixesWeb.TableComponents do
         </span>
       </div>
       <ul id="spectators" class="spec__list" hidden={!@open?}>
-        <li :for={spectator <- @spectators} id={"spectator-#{spectator.person.n}"}>
+        <li
+          :for={spectator <- @spectators}
+          id={"spectator-#{spectator.person.n}"}
+          class={@away[spectator.person.n] && "is-away"}
+        >
           <.person_tap person={spectator.person} tappable={@tappable}>
             <.person_token person={spectator.person} />
             <span>{name(spectator.person)}</span>
           </.person_tap>
           <small :if={spectator.out?}>out</small>
+          <.away_tag
+            :if={!spectator.out? && @away[spectator.person.n]}
+            since={@away[spectator.person.n]}
+            now={@now}
+          />
           <.reaction
             :if={@open? && @reactions[spectator.person.n]}
             reaction={@reactions[spectator.person.n]}
@@ -398,6 +422,40 @@ defmodule ThreeSixesWeb.TableComponents do
   defp unseated_reactions(spectators, reactions) do
     unseated = for %{person: %{n: n}, out?: false} <- spectators, do: n
     Map.take(reactions, unseated)
+  end
+
+  attr :person, :map, required: true
+  attr :since, :integer, required: true
+  attr :now, :integer, required: true
+  attr :host?, :boolean, required: true
+
+  def turn_away_banner(assigns) do
+    ~H"""
+    <.sticky_note class="banner">
+      <span>
+        <b>{@person.nickname}</b> is on turn and away {clock(@now - @since)}. The table waits.
+      </span>
+      <.block :if={@host?} variant={:walnut} phx-click="remove" phx-value-n={@person.n}>
+        Remove {@person.nickname}
+      </.block>
+      <span :if={!@host?} class="faint">Only the Host can Remove.</span>
+    </.sticky_note>
+    """
+  end
+
+  attr :since, :integer, required: true
+  attr :now, :integer, required: true
+  attr :class, :string, default: nil
+
+  def away_tag(assigns) do
+    ~H"""
+    <small class={@class}>away {clock(@now - @since)}</small>
+    """
+  end
+
+  defp clock(ms) do
+    seconds = max(div(ms, 1000), 0)
+    "#{div(seconds, 60)}:#{String.pad_leading("#{rem(seconds, 60)}", 2, "0")}"
   end
 
   defp spectator_count(1), do: "1 Spectator"
