@@ -22,6 +22,11 @@ is gitignored, not in `docs/`, which holds only durable, still-true documents.
 - **Every branch is reviewed as a whole before its pull request opens**, by the loop in
   `docs/CODE_REVIEW.md`.
 - `mix precommit` is the gate.
+- **A fresh worktree is set up by `bash scripts/worktree_setup.sh`** (T3 runs it on create; safe
+  to rerun). It clones `deps/`, `_build/`, `assets/node_modules/` and the dialyzer PLTs from the
+  main checkout, links `notes/` and `.kamal/secrets`, and gives the worktree its own dev
+  database. Each checkout keeps its own `deps/`: a symlinked one points `mix` at another
+  checkout's build. Agent worktrees go under `.claude/worktrees/`.
 - The merge chain, right before merging: `git fetch origin && git rebase refs/remotes/origin/main
   && mix precommit && git push --force-with-lease`. Always spell the remote-tracking ref in full:
   a local branch named `origin/main` shadows the bare form, and the rebase silently lands on the
