@@ -835,6 +835,41 @@ defmodule ThreeSixes.RoomsTest do
 
       assert %{members: [%{nickname: "Malika"}]} = saved_room(code)
     end
+
+    test "a save holding an atom this server has never made restores" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      shut_down(code)
+
+      %{members: [malika | rest]} = saved = saved_room(code)
+      member = Map.put(malika, :zq_fresh_atom_1, true)
+
+      bin =
+        %{saved | members: [member | rest]}
+        |> :erlang.term_to_binary()
+        |> :binary.replace("zq_fresh_atom_1", "zq_fresh_atom_9")
+
+      assert_raise ArgumentError, fn -> String.to_existing_atom("zq_fresh_atom_9") end
+      Repo.update_all(from(save in Save, where: save.code == ^code), set: [room: bin])
+
+      assert {:ok, %{people: [%{nickname: "Malika"}, %{nickname: "Dana"}]}} =
+               Rooms.join(code, @host)
+    end
+
+    test "a save that cannot be read stays closed" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      shut_down(code)
+      Repo.update_all(from(save in Save, where: save.code == ^code), set: [room: "not a term"])
+
+      assert capture_log(fn ->
+               assert Rooms.join(code, @host) == {:error, :closed}
+               refute Rooms.open?(code)
+             end) =~ "has a save that cannot be read"
+
+      assert Rooms.whereis(code) == nil
+    end
   end
 
   defp save(room) do

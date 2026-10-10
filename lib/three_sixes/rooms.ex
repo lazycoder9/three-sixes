@@ -1,6 +1,8 @@
 defmodule ThreeSixes.Rooms do
   import Ecto.Query
 
+  require Logger
+
   alias ThreeSixes.Repo
   alias ThreeSixes.Room
   alias ThreeSixes.RoomCode
@@ -111,7 +113,7 @@ defmodule ThreeSixes.Rooms do
 
   defp live_save(code, now) do
     case Repo.get(Save, code) do
-      %Save{} = save -> if live?(save, now), do: save
+      %Save{} = save -> if live?(save, now) and decoded(save) != :none, do: save
       nil -> nil
     end
   end
@@ -123,8 +125,13 @@ defmodule ThreeSixes.Rooms do
 
   defp decoded(nil), do: :none
 
-  defp decoded(save),
-    do: {:ok, Plug.Crypto.non_executable_binary_to_term(save.room, [:safe]), save.closes_at}
+  defp decoded(save) do
+    {:ok, Plug.Crypto.non_executable_binary_to_term(save.room), save.closes_at}
+  rescue
+    ArgumentError ->
+      Logger.warning("Room #{save.code} has a save that cannot be read")
+      :none
+  end
 
   defp call(code, request, restore? \\ true) do
     GenServer.call(Server.via(code), request)
