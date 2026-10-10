@@ -62,7 +62,7 @@ body:has(.game-table) .table-main {
     container-type: size;
   }
   .game-table {
-    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 703), 1.8px);
     min-height: 0;
   }
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
@@ -84,7 +84,7 @@ body:has(.game-table) .table-main {
   .game-table {
     --u: clamp(
       0.75px,
-      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 596),
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 703),
       1.8px
     );
   }
@@ -496,11 +496,60 @@ body:has(.game-table) .table-main {
   flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  gap: calc(12 * var(--u));
-  margin-top: calc(10 * var(--u));
+  gap: calc(14 * var(--u));
+  margin: calc(8 * var(--u)) 0 calc(20 * var(--u));
 }
 .my-dice .die {
-  --d: calc(44 * var(--u));
+  --d: calc(60 * var(--u));
+  --rest:
+    inset 0 0 0 1px rgba(120, 95, 50, 0.3),
+    inset 0 0 calc(var(--d) * 0.14) rgba(120, 95, 50, 0.4),
+    0 calc(var(--d) * 0.05) 0 rgba(70, 45, 20, 0.35),
+    0 calc(var(--d) * 0.1) calc(var(--d) * 0.16) rgba(0, 0, 0, 0.3);
+  box-shadow: var(--rest);
+}
+.my-dice .die.is-hit {
+  box-shadow:
+    0 0 0 calc(var(--d) * 0.08) var(--color-mustard),
+    var(--rest);
+}
+.my-dice .die.is-penalty {
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 20, 10, 0.4),
+    0 calc(var(--d) * 0.05) 0 rgba(90, 20, 10, 0.35),
+    0 calc(var(--d) * 0.1) calc(var(--d) * 0.16) rgba(0, 0, 0, 0.3);
+}
+.my-dice .die.is-rolling {
+  animation: roll 0.6s var(--ease-hop) backwards;
+}
+.my-dice .die.is-rolling:nth-child(2) {
+  animation-delay: 50ms;
+}
+.my-dice .die.is-rolling:nth-child(3) {
+  animation-delay: 100ms;
+}
+.my-dice .die.is-rolling:nth-child(4) {
+  animation-delay: 150ms;
+}
+.my-dice .die.is-rolling:nth-child(5) {
+  animation-delay: 200ms;
+}
+.my-dice .die.is-rolling:nth-child(6) {
+  animation-delay: 250ms;
+}
+@keyframes roll {
+  25% {
+    transform: translateY(-40%) rotate(-16deg);
+  }
+  45% {
+    transform: translateY(0) rotate(11deg);
+  }
+  62% {
+    transform: translateY(-12%) rotate(-6deg);
+  }
+  80% {
+    transform: translateY(0) rotate(2deg);
+  }
 }
 .my-page__head {
   grid-area: head;
@@ -812,10 +861,10 @@ body:has(.game-table) .table-main {
   }
   .my-dice {
     gap: 8px;
-    margin-top: 8px;
+    margin: 8px 0 12px;
   }
   .my-dice .die {
-    --d: clamp(34px, calc((100vw - 110px) / 6.5), 42px);
+    --d: clamp(40px, calc((100vw - 64px) / 6.6), 54px);
   }
   .my-page__head {
     font-size: 22px;
