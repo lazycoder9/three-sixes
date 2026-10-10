@@ -304,6 +304,7 @@ body:has(.game-table) .table-main {
   text-align: center;
   font-size: calc(20 * var(--u));
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .game-table__scrap .bidn {
   --b: calc(60 * var(--u));
