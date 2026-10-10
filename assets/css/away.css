@@ -4,12 +4,39 @@
 .seat.is-away.is-turn {
   opacity: 0.8;
 }
+/* On the token's lower edge, so an Away seat keeps the height the table places it by. */
 .seat__away {
-  color: var(--color-ink-dim);
-  font: 500 14px/1 var(--font-ui);
+  position: absolute;
+  top: calc(54 * var(--u));
+  left: 50%;
+  z-index: 1;
+  transform: translate(-50%, -100%);
+  padding: calc(1 * var(--u)) calc(4 * var(--u));
+  border-radius: calc(5 * var(--u));
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  font: 500 max(11px, calc(13 * var(--u))) / 1.15 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
 }
-.seat.is-turn .seat__away {
-  color: var(--color-espresso-dim);
+.seat--compact .seat__away {
+  top: calc(34 * var(--u));
+  padding: 0 calc(3 * var(--u));
+  font-size: max(10px, calc(10.5 * var(--u)));
+}
+@media (width < 720px) {
+  .seat__away {
+    top: 46px;
+    font-size: 12px;
+  }
+  .seat--compact .seat__away,
+  .game-table--phone-compact .seat__away {
+    top: 27px;
+    padding: 0 2px;
+    font-size: 10px;
+  }
 }
 .people .is-away,
 .spec__list .is-away {
