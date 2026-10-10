@@ -442,7 +442,8 @@ defmodule ThreeSixes.Room do
 
   defp bid_view(bid, ref), do: %{count: bid.count, face: bid.face, by: ref.(bid.by)}
 
-  defp person_ref(room, person_id, viewer) do
+  @spec person_ref(t(), person_id(), person_id()) :: person_ref()
+  def person_ref(room, person_id, viewer) do
     {member, n} =
       room.members
       |> Enum.with_index(1)

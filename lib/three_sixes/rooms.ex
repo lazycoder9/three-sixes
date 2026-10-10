@@ -60,6 +60,10 @@ defmodule ThreeSixes.Rooms do
           :ok | {:error, :not_host | :not_member | :self | :closed}
   def make_host(code, by, n), do: call(code, {:make_host, by, n})
 
+  @spec react(String.t(), Room.person_id(), term()) ::
+          :ok | {:error, :not_member | :unknown | :too_soon | :closed}
+  def react(code, person_id, key), do: call(code, {:react, person_id, key})
+
   @spec whereis(String.t()) :: pid() | nil
   def whereis(code) do
     case Registry.lookup(ThreeSixes.Rooms.Registry, code) do
