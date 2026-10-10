@@ -36,7 +36,7 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
       refute render(dana) =~ ~s(data-face="2")
     end
 
-    test "a restored Round deals like any new one: the Penalty die rolls in and the steps start over" do
+    test "a restored Round deals like any new one: the dice roll and the steps start over" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
       start(timur, [[3], [5]])
       press(timur, "Bid one three")
@@ -48,9 +48,8 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
 
       assert text(dana, "#scrap") == "You open the Round. 3 dice on the table"
       assert faces(dana) == [1, 2]
-      assert count(dana, "#my-page .slot:nth-child(2) .cube.cube--tumble-in") == 1
-      assert count(dana, "#my-page .cube--tumble-in") == 1
-      assert count(timur, "#my-page .cube--tumble-in") == 0
+      assert count(dana, "#my-dice .die.is-rolling") == 2
+      assert count(timur, "#my-dice .die.is-rolling") == 1
 
       press(dana, "One more")
       assert offers(dana) == ["2 ×", "3 ×"]
@@ -284,7 +283,7 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
     view
     |> render()
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("#my-page [data-face]")
+    |> LazyHTML.query("#my-dice [data-face]")
     |> LazyHTML.attribute("data-face")
     |> Enum.map(&String.to_integer/1)
   end

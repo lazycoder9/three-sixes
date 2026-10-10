@@ -65,6 +65,9 @@ body:has(.game-table) .table-main {
     --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
     min-height: 0;
   }
+  .game-table[data-seated] {
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 618), 1.8px);
+  }
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
     --d: calc(20 * var(--u));
@@ -76,8 +79,8 @@ body:has(.game-table) .table-main {
   .seat--compact .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
     --d: calc(12 * var(--u));
   }
-  .game-table[data-seated] .game-table__scrap {
-    top: 54%;
+  .game-table[data-seated]:not(.game-table--long) .game-table__scrap {
+    top: 66%;
   }
 }
 @media (min-width: 1000px) {
@@ -85,6 +88,13 @@ body:has(.game-table) .table-main {
     --u: clamp(
       0.75px,
       min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 596),
+      1.8px
+    );
+  }
+  .game-table[data-seated] {
+    --u: clamp(
+      0.75px,
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 618),
       1.8px
     );
   }
@@ -360,13 +370,6 @@ body:has(.game-table) .table-main {
   color: var(--color-tomato);
   font: 700 calc(22 * var(--u)) / 1.1 var(--font-scrawl);
 }
-.hand .slot--pen:has(.die + .die) {
-  grid-auto-flow: column;
-}
-.hand .slot--pen .die + .die {
-  margin-left: calc(-10 * var(--u));
-  rotate: -16deg;
-}
 
 .three-sixes {
   position: absolute;
@@ -452,9 +455,6 @@ body:has(.game-table) .table-main {
     font-size: 17px;
     line-height: 1;
   }
-  .my-page .hand:has(.slot--pen .die + .die) {
-    column-gap: 8px;
-  }
   .three-sixes {
     gap: 6px;
     padding: 5px 12px 6px;
@@ -482,11 +482,11 @@ body:has(.game-table) .table-main {
 .my-page {
   align-self: center;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "hand head check"
-    "hand opts check"
-    "hand opts keys";
+    "head check"
+    "opts check"
+    "opts keys";
   grid-template-rows: min-content 1fr auto;
   align-items: center;
   gap: calc(3 * var(--u)) calc(20 * var(--u));
@@ -501,39 +501,65 @@ body:has(.game-table) .table-main {
     0 0 0 calc(4 * var(--u)) var(--color-mustard),
     0 18px 24px -12px rgba(0, 0, 0, 0.55);
 }
-.my-page .hand {
-  --s: calc(44 * var(--u));
-  grid-area: hand;
+.my-dice {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  gap: calc(12 * var(--u)) calc(16 * var(--u));
-  max-width: calc(196 * var(--u));
-  padding: calc(8 * var(--u)) calc(6 * var(--u));
+  gap: calc(14 * var(--u));
+  margin: calc(8 * var(--u)) 0 max(12px, calc(8 * var(--u)));
 }
-.hand .slot {
-  transition:
-    translate 0.25s,
-    opacity 0.25s;
+.my-dice .die {
+  --d: calc(60 * var(--u));
+  --rest:
+    inset 0 0 0 1px rgba(120, 95, 50, 0.3),
+    inset 0 0 calc(var(--d) * 0.14) rgba(120, 95, 50, 0.4),
+    0 calc(var(--d) * 0.05) 0 rgba(70, 45, 20, 0.35),
+    0 calc(var(--d) * 0.1) calc(var(--d) * 0.16) rgba(0, 0, 0, 0.3);
+  box-shadow: var(--rest);
 }
-.hand .slot.is-hit {
-  translate: 0 -14%;
-  filter: drop-shadow(0 0 calc(2 * var(--u)) var(--color-mustard))
-    drop-shadow(0 0 calc(7 * var(--u)) var(--color-mustard));
+.my-dice .die.is-hit {
+  box-shadow:
+    0 0 0 calc(var(--d) * 0.08) var(--color-mustard),
+    var(--rest);
 }
-.hand .slot.is-miss {
-  opacity: 0.45;
+.my-dice .die.is-penalty {
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 20, 10, 0.4),
+    0 calc(var(--d) * 0.05) 0 rgba(90, 20, 10, 0.35),
+    0 calc(var(--d) * 0.1) calc(var(--d) * 0.16) rgba(0, 0, 0, 0.3);
 }
-.hand .slot--pen {
-  align-self: center;
-  transform: rotate(8deg);
+.my-dice .die.is-rolling {
+  animation: roll 0.6s var(--ease-hop) backwards;
 }
-.hand .slot--pen::before {
-  display: none;
+.my-dice .die.is-rolling:nth-child(2) {
+  animation-delay: 50ms;
 }
-.hand .slot--pen .die {
-  --d: calc(34 * var(--u));
+.my-dice .die.is-rolling:nth-child(3) {
+  animation-delay: 100ms;
+}
+.my-dice .die.is-rolling:nth-child(4) {
+  animation-delay: 150ms;
+}
+.my-dice .die.is-rolling:nth-child(5) {
+  animation-delay: 200ms;
+}
+.my-dice .die.is-rolling:nth-child(6) {
+  animation-delay: 250ms;
+}
+@keyframes roll {
+  25% {
+    transform: translateY(-40%) rotate(-16deg);
+  }
+  45% {
+    transform: translateY(0) rotate(11deg);
+  }
+  62% {
+    transform: translateY(-12%) rotate(-6deg);
+  }
+  80% {
+    transform: translateY(0) rotate(2deg);
+  }
 }
 .my-page__head {
   grid-area: head;
@@ -836,19 +862,25 @@ body:has(.game-table) .table-main {
   }
   .my-page {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "hand" "head" "opts" "check";
+    grid-template-areas: "head" "opts" "check";
     grid-template-rows: none;
     gap: 5px;
     width: 100%;
     padding-left: 38px;
     padding-right: 10px;
   }
-  .my-page .hand {
-    --s: clamp(34px, calc((100vw - 110px) / 6.5), 42px);
-    flex-wrap: nowrap;
-    justify-self: center;
-    max-width: none;
-    padding: 12px 0 10px;
+  .my-dice {
+    gap: 8px;
+    margin: 8px 0 12px;
+  }
+  .my-dice .die {
+    --d: clamp(40px, calc((100vw - 64px) / 6.6), 54px);
+  }
+  .my-dice:has(> .die:nth-of-type(7)) {
+    gap: 6px;
+  }
+  .my-dice:has(> .die:nth-of-type(7)) .die {
+    --d: clamp(34px, calc((100vw - 64px) / 7.7), 47px);
   }
   .my-page__head {
     font-size: 22px;
@@ -904,7 +936,7 @@ body:has(.game-table) .table-main {
 }
 @media (width < 720px) and (hover: hover) and (pointer: fine) {
   .my-page {
-    grid-template-areas: "hand" "head" "opts" "keys" "check";
-    grid-template-rows: repeat(3, auto) minmax(19px, auto) auto;
+    grid-template-areas: "head" "opts" "keys" "check";
+    grid-template-rows: repeat(2, auto) minmax(19px, auto) auto;
   }
 }

@@ -19,7 +19,7 @@ defmodule ThreeSixesWeb.TableComponents do
 
   attr :game, :map, required: true
   attr :step, :integer, required: true
-  attr :rolled, :any, default: nil
+  attr :rolled, :integer, default: nil
   attr :tappable, :any, required: true
   attr :reactions, :map, required: true
   attr :waiting?, :boolean, required: true
@@ -69,12 +69,12 @@ defmodule ThreeSixesWeb.TableComponents do
           </span>
         </.torn_scrap>
       </div>
+      <.my_dice :if={@game.seated?} game={@game} rolled={@rolled} />
       <div class="game-table__bottom">
         <.my_page
           :if={@game.seated?}
           game={@game}
           step={@step}
-          rolled={@rolled}
           reaction={@reactions[hd(@game.seats).person.n]}
         />
         <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
@@ -198,10 +198,11 @@ defmodule ThreeSixesWeb.TableComponents do
   end
 
   attr :count, :integer, required: true
+  attr :rest, :global
 
   defp penalty_dice(assigns) do
     ~H"""
-    <span :for={_ <- 1..@count} class="die is-penalty"></span>
+    <span :for={_ <- 1..@count} class="die is-penalty" {@rest}></span>
     """
   end
 
@@ -218,14 +219,37 @@ defmodule ThreeSixesWeb.TableComponents do
   defp counted(_face, %{step: step}) when step >= 1, do: "is-miss"
   defp counted(_face, _reveal), do: nil
 
-  defp tumble_from({round, new_from}, round, i, face) when i >= new_from, do: rem(face, 6) + 1
-  defp tumble_from(_rolled, _round, _i, _face), do: nil
-
   defp said_now?(seat, game), do: game.bid != nil and game.bid.by == seat.person
 
   attr :game, :map, required: true
+  attr :rolled, :integer, default: nil
+
+  defp my_dice(assigns) do
+    ~H"""
+    <div id="my-dice" class="my-dice" role="group" aria-label="Your dice">
+      <.die
+        :for={{face, i} <- Enum.with_index(@game.my_dice)}
+        id={"my-die-#{@game.round}-#{i}"}
+        face={face}
+        data-face={face}
+        role="img"
+        aria-label={face_word(face)}
+        class={[@rolled == @game.round && "is-rolling", counted(face, @game.reveal)]}
+      />
+      <.penalty_dice
+        :if={hd(@game.seats).penalty?}
+        count={@game.reveal.penalty}
+        role="img"
+        aria-label="Penalty die"
+      />
+    </div>
+    """
+  end
+
+  defp face_word(face), do: Enum.at(@faces, face - 1)
+
+  attr :game, :map, required: true
   attr :step, :integer, required: true
-  attr :rolled, :any, required: true
   attr :reaction, :map, default: nil
 
   defp my_page(assigns) do
@@ -237,17 +261,6 @@ defmodule ThreeSixesWeb.TableComponents do
       phx-hook="PlayKeys"
       data-my-turn={to_string(@game.my_turn?)}
     >
-      <div class="hand">
-        <span
-          :for={{face, i} <- Enum.with_index(@game.my_dice)}
-          class={["slot", counted(face, @game.reveal)]}
-        >
-          <.cube face={face} turns={@game.round} from={tumble_from(@rolled, @game.round, i, face)} />
-        </span>
-        <span :if={hd(@game.seats).penalty?} class="slot slot--pen">
-          <.penalty_dice count={@game.reveal.penalty} />
-        </span>
-      </div>
       <p class={["scrawl my-page__head", !@game.my_turn? && "faint"]}>{head(@game)}</p>
       <.offers game={@game} step={@step} />
       <.block

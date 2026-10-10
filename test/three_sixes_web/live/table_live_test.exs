@@ -62,26 +62,42 @@ defmodule ThreeSixesWeb.TableLiveTest do
   end
 
   describe "the dice" do
-    test "each Player sees only their own dice; the others' lie face down" do
+    test "each Player sees only their own dice, flat on the table above their page" do
       %{timur: timur, dana: dana} = table(~w(Timur Dana))
 
       start(timur, [[2], [5]])
 
       assert faces(timur) == [2]
       assert faces(dana) == [5]
-      assert count(timur, "#my-page .cube") == 1
+
+      for player <- [timur, dana] do
+        assert count(player, "#my-dice .die[data-face]") == 1
+        assert count(player, "#my-page #my-dice, #my-page [data-face]") == 0
+        assert count(player, ".cube") == 0
+        refute has_element?(player, ".seat__dice .die:not(.is-down)")
+      end
+
       assert count(dana, "#seat-1 .seat__dice .die.is-down") == 1
-      refute has_element?(timur, ".seat__dice .die:not(.is-down)")
-      refute has_element?(dana, ".seat__dice .die:not(.is-down)")
+
+      assert has_element?(
+               timur,
+               "#my-dice[role='group'][aria-label='Your dice'] .die[role='img'][aria-label='two']"
+             )
+
+      assert has_element?(dana, "#my-dice .die[role='img'][aria-label='five']")
+      refute has_element?(dana, "[aria-label='two']")
+      refute has_element?(timur, "[aria-label='five']")
     end
 
-    test "your dice roll in at Start and at a new Round, and lie still after a reload" do
+    test "your dice roll at Start and at a new Round, and lie still after a reload" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
       start(timur, [[3], [5]])
 
-      assert count(timur, "#my-page .cube.cube--tumble-in") == 1
-      assert count(dana, "#my-page .cube.cube--tumble-in") == 1
-      assert count(visit(code, "timur"), "#my-page .cube--tumble-in") == 0
+      assert has_element?(timur, "#my-die-1-0.die.is-rolling[data-face='3']")
+      assert has_element?(dana, "#my-die-1-0.die.is-rolling[data-face='5']")
+      reloaded = visit(code, "timur")
+      assert count(reloaded, "#my-dice .die") == 1
+      assert count(reloaded, "#my-dice .is-rolling") == 0
 
       press(timur, "Bid one five")
       check(dana)
@@ -89,11 +105,11 @@ defmodule ThreeSixesWeb.TableLiveTest do
       Scripted.script([[4], [1, 6]])
       reveal(code, {:next_round, 1})
 
-      assert count(timur, "#my-page .cube--tumble-in") == 0
-      assert count(dana, "#my-page .cube") == 2
-      assert count(dana, "#my-page .slot:nth-child(2) .cube.cube--tumble-in") == 1
-      assert count(dana, "#my-page .cube--tumble-in") == 1
-      assert count(visit(code, "dana"), "#my-page .cube--tumble-in") == 0
+      assert has_element?(timur, "#my-die-2-0.die.is-rolling[data-face='4']")
+      assert has_element?(dana, "#my-die-2-0.die.is-rolling[data-face='1']")
+      assert has_element?(dana, "#my-die-2-1.die.is-rolling[data-face='6']")
+      assert count(dana, "#my-dice .die") == 2
+      assert count(visit(code, "dana"), "#my-dice .is-rolling") == 0
     end
 
     test "a reload mid-Round shows the same dice" do
@@ -429,9 +445,9 @@ defmodule ThreeSixesWeb.TableLiveTest do
       reveal(code, {:reveal, 1, 1})
 
       assert has_element?(timur, "#seat-2 .seat__dice .die.is-flip.is-hit")
-      assert has_element?(timur, "#my-page .slot.is-miss")
+      assert has_element?(timur, "#my-dice .die.is-miss[data-face='3']")
       assert has_element?(dana, "#seat-1 .seat__dice .die.is-flip.is-miss")
-      assert has_element?(dana, "#my-page .slot.is-hit")
+      assert has_element?(dana, "#my-dice .die.is-hit[data-face='5']")
       assert text(timur, "#scrap") == "Bid 1 × ? ×"
       assert has_element?(timur, "#scrap .scrap__found .bidn[aria-label='counting']")
 
@@ -453,8 +469,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert has_element?(timur, "#scrap .scrap__pen .die.is-penalty")
       assert has_element?(timur, "#seat-2.is-loser .seat__dice .die.is-penalty")
       assert count(timur, "#seat-2 .seat__dice .die") == 2
-      assert has_element?(dana, "#my-page .slot--pen .die.is-penalty")
-      refute has_element?(timur, "#my-page .is-penalty")
+      assert has_element?(dana, "#my-dice .die.is-penalty[role='img'][aria-label='Penalty die']")
+      refute has_element?(timur, "#my-dice .is-penalty")
 
       Scripted.script([[4], [1, 6]])
       reveal(code, {:next_round, 1})
@@ -481,8 +497,10 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert has_element?(dana, "#scrap .scrap__found .bidn[aria-label='Not a single six.']")
       assert text(dana, "#scrap") == "Bid 1 × 0 × Bluff caught. Timur +"
       assert has_element?(dana, "#seat-1.is-loser .die.is-penalty")
-      assert has_element?(timur, "#my-page .slot--pen .die.is-penalty")
-      assert count(dana, ".seat .die.is-hit") + count(dana, "#my-page .slot.is-hit") == 0
+      assert has_element?(timur, "#my-dice .die.is-penalty")
+      refute has_element?(dana, "#my-dice .is-penalty")
+      assert count(dana, ".seat .die.is-hit") + count(dana, "#my-dice .die.is-hit") == 0
+      assert has_element?(dana, "#my-dice .die.is-miss")
 
       Scripted.script([[1, 2], [3]])
       reveal(code, {:next_round, 1})
@@ -557,8 +575,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       assert count(timur, "#seat-2.is-loser .seat__dice .die.is-penalty") == 2
       assert count(malika, "#seat-2.is-loser .seat__dice .die.is-penalty") == 2
-      assert count(dana, "#my-page .slot--pen .die.is-penalty") == 2
-      refute has_element?(timur, "#my-page .is-penalty")
+      assert count(dana, "#my-dice .die.is-penalty") == 2
+      refute has_element?(timur, "#my-dice .is-penalty")
     end
 
     test "a Check on any other Bid costs one Penalty die, with no word of three sixes" do
@@ -573,7 +591,21 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert text(timur, "#scrap") == "Bid 2 × 1 × Bluff caught. You +"
       assert count(dana, "#scrap .scrap__pen .die.is-penalty") == 1
       assert count(dana, "#seat-1 .seat__dice .die.is-penalty") == 1
-      assert count(timur, "#my-page .slot--pen .die.is-penalty") == 1
+      assert count(timur, "#my-dice .die.is-penalty") == 1
+    end
+
+    test "your two Penalty dice from three sixes lie in your band after your dice, and only yours" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[6], [6], [6]])
+      press(timur, "One more")
+      press(timur, "Bid three sixes")
+      check(dana)
+
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+
+      assert band(dana) == [{"six", false}, {"Penalty die", true}, {"Penalty die", true}]
+
+      assert band(timur) == [{"six", false}]
     end
   end
 
@@ -608,6 +640,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
       next_round(code, 5, [[2], [3]])
 
       refute has_element?(timur, "#my-page")
+      refute has_element?(timur, "#my-dice")
       assert text(timur, "#watching") == "You're Knocked out. You're watching. Waiting for Dana."
       assert has_element?(timur, "#seat-1.is-out", "You")
       assert faces(timur) == []
@@ -650,8 +683,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       for player <- [timur, dana, malika] do
         refute has_element?(player, "#lobby")
-        assert count(player, "#my-page .cube") == 1
-        assert count(player, "#my-page .cube.cube--tumble-in") == 1
+        assert count(player, "#my-dice .die") == 1
+        assert count(player, "#my-dice .die.is-rolling") == 1
         assert count(player, ".seat .seat__dice .die.is-down") == 2
         refute has_element?(player, ".seat.is-out")
       end
@@ -835,6 +868,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
       html = aziz |> render() |> LazyHTML.from_fragment()
 
       refute has_element?(aziz, "#my-page")
+      refute has_element?(aziz, "#my-dice")
       assert html |> LazyHTML.query(".cube, [data-face]") |> Enum.empty?()
       assert html |> LazyHTML.query(".die:not(.is-down)") |> Enum.count() == 1
       assert html |> LazyHTML.query(".logo .die") |> Enum.count() == 1
@@ -1106,6 +1140,17 @@ defmodule ThreeSixesWeb.TableLiveTest do
     |> LazyHTML.query("[data-face]")
     |> LazyHTML.attribute("data-face")
     |> Enum.map(&String.to_integer/1)
+  end
+
+  defp band(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#my-dice > .die[role='img']")
+    |> Enum.map(fn die ->
+      [label] = LazyHTML.attribute(die, "aria-label")
+      {label, die |> LazyHTML.attribute("class") |> hd() |> String.contains?("is-penalty")}
+    end)
   end
 
   defp count(view, selector) do

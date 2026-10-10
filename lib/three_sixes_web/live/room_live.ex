@@ -700,10 +700,7 @@ defmodule ThreeSixesWeb.RoomLive do
   defp rolled(_view, nil, rolled), do: rolled
   defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled
 
-  defp rolled(%{game: %{round: round}}, %{game: %{my_dice: [_ | _] = dice}}, _rolled),
-    do: {round, length(dice)}
-
-  defp rolled(%{game: %{round: round}}, _old, _rolled), do: {round, 0}
+  defp rolled(%{game: %{round: round}}, _old, _rolled), do: round
   defp rolled(_view, _old, _rolled), do: nil
 
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}

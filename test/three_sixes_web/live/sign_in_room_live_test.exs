@@ -341,7 +341,7 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
     view
     |> render()
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("#my-page [data-face]")
+    |> LazyHTML.query("#my-dice [data-face]")
     |> LazyHTML.attribute("data-face")
     |> Enum.map(&String.to_integer/1)
   end
