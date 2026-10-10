@@ -206,8 +206,19 @@ defmodule ThreeSixesWeb.RoomLive do
     end
   end
 
-  def handle_event(event, _params, socket) when event in ~w(raise step sit_out key react),
-    do: {:noreply, socket}
+  def handle_event("pass_host_now", _params, socket) do
+    Rooms.start_vote(socket.assigns.code, socket.assigns.person_id)
+    {:noreply, socket}
+  end
+
+  def handle_event("vote", %{"yes" => yes}, socket) when yes in ~w(true false) do
+    Rooms.vote(socket.assigns.code, socket.assigns.person_id, yes == "true")
+    {:noreply, socket}
+  end
+
+  def handle_event(event, _params, socket)
+      when event in ~w(raise step sit_out key react vote),
+      do: {:noreply, socket}
 
   defp enter(socket, nickname) do
     case Rooms.enter(socket.assigns.code, socket.assigns.person_id, nickname) do
@@ -287,7 +298,7 @@ defmodule ThreeSixesWeb.RoomLive do
   @impl true
   def handle_info({:room_view, view}, socket) do
     old = socket.assigns.view
-    {:noreply, socket |> put_view(view) |> new_host(old, view)}
+    {:noreply, socket |> put_view(view) |> new_host(old, view) |> vote_failed(old, view)}
   end
 
   def handle_info(:tick, socket),
@@ -369,6 +380,9 @@ defmodule ThreeSixesWeb.RoomLive do
           host?={@view.host?}
         />
       </:banner>
+      <:banner :if={@view.host_away}>
+        <.host_away_banner host={@view.host_nickname} away={@view.host_away} now={@now} />
+      </:banner>
       <.game_table
         game={@view.game}
         step={@step}
@@ -394,6 +408,9 @@ defmodule ThreeSixesWeb.RoomLive do
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
     >
+      <:banner :if={@view.host_away}>
+        <.host_away_banner host={@view.host_nickname} away={@view.host_away} now={@now} />
+      </:banner>
       <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} now={@now} />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
@@ -675,6 +692,16 @@ defmodule ThreeSixesWeb.RoomLive do
          )
 
   defp new_host(socket, _old, _view), do: socket
+
+  defp vote_failed(
+         socket,
+         %{host_away: %{vote: %{}}},
+         %{host_away: %{vote: nil, vote_again_at: at}}
+       )
+       when is_integer(at),
+       do: put_flash(socket, :info, "The vote failed. The Host stays for now.")
+
+  defp vote_failed(socket, _old, _view), do: socket
 
   defp rolled(_view, nil, rolled), do: rolled
   defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled

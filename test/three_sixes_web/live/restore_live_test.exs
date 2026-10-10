@@ -119,8 +119,10 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
       assert text(dana, "#seat-1 .seat__away") == "away 0:00"
       refute has_element?(dana, "#seat-2.is-away")
 
-      assert text(dana, "#banners") ==
+      assert text(dana, "#banners .banner:first-child") ==
                "Timur is on turn and away 0:00. The table waits. Only the Host can Remove."
+
+      assert has_element?(dana, "#banners #host-away", "Pass Host now")
     end
   end
 
