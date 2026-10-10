@@ -325,11 +325,24 @@ body:has(.game-table) .table-main {
   display: none;
 }
 .seat--compact .seat__tag {
-  top: calc(100% - 3 * var(--u));
+  top: calc(1 * var(--u));
   left: 50%;
   padding: 0 calc(3 * var(--u));
   font-size: max(11px, calc(12 * var(--u)));
   transform: translateX(-50%) rotate(3deg);
+}
+.seat--compact .seat__dice:has(> .seat__n):has(~ .seat__tag) {
+  justify-self: start;
+  margin-left: calc(8 * var(--u));
+}
+.seat--compact .seat__dice:has(~ .seat__tag) .die.is-down {
+  display: none;
+}
+.seat--compact .seat__dice:has(> .seat__n) ~ .seat__tag {
+  top: auto;
+  bottom: calc(4 * var(--u));
+  left: calc(19 * var(--u));
+  transform: rotate(3deg);
 }
 
 .game-table__scrap {
@@ -865,11 +878,26 @@ body:has(.game-table) .table-main {
   }
   .seat--compact .seat__tag,
   .game-table--phone-compact .seat__tag {
-    top: calc(100% - 3px);
+    top: 1px;
     left: 50%;
     padding: 0 3px;
     font-size: 12px;
     transform: translateX(-50%) rotate(3deg);
+  }
+  .seat--compact .seat__dice:has(> .seat__n):has(~ .seat__tag),
+  .game-table--phone-compact .seat__dice:has(> .seat__n):has(~ .seat__tag) {
+    justify-self: start;
+    margin-left: 5px;
+  }
+  .game-table--phone-compact .seat__dice:has(~ .seat__tag) .die.is-down {
+    display: none;
+  }
+  .seat--compact .seat__dice:has(> .seat__n) ~ .seat__tag,
+  .game-table--phone-compact .seat__dice:has(> .seat__n) ~ .seat__tag {
+    top: auto;
+    bottom: 2px;
+    left: 15px;
+    transform: rotate(3deg);
   }
   .seat--compact .seat__said,
   .game-table--phone-compact .seat__said {
@@ -967,6 +995,9 @@ body:has(.game-table) .table-main {
   .my-dice__blind {
     gap: 6px;
     margin-left: 0;
+  }
+  .my-dice:has(> .die.is-penalty) .my-dice__blind {
+    display: none;
   }
   .my-dice__mark {
     padding: 1px 6px 2px;
