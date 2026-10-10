@@ -207,7 +207,11 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   def handle_event("pass_host_now", _params, socket) do
-    Rooms.start_vote(socket.assigns.code, socket.assigns.person_id)
+    %{code: code, person_id: person_id} = socket.assigns
+
+    with {:error, :voting} <- Rooms.start_vote(code, person_id),
+         do: Rooms.vote(code, person_id, true)
+
     {:noreply, socket}
   end
 
@@ -298,7 +302,7 @@ defmodule ThreeSixesWeb.RoomLive do
   @impl true
   def handle_info({:room_view, view}, socket) do
     old = socket.assigns.view
-    {:noreply, socket |> put_view(view) |> new_host(old, view) |> vote_failed(old, view)}
+    {:noreply, socket |> put_view(view) |> new_host(old, view)}
   end
 
   def handle_info(:tick, socket),
@@ -692,16 +696,6 @@ defmodule ThreeSixesWeb.RoomLive do
          )
 
   defp new_host(socket, _old, _view), do: socket
-
-  defp vote_failed(
-         socket,
-         %{host_away: %{vote: %{}}},
-         %{host_away: %{vote: nil, vote_again_at: at}}
-       )
-       when is_integer(at),
-       do: put_flash(socket, :info, "The vote failed. The Host stays for now.")
-
-  defp vote_failed(socket, _old, _view), do: socket
 
   defp rolled(_view, nil, rolled), do: rolled
   defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled

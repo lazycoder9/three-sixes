@@ -23,7 +23,7 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
 
       for view <- [dana, malika] do
         assert text(view, "#host-away") ==
-                 "Timur, the Host, is away 1:42. The role passes on in 0:17. Pass Host now"
+                 "Host Timur is away 1:42. The role passes on in 0:17. Pass Host now"
 
         assert has_element?(view, "#host-away b", "Timur")
         refute has_element?(view, "#host-away button[disabled]")
@@ -40,7 +40,7 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
       for view <- [dana, malika] do
         assert items(view, "#banners .banner") == [
                  "Timur is on turn and away 1:42. The table waits. Only the Host can Remove.",
-                 "Timur, the Host, is away 1:42. The role passes on in 0:17. Pass Host now"
+                 "Host Timur is away 1:42. The role passes on in 0:17. Pass Host now"
                ]
       end
     end
@@ -53,7 +53,7 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
 
       assert eventually(fn ->
                text(dana, "#host-away") ==
-                 "Timur, the Host, is away 1:43. The role passes on in 0:16. Pass Host now"
+                 "Host Timur is away 1:43. The role passes on in 0:16. Pass Host now"
              end)
     end
 
@@ -64,7 +64,7 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
       close(timur, code)
 
       assert text(dana, "#host-away") ==
-               "Timur, the Host, is away 2:05. The role passes on in 0:00. Pass Host now"
+               "Host Timur is away 2:05. The role passes on in 0:00. Pass Host now"
     end
   end
 
@@ -150,18 +150,22 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
       assert text(malika, "#flash-info p") == "Dana is the Host now."
     end
 
-    test "fails on a No: the Host stays, everyone is told, and Pass Host now waits" do
+    test "fails on a No: the Host stays, and the banner says so in place of Pass Host now" do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
       close(timur, code)
       dana |> element("#host-away button", "Pass Host now") |> render_click()
+      set_back(code, 500)
 
       malika |> element("#host-away button", "No") |> render_click()
 
       for view <- [dana, malika] do
-        assert text(view, "#flash-info p") == "The vote failed. The Host stays for now."
         assert has_element?(view, "#person-1 .host-tag")
-        assert text(view, "#host-away") =~ "Timur, the Host, is away 0:00."
-        assert has_element?(view, "#host-away button[disabled]", "Pass Host now")
+
+        assert text(view, "#host-away") ==
+                 "Host Timur is away 0:00. The role passes on in 1:59. The vote failed. Ask again in 0:29."
+
+        refute has_element?(view, "#host-away button")
+        refute has_element?(view, "#flash-info")
       end
     end
 
@@ -169,14 +173,32 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
       close(timur, code)
       dana |> element("#host-away button", "Pass Host now") |> render_click()
+      set_back(code, 500)
 
       time_out(code, :vote)
 
       for view <- [dana, malika] do
-        assert text(view, "#flash-info p") == "The vote failed. The Host stays for now."
         assert has_element?(view, "#person-1 .host-tag")
-        assert has_element?(view, "#host-away button[disabled]", "Pass Host now")
+        assert text(view, "#host-away") =~ "The vote failed. Ask again in 0:29."
+        refute has_element?(view, "#host-away button")
+        refute has_element?(view, "#flash-info")
       end
+    end
+
+    test "the wait counts down, and Pass Host now comes back when it ends" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana Malika))
+      close(timur, code)
+      dana |> element("#host-away button", "Pass Host now") |> render_click()
+      set_back(code, 28_500)
+
+      time_out(code, :vote)
+
+      assert text(dana, "#host-away") =~ "The vote failed. Ask again in 0:01."
+
+      assert eventually(fn ->
+               has_element?(dana, "#host-away button", "Pass Host now") and
+                 not (text(dana, "#host-away") =~ "The vote failed")
+             end)
     end
 
     test "can start again once 30 seconds have passed since one failed" do
@@ -187,8 +209,7 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
 
       malika |> element("#host-away button", "No") |> render_click()
 
-      assert text(malika, "#flash-info p") == "The vote failed. The Host stays for now."
-      refute has_element?(malika, "#host-away button[disabled]")
+      refute text(malika, "#host-away") =~ "The vote failed"
       set_back(code, 500)
       malika |> element("#host-away button", "Pass Host now") |> render_click()
 
@@ -203,7 +224,6 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
       set_back(code, 500)
       dana |> element("#host-away button", "Pass Host now") |> render_click()
 
-      render_hook(malika, "pass_host_now", %{})
       render_hook(malika, "vote", %{"yes" => "maybe"})
       render_hook(malika, "vote", %{})
       render_hook(dana, "vote", %{"yes" => "true"})
@@ -212,6 +232,22 @@ defmodule ThreeSixesWeb.HostAwayLiveTest do
                "Pass Host now? Dana asked. 1 of 2 said yes. 0:29 left. Yes No"
 
       refute has_element?(malika, "#flash-info")
+    end
+  end
+
+  describe "two people tapping Pass Host now in the same moment" do
+    test "the second tap counts as a yes in the vote the first one started" do
+      %{timur: timur, dana: dana, malika: malika, code: code} =
+        table(~w(Timur Dana Malika Aziz))
+
+      close(timur, code)
+      set_back(code, 500)
+      dana |> element("#host-away button", "Pass Host now") |> render_click()
+
+      render_hook(malika, "pass_host_now", %{})
+
+      assert text(malika, "#host-away") ==
+               "Pass Host now? Dana asked. 2 of 3 said yes. 0:29 left. You said yes."
     end
   end
 

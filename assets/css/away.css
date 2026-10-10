@@ -81,3 +81,29 @@
     margin-top: 24px;
   }
 }
+@media (width < 720px) {
+  #banners {
+    gap: 6px;
+    padding: 0 var(--spacing-2);
+  }
+  .banner {
+    display: block;
+    padding: 4px 10px 5px;
+    font-size: 16px;
+    line-height: 20px;
+    text-align: center;
+  }
+  .banner .block {
+    min-height: 26px;
+    margin: 0 0 4px 8px;
+    padding: 0 10px;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  body:has(#banners) .game-table--arc .game-table__ring {
+    min-height: 260px;
+  }
+  body:has(#banners) .game-table--phone-compact .game-table__ring {
+    min-height: 270px;
+  }
+}

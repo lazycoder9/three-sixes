@@ -1299,6 +1299,12 @@ defmodule ThreeSixes.RoomTest do
       assert Room.vote_over(room, 70_000) == room
     end
 
+    test "ended late, as after a restore, still waits from its deadline, not from when it ended" do
+      room = Room.vote_over(voting(), 50_000)
+
+      assert room.handover.vote_again_at == 65_000
+    end
+
     test "starts only while the Host is Away, from someone connected, with no vote open" do
       {:ok, left} = Room.leave(host_away(), "guest:timur", [])
       room = Room.away(host_away(), "guest:timur", 2_000)

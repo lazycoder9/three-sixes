@@ -429,7 +429,9 @@ defmodule ThreeSixes.Room do
   def vote(_room, _by, yes?, _now) when is_boolean(yes?), do: {:error, :no_vote}
 
   @spec vote_over(t(), integer()) :: t()
-  def vote_over(%{handover: %{vote: %{}}} = room, now), do: vote_failed(room, now)
+  def vote_over(%{handover: %{vote: %{ends_at: ends_at}}} = room, now),
+    do: vote_failed(room, min(now, ends_at))
+
   def vote_over(room, _now), do: room
 
   defp put_vote(room, vote), do: %{room | handover: %{room.handover | vote: vote}}

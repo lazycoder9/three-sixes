@@ -451,12 +451,13 @@ defmodule ThreeSixesWeb.TableComponents do
     ~H"""
     <.sticky_note id="host-away" class="banner">
       <span>
-        <b>{@host}</b>, the Host, is away {clock(@now - @away.since)}.
+        Host <b>{@host}</b> is away {clock(@now - @away.since)}.
         The role passes on in {clock(@away.ends_at - @now)}.
       </span>
-      <.block phx-click="pass_host_now" disabled={too_soon?(@away, @now)}>
-        Pass Host now
-      </.block>
+      <span :if={too_soon?(@away, @now)}>
+        The vote failed. Ask again in {clock(@away.vote_again_at - @now)}.
+      </span>
+      <.block :if={!too_soon?(@away, @now)} phx-click="pass_host_now">Pass Host now</.block>
     </.sticky_note>
     """
   end
