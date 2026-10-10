@@ -780,6 +780,22 @@ defmodule ThreeSixes.RoomsTest do
       refute_receive {:forwarded, ^dana, {:room_view, _view}}
     end
 
+    test "a restored Room has every member Away until they join again" do
+      {code, _dana} = table()
+      shut_down(code)
+
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+      assert %{away: away} = :sys.get_state(Rooms.whereis(code)).room
+      assert away |> Map.keys() |> Enum.sort() == Enum.sort([@host, "guest:dana"])
+
+      assert {:ok, %{away: %{2 => _since}, dealt_in: 1}} = Rooms.join(code, @host)
+
+      _dana = join_from_another_process(code, "guest:dana")
+
+      assert_receive {:room_view, %{away: away, dealt_in: 2}}
+      assert away == %{}
+    end
+
     test "the process of someone who never entered exiting sends nothing" do
       {code, _dana} = table()
 

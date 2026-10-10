@@ -307,6 +307,7 @@ defmodule ThreeSixesWeb.RoomLive do
     %{view: old, step: step, rolled: rolled} = socket.assigns
     step = if bid_key(view) == bid_key(old), do: step, else: 0
     socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
+
     socket
     |> assign(view: view, step: step, rolled: rolled(view, old, rolled), now: now())
     |> keep_ticking()

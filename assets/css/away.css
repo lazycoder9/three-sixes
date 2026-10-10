@@ -8,6 +8,9 @@
   color: var(--color-ink-dim);
   font: 500 14px/1 var(--font-ui);
 }
+.seat.is-turn .seat__away {
+  color: var(--color-espresso-dim);
+}
 .people .is-away,
 .spec__list .is-away {
   opacity: 0.5;
