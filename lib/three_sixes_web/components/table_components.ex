@@ -27,16 +27,30 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :now, :integer, required: true
 
   def game_table(assigns) do
+    seats = length(assigns.game.seats)
+    shown = if assigns.game.seated?, do: tl(assigns.game.seats), else: assigns.game.seats
+    assigns = assign(assigns, seats: seats, shown: shown, compact?: seats > 8)
+
     ~H"""
-    <div id="game-table" class="game-table">
+    <div
+      id="game-table"
+      class={[
+        "game-table",
+        @compact? && "game-table--long",
+        @seats > 5 && "game-table--phone-compact",
+        @game.seated? && @seats <= 5 && "game-table--arc"
+      ]}
+      phx-hook="TableSeats"
+      data-seats={@seats}
+      data-seated={@game.seated?}
+    >
       <div class="game-table__ring">
         <ol class="game-table__seats">
           <.seat
-            :for={{seat, x, y} <- ring(@game)}
+            :for={seat <- @shown}
             seat={seat}
             game={@game}
-            x={x}
-            y={y}
+            compact?={@compact?}
             tappable={@tappable}
             reaction={@reactions[seat.person.n]}
             since={@away[seat.person.n]}
@@ -64,24 +78,9 @@ defmodule ThreeSixesWeb.TableComponents do
     """
   end
 
-  defp ring(%{seated?: true, seats: [_me | others]} = game),
-    do: place(others, 1, length(game.seats))
-
-  defp ring(game), do: place(game.seats, 0, length(game.seats))
-
-  defp place(seats, first, n) do
-    seats
-    |> Enum.with_index(first)
-    |> Enum.map(fn {seat, i} ->
-      angle = :math.pi() / 2 + i * 2 * :math.pi() / n
-      {seat, Float.round(:math.cos(angle), 4), Float.round(:math.sin(angle), 4)}
-    end)
-  end
-
   attr :seat, :map, required: true
   attr :game, :map, required: true
-  attr :x, :float, required: true
-  attr :y, :float, required: true
+  attr :compact?, :boolean, required: true
   attr :tappable, :any, required: true
   attr :reaction, :map, default: nil
   attr :since, :integer, default: nil
@@ -95,13 +94,13 @@ defmodule ThreeSixesWeb.TableComponents do
       id={"seat-#{@seat.person.n}"}
       class={[
         "seat",
+        @compact? && "seat--compact",
         @turn? && "is-turn",
         @seat.penalty? && "is-loser",
         @seat.out? && "is-out",
         @since && "is-away"
       ]}
       aria-current={@turn? && "true"}
-      style={"--x: #{@x}; --y: #{@y}"}
     >
       <.person_tap person={@seat.person} tappable={@tappable}>
         <.person_token person={@seat.person} />
@@ -116,12 +115,13 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :if={@seat.penalty?} class="die is-penalty"></span>
       </span>
       <span :if={!@seat.faces and !@seat.out?} class="seat__dice">
+        <b class="seat__n">{@seat.dice}</b>
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@seat.out?} class="seat__out">out</small>
       <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
       <span
-        :if={@seat.said && !@game.reveal}
+        :if={@seat.said && !@game.reveal && (!@compact? || said_now?(@seat, @game))}
         class={["seat__said", said_now?(@seat, @game) && "is-now"]}
       >
         <.bidn count={@seat.said.count} face={@seat.said.face} />

@@ -767,6 +767,89 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "a crowded table" do
+    test "up to 8 seats are full seats around a round table" do
+      {_code, [host, other | _rest]} = crowd(8)
+
+      for player <- [host, other] do
+        assert count(player, ".seat") == 7
+        refute has_element?(player, ".seat--compact")
+        refute has_element?(player, "#game-table.game-table--long")
+      end
+    end
+
+    test "past 8 seats every seat is compact, at a long table, and shows its die count" do
+      {_code, [host, other | _rest]} = crowd(9)
+
+      for player <- [host, other] do
+        assert count(player, ".seat.seat--compact") == 8
+        assert count(player, ".seat:not(.seat--compact)") == 0
+        assert has_element?(player, "#game-table.game-table--long")
+        assert items(player, ".seat .seat__n") == List.duplicate("1", 8)
+        assert count(player, ".seat .seat__dice .die.is-down") >= 8
+      end
+    end
+
+    test "for a phone: four others sit on an arc, and a watcher of five seats gets a ring" do
+      {code, [host, other | _rest]} = crowd(5)
+      aziz = late_arrival(code)
+
+      for player <- [host, other] do
+        assert has_element?(player, "#game-table.game-table--arc[data-seats='5'][data-seated]")
+        refute has_element?(player, "#game-table.game-table--phone-compact")
+      end
+
+      refute has_element?(aziz, "#game-table.game-table--arc")
+      refute has_element?(aziz, "#game-table.game-table--phone-compact")
+      assert has_element?(aziz, "#game-table[data-seats='5']:not([data-seated])")
+    end
+
+    test "for a phone: past five seats they are compact, seated or watching" do
+      {code, [host, other | _rest]} = crowd(6)
+      aziz = late_arrival(code)
+
+      for player <- [host, other, aziz] do
+        assert has_element?(player, "#game-table.game-table--phone-compact[data-seats='6']")
+        refute has_element?(player, "#game-table.game-table--arc")
+        refute has_element?(player, "#game-table.game-table--long")
+      end
+    end
+
+    test "compact seats keep the dice hidden until the reveal, then turn them over" do
+      {code, players} = crowd(9)
+      {opener, _n} = on_turn(players)
+      press(opener, "Bid one four")
+      {checker, _n} = on_turn(players)
+      watcher = Enum.find(players, &(&1 not in [opener, checker]))
+
+      for player <- [checker, watcher] do
+        assert faces(player) == [1]
+        refute has_element?(player, ".seat .seat__dice .die:not(.is-down)")
+      end
+
+      check(checker)
+      reveal(code, {:reveal, 1, 1})
+
+      for player <- [checker, watcher] do
+        assert count(player, ".seat--compact .seat__dice .die.is-flip.is-miss") == 8
+        refute has_element?(player, ".seat .seat__n")
+      end
+    end
+
+    test "a compact seat shows its Bid only while it is the current Bid" do
+      {_code, players} = crowd(9)
+      {opener, opener_n} = on_turn(players)
+      press(opener, "Bid one four")
+      {raiser, raiser_n} = on_turn(players)
+      press(raiser, "Raise to one five")
+
+      for {player, n} <- Enum.with_index(players, 1), n not in [opener_n, raiser_n] do
+        refute has_element?(player, "#seat-#{opener_n} .seat__said")
+        assert has_element?(player, "#seat-#{raiser_n} .seat__said.is-now .bidn", "1")
+      end
+    end
+  end
+
   test "someone who enters during a Game watches the table with no page and no dice" do
     %{timur: timur, code: code} = table(~w(Timur Dana))
     start(timur, [[2], [5]])
@@ -839,6 +922,33 @@ defmodule ThreeSixesWeb.TableLiveTest do
       {String.to_existing_atom(id), view}
     end)
     |> Map.put(:code, code)
+  end
+
+  defp crowd(size) do
+    {:ok, code} = Rooms.create("guest:p1", "127.0.0.1")
+
+    [host | _rest] =
+      players =
+      for n <- 1..size do
+        view = visit(code, "p#{n}")
+        enter(view, "P#{n}")
+        view
+      end
+
+    start(host, List.duplicate([1], size))
+    {code, players}
+  end
+
+  defp late_arrival(code) do
+    aziz = visit(code, "aziz")
+    enter(aziz, "Aziz")
+    aziz
+  end
+
+  defp on_turn(players) do
+    players
+    |> Enum.with_index(1)
+    |> Enum.find(fn {player, _n} -> has_element?(player, "#my-page.is-turn") end)
   end
 
   defp start(host, rolls) do
