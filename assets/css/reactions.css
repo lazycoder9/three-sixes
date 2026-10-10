@@ -47,8 +47,8 @@
   }
 }
 
-/* An empty box up to as wide as the note and its gap balances the note on the left, so the page
-   stays centred. It gives way first when room runs short. */
+/* The empty box on the left balances the note on the right, so the page stays centred; it gives
+   way first when room runs short. */
 .game-table__bottom {
   display: flex;
   flex-direction: column;
@@ -141,8 +141,7 @@
   }
 }
 
-/* Placed by `left` and `translate`, so the animations own `transform`. Toward the side of the table a
-   seat's pop-up shifts outward from centred, so it never runs off the window. */
+/* Placed by `left` and `translate`, so the animations own `transform`. */
 .reaction {
   --at: calc((1 + var(--x, 0)) * 50%);
   position: absolute;
