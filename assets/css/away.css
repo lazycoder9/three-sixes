@@ -40,3 +40,13 @@
   padding: 0 16px;
   font-size: 15px;
 }
+/* A sticky note's top shade is drawn over its content; lifted above it, the button takes the click. */
+.banner > * {
+  position: relative;
+}
+
+@media (max-width: 1179px) {
+  .roombar:has(.spec) ~ #banners {
+    margin-top: 24px;
+  }
+}
