@@ -77,6 +77,14 @@ defmodule ThreeSixes.Rooms do
           :ok | {:error, :not_host | :not_member | :self | :closed}
   def make_host(code, by, n), do: call(code, {:make_host, by, n})
 
+  @spec start_vote(String.t(), Room.person_id()) ::
+          :ok | {:error, :no_handover | :not_member | :voting | :too_soon | :closed}
+  def start_vote(code, person_id), do: call(code, {:start_vote, person_id})
+
+  @spec vote(String.t(), Room.person_id(), boolean()) ::
+          :ok | {:error, :no_vote | :not_member | :closed}
+  def vote(code, person_id, yes?), do: call(code, {:vote, person_id, yes?})
+
   @spec react(String.t(), Room.person_id(), term()) ::
           :ok | {:error, :not_member | :unknown | :too_soon | :closed}
   def react(code, person_id, key), do: call(code, {:react, person_id, key})
