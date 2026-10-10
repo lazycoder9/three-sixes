@@ -857,6 +857,66 @@ defmodule ThreeSixes.RoomsTest do
                Rooms.join(code, @host)
     end
 
+    test "while someone is joined, the save is written again every 5 minutes with nothing changed" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      save(room)
+      age_save(code, 16)
+
+      assert :erlang.read_timer(:sys.get_state(room).refresh_timer) in 1..:timer.minutes(5)
+
+      send(room, refresh(room))
+      :sys.get_state(room)
+
+      assert DateTime.diff(DateTime.utc_now(), Repo.get!(Save, code).updated_at, :second) < 5
+      assert :erlang.read_timer(:sys.get_state(room).refresh_timer) in 1..:timer.minutes(5)
+    end
+
+    test "a Room killed after sitting unchanged for 16 minutes is still live to the rejoin" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      save(room)
+      age_save(code, 16)
+      send(room, refresh(room))
+      :sys.get_state(room)
+
+      :sys.suspend(ThreeSixes.Rooms.Supervisor)
+      Process.exit(room, :kill)
+      wait_until_unregistered(code)
+
+      assert Rooms.open?(code)
+
+      :sys.resume(ThreeSixes.Rooms.Supervisor)
+      restarted(code, room)
+
+      assert {:ok, %{people: [%{nickname: "Malika"}, %{nickname: "Dana"}]}} =
+               Rooms.join(code, @host)
+    end
+
+    test "a crashed Room whose save cannot be restored stays closed, and every other Room stays up" do
+      supervisor = Process.whereis(ThreeSixes.Rooms.Supervisor)
+      {:ok, other} = Rooms.create("guest:aziz", @address)
+      {:ok, code} = Rooms.create(@host, @address)
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      save(room)
+
+      Repo.update_all(from(save in Save, where: save.code == ^code),
+        set: [room: :erlang.term_to_binary("not a room")]
+      )
+
+      log =
+        capture_log(fn ->
+          Process.exit(room, :kill)
+          settled(supervisor, room)
+        end)
+
+      assert Process.whereis(ThreeSixes.Rooms.Supervisor) == supervisor
+      assert Rooms.whereis(code) == nil
+      assert is_pid(Rooms.whereis(other))
+      assert log =~ "could not be restored"
+    end
+
     test "a save that cannot be read stays closed" do
       {:ok, code} = Rooms.create(@host, @address)
       {:ok, _view} = Rooms.enter(code, @host, "Malika")
@@ -893,6 +953,30 @@ defmodule ThreeSixes.RoomsTest do
       on_conflict: :replace_all,
       conflict_target: :code
     )
+  end
+
+  defp age_save(code, minutes) do
+    updated_at = DateTime.add(DateTime.utc_now(), -minutes, :minute)
+    Repo.update_all(from(save in Save, where: save.code == ^code), set: [updated_at: updated_at])
+  end
+
+  defp refresh(room) do
+    %{refresh_timer: timer} = :sys.get_state(room)
+    assert is_reference(timer)
+    {:timeout, timer, :refresh}
+  end
+
+  defp settled(supervisor, room) do
+    busy? =
+      Process.alive?(supervisor) and
+        Enum.any?(DynamicSupervisor.which_children(supervisor), fn {_id, pid, _type, _modules} ->
+          pid in [room, :restarting]
+        end)
+
+    if busy? do
+      Process.sleep(1)
+      settled(supervisor, room)
+    end
   end
 
   defp shut_down(code) do

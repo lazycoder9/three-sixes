@@ -62,6 +62,27 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
       assert offers(dana) == ["1 ×", "2 ×"]
     end
 
+    test "a crash back to a save from before the Round rolled starts the opener's steps over" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[3], [5]])
+      press(timur, "Bid one three")
+      check(dana)
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+      reveal(code, :save)
+      Scripted.script([[4], [1, 2]])
+      reveal(code, {:next_round, 1})
+      press(dana, "One more")
+
+      assert offers(dana) == ["2 ×", "3 ×"]
+
+      Scripted.script([[6], [3, 4]])
+      crash_unsaved(code, 2)
+
+      assert text(dana, "#scrap") == "You open the Round. 3 dice on the table"
+      assert faces(dana) == [3, 4]
+      assert offers(dana) == ["1 ×", "2 ×"]
+    end
+
     test "after a deploy, the link still opens, and a visit brings the Room back re-rolled" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
       start(timur, [[3], [5]])
@@ -117,6 +138,11 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
     room = Rooms.whereis(code)
     send(room, :save)
     :sys.get_state(room)
+    crash_unsaved(code, seats)
+  end
+
+  defp crash_unsaved(code, seats) do
+    room = Rooms.whereis(code)
     ref = Process.monitor(room)
     Process.exit(room, :kill)
     assert_receive {:DOWN, ^ref, :process, ^room, :killed}

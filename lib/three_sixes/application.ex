@@ -5,6 +5,8 @@ defmodule ThreeSixes.Application do
 
   @impl true
   def start(_type, _args) do
+    max_rooms = Application.get_env(:three_sixes, :max_rooms, 5_000)
+
     children = [
       ThreeSixesWeb.Telemetry,
       ThreeSixes.Repo,
@@ -14,8 +16,7 @@ defmodule ThreeSixes.Application do
       {Phoenix.PubSub, name: ThreeSixes.PubSub},
       {Registry, keys: :unique, name: ThreeSixes.Rooms.Registry},
       {DynamicSupervisor,
-       name: ThreeSixes.Rooms.Supervisor,
-       max_children: Application.get_env(:three_sixes, :max_rooms, 5_000)},
+       name: ThreeSixes.Rooms.Supervisor, max_children: max_rooms, max_restarts: max_rooms},
       ThreeSixesWeb.Endpoint
     ]
 

@@ -12,6 +12,7 @@ defmodule ThreeSixes.Rooms.Server do
   @close_after :timer.minutes(15)
   @reaction_wait 2000
   @save_after :timer.seconds(5)
+  @refresh_after :timer.minutes(5)
   @open_per_guest 5
   @open_per_address 20
 
@@ -40,6 +41,10 @@ defmodule ThreeSixes.Rooms.Server do
       :none when creator == nil -> :ignore
       :none -> new(code, creator)
     end
+  rescue
+    error ->
+      Logger.error("Room #{code} could not be restored: #{Exception.message(error)}")
+      :ignore
   end
 
   defp restored(saved, closes_at) do
@@ -66,7 +71,8 @@ defmodule ThreeSixes.Rooms.Server do
       waiting: MapSet.new(),
       closes_at: closes_at,
       changed?: false,
-      save_timer: nil
+      save_timer: nil,
+      refresh_timer: nil
     })
   end
 
@@ -78,6 +84,7 @@ defmodule ThreeSixes.Rooms.Server do
     state =
       %{state | joined: Map.put(state.joined, pid, person_id), close_timer: nil}
       |> put_closes_at(nil)
+      |> schedule_refresh()
 
     {:reply, {:ok, Room.view_for(state.room, person_id)}, state}
   end
@@ -204,6 +211,11 @@ defmodule ThreeSixes.Rooms.Server do
 
   def handle_info({:timeout, _stale, :close}, state), do: {:noreply, state}
 
+  def handle_info({:timeout, timer, :refresh}, %{refresh_timer: timer} = state),
+    do: {:noreply, refresh(%{state | refresh_timer: nil})}
+
+  def handle_info({:timeout, _stale, :refresh}, state), do: {:noreply, state}
+
   def handle_info(:save, state), do: {:noreply, save(%{state | save_timer: nil})}
 
   @impl true
@@ -217,6 +229,14 @@ defmodule ThreeSixes.Rooms.Server do
     |> put_closes_at(deadline(state, DateTime.utc_now()))
     |> save()
   end
+
+  defp refresh(%{joined: joined} = state) when joined == %{}, do: state
+  defp refresh(state), do: schedule_refresh(save(%{state | changed?: true}))
+
+  defp schedule_refresh(%{refresh_timer: nil} = state),
+    do: %{state | refresh_timer: :erlang.start_timer(@refresh_after, self(), :refresh)}
+
+  defp schedule_refresh(state), do: state
 
   defp save(%{changed?: false} = state), do: state
 

@@ -63,7 +63,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
     with {:ok, view} <- Rooms.join(code, person_id),
          pid when is_pid(pid) <- Rooms.whereis(code) do
-      socket |> put_view(view) |> assign(room_ref: Process.monitor(pid))
+      socket |> assign(step: 0) |> put_view(view) |> assign(room_ref: Process.monitor(pid))
     else
       _closed -> assign(socket, view: nil, closed?: true)
     end
