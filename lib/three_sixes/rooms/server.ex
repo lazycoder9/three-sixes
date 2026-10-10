@@ -3,9 +3,11 @@ defmodule ThreeSixes.Rooms.Server do
 
   alias ThreeSixes.Dice
   alias ThreeSixes.Game
+  alias ThreeSixes.Reaction
   alias ThreeSixes.Room
 
   @close_after :timer.minutes(15)
+  @reaction_wait 2000
   @open_per_guest 5
   @open_per_address 20
 
@@ -26,7 +28,14 @@ defmodule ThreeSixes.Rooms.Server do
     if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
       {:stop, :too_many}
     else
-      state = %{room: Room.new(code, host_id), joined: %{}, close_timer: nil, reveal_timers: []}
+      state = %{
+        room: Room.new(code, host_id),
+        joined: %{},
+        close_timer: nil,
+        reveal_timers: [],
+        waiting: MapSet.new()
+      }
+
       {:ok, schedule_close(state)}
     end
   end
@@ -112,6 +121,27 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
+  def handle_call({:react, person_id, key}, _from, state) do
+    cond do
+      not Room.member?(state.room, person_id) ->
+        {:reply, {:error, :not_member}, state}
+
+      Reaction.text(key) == nil ->
+        {:reply, {:error, :unknown}, state}
+
+      person_id in state.waiting ->
+        {:reply, {:error, :too_soon}, state}
+
+      true ->
+        for {pid, viewer} <- state.joined do
+          send(pid, {:reaction, %{by: Room.person_ref(state.room, person_id, viewer), key: key}})
+        end
+
+        Process.send_after(self(), {:reaction_ready, person_id}, @reaction_wait)
+        {:reply, :ok, %{state | waiting: MapSet.put(state.waiting, person_id)}}
+    end
+  end
+
   @impl true
   def handle_info({:reveal, round, step}, state) do
     case Room.reveal(state.room, round, step) do
@@ -127,6 +157,9 @@ defmodule ThreeSixes.Rooms.Server do
       :stale -> {:noreply, state}
     end
   end
+
+  def handle_info({:reaction_ready, person_id}, state),
+    do: {:noreply, %{state | waiting: MapSet.delete(state.waiting, person_id)}}
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     {:noreply, schedule_close(%{state | joined: Map.delete(state.joined, pid)})}

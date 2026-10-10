@@ -359,6 +359,77 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "a Reaction" do
+    test "reaches every joined process, says who sent it from each side, and sends no view" do
+      {code, dana} = table()
+
+      assert Rooms.react(code, "guest:dana", "gg") == :ok
+
+      assert_receive {:reaction, %{by: %{nickname: "Dana", me?: false, n: 2}, key: "gg"}}
+
+      assert_receive {:forwarded, ^dana,
+                      {:reaction, %{by: %{nickname: "Dana", me?: true, n: 2}, key: "gg"}}}
+
+      refute_receive {:room_view, _view}
+      refute_receive {:forwarded, _pid, {:room_view, _view}}
+    end
+
+    test "a second within the wait is refused and reaches nobody; once it ends the next goes" do
+      {code, dana} = table()
+      :ok = Rooms.react(code, "guest:dana", "gg")
+      assert_receive {:reaction, _reaction}
+      assert_receive {:forwarded, ^dana, {:reaction, _reaction}}
+
+      assert Rooms.react(code, "guest:dana", "lol") == {:error, :too_soon}
+      refute_receive {:reaction, _reaction}
+      refute_receive {:forwarded, ^dana, {:reaction, _reaction}}
+
+      send(Rooms.whereis(code), {:reaction_ready, "guest:dana"})
+
+      assert Rooms.react(code, "guest:dana", "lol") == :ok
+      assert_receive {:reaction, %{by: %{nickname: "Dana"}, key: "lol"}}
+    end
+
+    test "one person's wait does not hold up another" do
+      {code, dana} = table()
+      :ok = Rooms.react(code, "guest:dana", "gg")
+
+      assert Rooms.react(code, @host, "fire") == :ok
+
+      assert_receive {:forwarded, ^dana,
+                      {:reaction, %{by: %{nickname: "Malika", me?: false}, key: "fire"}}}
+    end
+
+    test "from someone not in the Room, or outside the set, is refused and reaches nobody" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.join(code, "guest:aziz")
+
+      assert Rooms.react(code, "guest:aziz", "gg") == {:error, :not_member}
+      assert Rooms.react(code, "guest:dana", "wave") == {:error, :unknown}
+      assert Rooms.react(code, "guest:dana", nil) == {:error, :unknown}
+      refute_receive {:reaction, _reaction}
+      refute_receive {:forwarded, ^dana, {:reaction, _reaction}}
+
+      assert Rooms.react(code, "guest:dana", "gg") == :ok
+    end
+
+    test "goes through during the reveal and leaves the Room as it was" do
+      {code, dana} = started()
+      room = Rooms.whereis(code)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 1})
+      flush_after(room)
+      before = :sys.get_state(room).room
+
+      assert Rooms.react(code, @host, "gasp") == :ok
+
+      assert_receive {:forwarded, ^dana, {:reaction, %{by: %{nickname: "Malika"}, key: "gasp"}}}
+      assert :sys.get_state(room).room == before
+      refute_receive {:room_view, _view}
+    end
+  end
+
   describe "stale and refused" do
     test "a reveal or next-round message for another Round, or none running, changes nothing" do
       {code, _dana} = started()
@@ -422,7 +493,7 @@ defmodule ThreeSixes.RoomsTest do
       assert Rooms.start_game(code, @host) == {:error, :too_few}
     end
 
-    test "a closed Room is closed to a Game too" do
+    test "a closed Room is closed to a Game and to Reactions too" do
       {:ok, code} = Rooms.create(@host, @address)
       close(code)
 
@@ -430,6 +501,7 @@ defmodule ThreeSixes.RoomsTest do
       assert Rooms.raise(code, @host, 1, 6) == {:error, :closed}
       assert Rooms.check(code, @host) == {:error, :closed}
       assert Rooms.sit_out(code, @host, true) == {:error, :closed}
+      assert Rooms.react(code, @host, "gg") == {:error, :closed}
     end
   end
 

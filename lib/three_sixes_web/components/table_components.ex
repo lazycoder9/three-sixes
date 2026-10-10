@@ -4,15 +4,25 @@ defmodule ThreeSixesWeb.TableComponents do
   import ThreeSixesWeb.KitchenComponents
 
   alias ThreeSixes.Game
+  alias ThreeSixes.Reaction
 
   @token_colors [:tomato, :teal, :ochre, :walnut]
   @numbers ~w(no one two three four five six seven eight nine ten eleven twelve)
   @faces ~w(one two three four five six)
+  @reaction_labels %{
+    "lol" => "Laugh",
+    "gasp" => "Gasp",
+    "hmm" => "Hmm",
+    "clap" => "Clap",
+    "fire" => "Fire"
+  }
 
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :rolled, :any, default: nil
   attr :tappable, :any, required: true
+  attr :reactions, :map, required: true
+  attr :waiting?, :boolean, required: true
 
   def game_table(assigns) do
     ~H"""
@@ -26,16 +36,26 @@ defmodule ThreeSixesWeb.TableComponents do
             x={x}
             y={y}
             tappable={@tappable}
+            reaction={@reactions[seat.person.n]}
           />
         </ol>
         <.torn_scrap id="scrap" class="game-table__scrap">
           <.scrap game={@game} />
         </.torn_scrap>
       </div>
-      <.my_page :if={@game.seated?} game={@game} step={@step} rolled={@rolled} />
-      <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
-        {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
-      </.torn_scrap>
+      <div class="game-table__bottom">
+        <.my_page
+          :if={@game.seated?}
+          game={@game}
+          step={@step}
+          rolled={@rolled}
+          reaction={@reactions[hd(@game.seats).person.n]}
+        />
+        <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
+          {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
+        </.torn_scrap>
+        <.reaction_note waiting?={@waiting?} />
+      </div>
     </div>
     """
   end
@@ -59,6 +79,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :x, :float, required: true
   attr :y, :float, required: true
   attr :tappable, :any, required: true
+  attr :reaction, :map, default: nil
 
   defp seat(assigns) do
     assigns = assign(assigns, :turn?, assigns.seat.on_turn? and assigns.game.reveal == nil)
@@ -92,6 +113,7 @@ defmodule ThreeSixesWeb.TableComponents do
       >
         <.bidn count={@seat.said.count} face={@seat.said.face} />
       </span>
+      <.reaction :if={@reaction} reaction={@reaction} />
     </li>
     """
   end
@@ -170,6 +192,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :rolled, :any, required: true
+  attr :reaction, :map, default: nil
 
   defp my_page(assigns) do
     ~H"""
@@ -203,6 +226,7 @@ defmodule ThreeSixesWeb.TableComponents do
       >
         Check <kbd aria-hidden="true">C</kbd>
       </.block>
+      <.reaction :if={@reaction} reaction={@reaction} />
     </.notebook_page>
     """
   end
@@ -330,35 +354,101 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :spectators, :list, required: true
   attr :open?, :boolean, required: true
   attr :tappable, :any, required: true
+  attr :reactions, :map, required: true
 
   def spectators(assigns) do
+    assigns =
+      assign(assigns, :reactions, unseated_reactions(assigns.spectators, assigns.reactions))
+
     ~H"""
     <div class="spec">
-      <button
-        id="spectators-chip"
-        type="button"
-        class="spec__chip"
-        phx-click="spectators"
-        aria-expanded={to_string(@open?)}
-        aria-controls="spectators"
-      >
-        {spectator_count(length(@spectators))}<i aria-hidden="true"></i>
-      </button>
+      <div class="spec__top">
+        <button
+          id="spectators-chip"
+          type="button"
+          class="spec__chip"
+          phx-click="spectators"
+          aria-expanded={to_string(@open?)}
+          aria-controls="spectators"
+        >
+          {spectator_count(length(@spectators))}<i aria-hidden="true"></i>
+        </button>
+        <span :if={!@open? && @reactions != %{}} class="spec__reactions">
+          <.reaction :for={{_n, reaction} <- @reactions} reaction={reaction} side? />
+        </span>
+      </div>
       <ul id="spectators" class="spec__list" hidden={!@open?}>
-        <li :for={spectator <- @spectators}>
+        <li :for={spectator <- @spectators} id={"spectator-#{spectator.person.n}"}>
           <.person_tap person={spectator.person} tappable={@tappable}>
             <.person_token person={spectator.person} />
             <span>{name(spectator.person)}</span>
           </.person_tap>
           <small :if={spectator.out?}>out</small>
+          <.reaction
+            :if={@open? && @reactions[spectator.person.n]}
+            reaction={@reactions[spectator.person.n]}
+            side?
+          />
         </li>
       </ul>
     </div>
     """
   end
 
+  defp unseated_reactions(spectators, reactions) do
+    unseated = for %{person: %{n: n}, out?: false} <- spectators, do: n
+    Map.take(reactions, unseated)
+  end
+
   defp spectator_count(1), do: "1 Spectator"
   defp spectator_count(count), do: "#{count} Spectators"
+
+  attr :waiting?, :boolean, required: true
+
+  def reaction_note(assigns) do
+    assigns = assign(assigns, :keys, Reaction.all())
+
+    ~H"""
+    <div
+      id="reactions"
+      class={["reactions", @waiting? && "is-cooling"]}
+      role="group"
+      aria-label="Send a Reaction"
+    >
+      <button
+        :for={key <- @keys}
+        type="button"
+        class={["reactions__button", !face?(key) && "is-line"]}
+        phx-click="react"
+        phx-value-reaction={key}
+        aria-label={reaction_label(key)}
+        aria-disabled={@waiting? && "true"}
+      >
+        {Reaction.text(key)}
+      </button>
+    </div>
+    """
+  end
+
+  attr :reaction, :map, required: true
+  attr :side?, :boolean, default: false
+
+  def reaction(assigns) do
+    ~H"""
+    <span
+      id={"reaction-#{@reaction.by.n}-#{@reaction.id}"}
+      class={["reaction", !face?(@reaction.key) && "is-line", @side? && "reaction--side"]}
+      role="img"
+      aria-label={"#{name(@reaction.by)}: #{reaction_label(@reaction.key)}"}
+    >
+      {Reaction.text(@reaction.key)}
+    </span>
+    """
+  end
+
+  defp reaction_label(key), do: Map.get(@reaction_labels, key, Reaction.text(key))
+
+  defp face?(key), do: Map.has_key?(@reaction_labels, key)
 
   attr :person, :map, required: true
   attr :tappable, :any, required: true

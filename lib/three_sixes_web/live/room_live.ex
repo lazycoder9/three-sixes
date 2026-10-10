@@ -9,6 +9,8 @@ defmodule ThreeSixesWeb.RoomLive do
   alias ThreeSixes.Rooms
 
   @fits_zoomed 16
+  @reaction_wait 2000
+  @reaction_shown 3000
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -36,7 +38,10 @@ defmodule ThreeSixesWeb.RoomLive do
         error: nil,
         step: 0,
         rolled: nil,
-        spectators_open?: false
+        spectators_open?: false,
+        reactions: %{},
+        reactions_seen: 0,
+        reaction_wait: nil
       )
 
     if connected?(socket) do
@@ -164,7 +169,19 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket}
   end
 
-  def handle_event(event, _params, socket) when event in ~w(raise step sit_out key),
+  def handle_event("react", %{"reaction" => key}, socket) when is_binary(key) do
+    case Rooms.react(socket.assigns.code, socket.assigns.person_id, key) do
+      :ok ->
+        wait = make_ref()
+        Process.send_after(self(), {:reaction_wait_over, wait}, @reaction_wait)
+        {:noreply, assign(socket, reaction_wait: wait)}
+
+      _refused ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event(event, _params, socket) when event in ~w(raise step sit_out key react),
     do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -261,6 +278,28 @@ defmodule ThreeSixesWeb.RoomLive do
      |> push_navigate(to: ~p"/")}
   end
 
+  def handle_info({:reaction, %{by: by, key: key}}, socket) do
+    id = socket.assigns.reactions_seen + 1
+    Process.send_after(self(), {:reaction_over, by.n, id}, @reaction_shown)
+
+    {:noreply,
+     socket
+     |> assign(reactions_seen: id)
+     |> update(:reactions, &Map.put(&1, by.n, %{by: by, key: key, id: id}))}
+  end
+
+  def handle_info({:reaction_over, n, id}, socket) do
+    case socket.assigns.reactions do
+      %{^n => %{id: ^id}} -> {:noreply, update(socket, :reactions, &Map.delete(&1, n))}
+      _replaced -> {:noreply, socket}
+    end
+  end
+
+  def handle_info({:reaction_wait_over, wait}, %{assigns: %{reaction_wait: wait}} = socket),
+    do: {:noreply, assign(socket, reaction_wait: nil)}
+
+  def handle_info({:reaction_wait_over, _stale}, socket), do: {:noreply, socket}
+
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{assigns: %{room_ref: ref}} = socket),
     do: {:noreply, join(socket)}
 
@@ -279,9 +318,17 @@ defmodule ThreeSixesWeb.RoomLive do
           spectators={@view.spectators}
           open?={@spectators_open?}
           tappable={tappable(@view)}
+          reactions={@reactions}
         />
       </:under_code>
-      <.game_table game={@view.game} step={@step} rolled={@rolled} tappable={tappable(@view)} />
+      <.game_table
+        game={@view.game}
+        step={@step}
+        rolled={@rolled}
+        tappable={tappable(@view)}
+        reactions={@reactions}
+        waiting?={@reaction_wait != nil}
+      />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} game={@view.game} />
     </Layouts.room>
     """
@@ -295,7 +342,7 @@ defmodule ThreeSixesWeb.RoomLive do
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
     >
-      <.lobby view={@view} />
+      <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
     """
@@ -457,6 +504,8 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   attr :view, :map, required: true
+  attr :reactions, :map, required: true
+  attr :waiting?, :boolean, required: true
 
   defp lobby(assigns) do
     ~H"""
@@ -475,6 +524,7 @@ defmodule ThreeSixesWeb.RoomLive do
                 <span class="people__name">
                   {if person.me?, do: "You", else: person.nickname}
                   <span :if={person.host?} class="host-tag">Host</span>
+                  <.reaction :if={@reactions[person.n]} reaction={@reactions[person.n]} side? />
                   <small :if={person.sitting_out?}>sitting out</small>
                 </span>
               </.person_tap>
@@ -506,6 +556,7 @@ defmodule ThreeSixesWeb.RoomLive do
         </div>
         <p :if={!@view.host?} class="lobby__wait">{waiting_for_host(@view)}</p>
       </div>
+      <.reaction_note waiting?={@waiting?} />
     </div>
     """
   end
