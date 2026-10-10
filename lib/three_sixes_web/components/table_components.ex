@@ -12,7 +12,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :rolled, :any, default: nil
-  attr :tappable, :any, required: true, doc: "the numbers of the people the viewer may tap"
+  attr :tappable, :any, required: true
 
   def game_table(assigns) do
     ~H"""
