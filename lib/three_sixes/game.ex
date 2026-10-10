@@ -225,6 +225,44 @@ defmodule ThreeSixes.Game do
   defp void(game, leaver),
     do: %{game | turn: nil, bid: nil, said: %{}, dice: %{}, reveal: nil, voided_by: leaver}
 
+  @spec move_seat(t(), person_id(), person_id()) :: t()
+  def move_seat(game, from, to) do
+    swap = fn
+      ^from -> to
+      ^to -> from
+      id -> id
+    end
+
+    %{
+      game
+      | seats: Enum.map(game.seats, swap),
+        counts: swap_keys(game.counts, swap),
+        dice: swap_keys(game.dice, swap),
+        said: swap_keys(game.said, swap),
+        turn: swap.(game.turn),
+        opener: swap.(game.opener),
+        out: Enum.map(game.out, swap),
+        voided_by: swap.(game.voided_by),
+        bid: game.bid && %{game.bid | by: swap.(game.bid.by)},
+        reveal: game.reveal && swap_reveal(game.reveal, swap),
+        checks: Enum.map(game.checks, &swap_check(&1, swap))
+    }
+  end
+
+  defp swap_keys(map, swap), do: Map.new(map, fn {id, value} -> {swap.(id), value} end)
+
+  defp swap_reveal(reveal, swap) do
+    %{
+      reveal
+      | checker: swap.(reveal.checker),
+        loser: swap.(reveal.loser),
+        bid: %{reveal.bid | by: swap.(reveal.bid.by)}
+    }
+  end
+
+  defp swap_check(check, swap),
+    do: %{check | checker: swap.(check.checker), bidder: swap.(check.bidder)}
+
   @type offer :: %{count: pos_integer(), faces: [face()], stepped?: boolean()}
 
   @spec offers(bid() | nil, non_neg_integer(), integer()) :: [offer()]

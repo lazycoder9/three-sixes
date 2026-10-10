@@ -1129,6 +1129,114 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "signing in" do
+    @account "account:1"
+
+    defp join_as_account(code, was) do
+      test = self()
+
+      pid =
+        spawn(fn ->
+          send(test, {:joined, self(), Rooms.join(code, @account, was)})
+          forward(test)
+        end)
+
+      assert_receive {:joined, ^pid, reply}
+      {pid, reply}
+    end
+
+    test "moves the Guest's seat to the Account and ends being Away in the same call" do
+      {code, dana} = started()
+      :ok = Rooms.raise(code, @host, 1, 6)
+      flush_after(Rooms.whereis(code))
+      leave(dana)
+      assert_receive {:room_view, %{away: %{2 => _since}}}
+
+      {_account, reply} = join_as_account(code, "guest:dana")
+
+      assert {:moved, %{me: "Dana", game: %{my_dice: [2], my_turn?: true}}} = reply
+
+      assert_receive {:room_view,
+                      %{away: away, people: [_, %{n: 2, nickname: "Dana"}], game: game}}
+
+      assert away == %{}
+      assert %{turn: %{nickname: "Dana", n: 2}, round: 1, bid: %{count: 1}} = game
+      refute_receive {:room_view, _view}
+
+      assert Rooms.raise(code, "guest:dana", 2, 6) == {:error, :not_your_turn}
+      assert Rooms.raise(code, @account, 2, 6) == :ok
+    end
+
+    test "a second join with the same marker moves nothing and sends nothing" do
+      {code, _dana} = started()
+      {_account, {:moved, _view}} = join_as_account(code, "guest:dana")
+      flush_after(Rooms.whereis(code))
+
+      {_again, reply} = join_as_account(code, "guest:dana")
+
+      assert {:ok, %{me: "Dana", game: %{my_dice: [2]}}} = reply
+      refute_receive {:room_view, _view}
+      assert {:ok, %{me: nil}} = Rooms.join(code, "guest:dana")
+    end
+
+    test "with a seat of its own mid-bidding, the Account keeps it and the Guest's seat leaves, the Round rolled again" do
+      {code, _dana} = table()
+      {:ok, _view} = Rooms.enter(code, @account, "Aziz")
+      {account, {:ok, _view}} = join_as_account(code, nil)
+      Scripted.script([[6], [2], [3]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      flush_after(Rooms.whereis(code))
+      Scripted.script([[4], [5]])
+
+      {_tab, reply} = join_as_account(code, "guest:dana")
+
+      assert {:ok, %{me: "Aziz", game: %{round: 2, my_dice: [5]}}} = reply
+
+      assert_receive {:room_view,
+                      %{people: [_, _], game: %{round: 2, my_dice: [4], voided_by: voided_by}}}
+
+      assert voided_by.nickname == "Dana"
+      assert_receive {:forwarded, ^account, {:room_view, %{game: %{round: 2, my_dice: [5]}}}}
+    end
+
+    test "with a seat of its own mid-reveal, a move that ends the Game stops that reveal's timers" do
+      {code, _dana} = table()
+      {:ok, _view} = Rooms.enter(code, @account, "Aziz")
+      :ok = Rooms.sit_out(code, "guest:dana", true)
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, @account)
+
+      {_tab, reply} = join_as_account(code, @host)
+
+      assert {:ok, %{host?: true, over: %{winner: %{nickname: "Aziz", me?: true}}}} = reply
+
+      Process.sleep(900)
+      :ok = Rooms.sit_out(code, "guest:dana", false)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @account)
+      :ok = Rooms.raise(code, "guest:dana", 1, 6)
+      :ok = Rooms.check(code, @account)
+      flush_after(room)
+
+      refute_receive {:room_view, %{game: %{reveal: %{step: 1}}}}, 600
+    end
+
+    test "a restored Room moves the seat too, the Round rolled again" do
+      {code, _dana} = started()
+      shut_down(code)
+      Scripted.script([[4], [5]])
+
+      assert {:moved, view} = Rooms.join(code, @account, "guest:dana")
+
+      assert %{me: "Dana", game: %{round: 2, my_dice: [5]}} = view
+      assert Map.keys(view.away) == [1]
+    end
+  end
+
   defp save(room) do
     send(room, :save)
     :sys.get_state(room)

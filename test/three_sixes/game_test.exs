@@ -743,4 +743,76 @@ defmodule ThreeSixes.GameTest do
 
     assert Game.to_roll(game) == [{"a", 2}, {"b", 1}, {"c", 1}]
   end
+
+  describe "moving a seat to another person" do
+    test "mid-bidding, the seat, its dice, what it said, the Bid and the opening follow the person" do
+      game = round_one() |> raise!("a", 1, 5) |> Game.move_seat("a", "z")
+
+      assert game.seats == ["z", "b", "c"]
+      assert game.counts == %{"z" => 1, "b" => 1, "c" => 1}
+      assert game.dice == %{"z" => [2], "b" => [5], "c" => [5]}
+      assert game.said == %{"z" => %{count: 1, face: 5}}
+      assert game.bid == %{count: 1, face: 5, by: "z"}
+      assert %{turn: "b", opener: "z", round: 1} = game
+
+      game = game |> raise!("b", 1, 6) |> raise!("c", 2, 2)
+
+      assert game.turn == "z"
+    end
+
+    test "the Player on turn keeps the turn as the new person" do
+      game = round_one() |> raise!("a", 1, 5) |> Game.move_seat("b", "z")
+
+      assert game.turn == "z"
+      assert {:ok, %{bid: %{by: "z"}, turn: "c"}} = Game.raise(game, "z", 2, 5)
+      assert Game.raise(game, "b", 2, 5) == {:error, :not_your_turn}
+    end
+
+    test "mid-reveal, the Check, its loser, its Bid and the kept Check follow the person" do
+      checked = round_one() |> raise!("a", 3, 5) |> check!("b")
+      game = Game.move_seat(checked, "a", "z")
+
+      assert %{checker: "b", loser: "z", bid: %{by: "z"}, step: 0} = game.reveal
+
+      game = Game.advance_reveal(game, 3)
+
+      assert game.counts == %{"z" => 2, "b" => 1, "c" => 1}
+      assert game.checks == [%{round: 1, checker: "b", bidder: "z", stood?: false}]
+      assert Game.start_round(game, %{"z" => [1, 1], "b" => [1], "c" => [1]}).turn == "z"
+
+      settled = checked |> Game.advance_reveal(3) |> Game.move_seat("b", "y")
+
+      assert %{checker: "y", loser: "a"} = settled.reveal
+      assert settled.checks == [%{round: 1, checker: "y", bidder: "a", stood?: false}]
+    end
+
+    test "a Knocked-out seat and a voided Round name the new person" do
+      {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
+      game = Game.move_seat(game, "b", "z")
+
+      assert %{out: ["z"], voided_by: "z", seats: ["a", "z", "c"]} = game
+      assert Game.start_round(game, %{"a" => [3], "c" => [4]}).turn == "c"
+    end
+
+    test "onto a person whose seat is Knocked out swaps the two seats, nobody's place moving" do
+      game = Game.move_seat(a_knocked_out(), "c", "a")
+
+      assert game.seats == ["c", "b", "a", "d"]
+      assert game.out == ["c"]
+      assert game.counts == %{"a" => 1, "b" => 1, "c" => 6, "d" => 5}
+      assert game.dice == %{"a" => [3], "b" => [2], "d" => [4, 4, 4, 4, 4]}
+      assert game.checks == [%{round: 1, checker: "b", bidder: "c", stood?: false}]
+
+      game = game |> raise!("b", 1, 2)
+
+      assert game.turn == "a"
+      assert Game.to_roll(game) == [{"b", 1}, {"a", 1}, {"d", 5}]
+    end
+
+    test "of someone not in the Game changes nothing" do
+      game = raise!(round_one(), "a", 1, 5)
+
+      assert Game.move_seat(game, "x", "z") == game
+    end
+  end
 end

@@ -13,7 +13,7 @@ defmodule ThreeSixesWeb.PersonTest do
   end
 
   test "a signed-in session is the Account, whatever Guest id the device holds" do
-    {:ok, account} = Accounts.find_or_create_dev("Dana")
+    {:created, account} = Accounts.find_or_create_dev("Dana")
 
     socket = mount_with(%{"guest_id" => "g", "account_id" => account.id}, @connect_info)
 

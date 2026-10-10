@@ -72,6 +72,9 @@ defmodule ThreeSixesWeb.Layouts do
 
   attr :flash, :map, required: true
   attr :code, :string, required: true
+  attr :account, :any, required: true
+  attr :my_turn?, :boolean, default: false
+  attr :return_to, :string, required: true
   attr :sitting_out?, :boolean, required: true
   attr :playing?, :boolean, required: true
   attr :revealing?, :boolean, default: false
@@ -118,6 +121,15 @@ defmodule ThreeSixesWeb.Layouts do
         </.block>
         <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
       </div>
+      <section
+        :if={!@account && AuthController.sign_in_available?()}
+        id="menu-sign-in"
+        class="menu-sign-in"
+        aria-label="Sign in"
+      >
+        <p :if={@my_turn?} class="menu-sign-in__turn">The table will wait while you sign in.</p>
+        <.sign_in_options return_to={@return_to} />
+      </section>
       <div class="row">
         <.block :if={@playing?} variant={:walnut} popovertarget="leave-dialog">Leave Room</.block>
         <.block :if={!@playing?} variant={:walnut} phx-click="leave">Leave Room</.block>
@@ -152,6 +164,60 @@ defmodule ThreeSixesWeb.Layouts do
     <.rough_filter />
 
     <.flash_group flash={@flash} />
+    """
+  end
+
+  attr :return_to, :string, required: true
+
+  def sign_in_options(assigns) do
+    ~H"""
+    <a
+      :if={AuthController.google_configured?()}
+      href={~p"/auth/google?#{[return_to: @return_to]}"}
+      class="block block--white block--big block--wide"
+    >
+      <.google_g /> Sign in with Google
+    </a>
+    <p :if={AuthController.google_configured?()} class="hint">
+      Doesn't work inside some chat apps? Open in Safari or Chrome.
+    </p>
+    <.form
+      :if={AuthController.dev_login_enabled?()}
+      for={%{"name" => "Dana", "return_to" => @return_to}}
+      action={~p"/auth/dev"}
+      method="post"
+      class="dev"
+    >
+      <p>
+        <span class="hl">Development only.</span> Skip Google and sign in as a test Account.
+      </p>
+      <.write_on_line id="dev-name" name="name" label="Name" value="Dana" maxlength="16" />
+      <input type="hidden" name="return_to" value={@return_to} />
+      <.block type="submit">Dev login</.block>
+    </.form>
+    """
+  end
+
+  defp google_g(assigns) do
+    ~H"""
+    <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
     """
   end
 

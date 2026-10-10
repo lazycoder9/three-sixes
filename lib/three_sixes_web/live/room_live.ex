@@ -14,20 +14,22 @@ defmodule ThreeSixesWeb.RoomLive do
   @tick 1000
 
   @impl true
-  def mount(%{"code" => code}, _session, socket) do
+  def mount(%{"code" => code}, session, socket) do
     normal = RoomCode.normalize(code)
 
     if normal != code and RoomCode.valid?(normal) do
       {:ok, push_navigate(socket, to: ~p"/r/#{normal}", replace: true)}
     else
-      {:ok, mount_room(socket, code)}
+      {:ok, mount_room(socket, code, session)}
     end
   end
 
-  defp mount_room(socket, code) do
+  defp mount_room(socket, code, session) do
     socket =
       assign(socket,
         code: code,
+        was: was_guest(socket.assigns.account, session),
+        new_account?: session["new_account"] == true,
         view: nil,
         closed?: false,
         room_ref: nil,
@@ -61,16 +63,36 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp first_nickname(socket), do: get_connect_params(socket)["nickname"] || ""
 
-  defp join(socket) do
-    %{code: code, person_id: person_id} = socket.assigns
+  defp was_guest(nil, _session), do: nil
 
-    with {:ok, view} <- Rooms.join(code, person_id),
+  defp was_guest(_account, %{"was_guest_id" => id}) when is_binary(id),
+    do: Accounts.guest_person_id(id)
+
+  defp was_guest(_account, _session), do: nil
+
+  defp join(socket) do
+    %{code: code, person_id: person_id, was: was} = socket.assigns
+
+    with {joined, view} when joined in [:ok, :moved] <- Rooms.join(code, person_id, was),
          pid when is_pid(pid) <- Rooms.whereis(code) do
-      socket |> assign(step: 0) |> put_view(view) |> assign(room_ref: Process.monitor(pid))
+      socket
+      |> assign(step: 0)
+      |> put_view(view)
+      |> assign(room_ref: Process.monitor(pid))
+      |> moved(joined)
     else
       _closed -> assign(socket, view: nil, closed?: true)
     end
   end
+
+  defp moved(%{assigns: %{new_account?: true, account: account, view: view}} = socket, :moved) do
+    case Accounts.save_nickname(account, view.me) do
+      {:ok, account} -> assign(socket, account: account)
+      {:error, _changeset} -> socket
+    end
+  end
+
+  defp moved(socket, _joined), do: socket
 
   @impl true
   def handle_event("create", _params, socket) do
@@ -278,6 +300,9 @@ defmodule ThreeSixesWeb.RoomLive do
      |> push_navigate(to: ~p"/")}
   end
 
+  def handle_info(:signed_in, socket),
+    do: {:noreply, redirect(socket, to: ~p"/r/#{socket.assigns.code}")}
+
   def handle_info({:reaction, %{by: by, key: key}}, socket) do
     id = socket.assigns.reactions_seen + 1
     Process.send_after(self(), {:reaction_over, by.n, id}, @reaction_shown)
@@ -319,6 +344,9 @@ defmodule ThreeSixesWeb.RoomLive do
     <Layouts.room
       flash={@flash}
       code={@view.code}
+      account={@account}
+      my_turn?={@view.game.my_turn?}
+      return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
       revealing?={@view.game.reveal != nil}
@@ -361,6 +389,8 @@ defmodule ThreeSixesWeb.RoomLive do
     <Layouts.room
       flash={@flash}
       code={@view.code}
+      account={@account}
+      return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
       playing?={@view.playing?}
     >
@@ -372,7 +402,7 @@ defmodule ThreeSixesWeb.RoomLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} account={@account} return_to={nil}>
+    <Layouts.app flash={@flash} account={@account} return_to={~p"/r/#{@code}"}>
       <.closed :if={@closed?} />
       <section :if={!@closed?} class="screen screen--narrow">
         <.notebook_page>

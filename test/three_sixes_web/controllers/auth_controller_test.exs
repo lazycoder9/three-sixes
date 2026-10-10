@@ -37,8 +37,33 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       assert account.google_id == "109876543210"
       assert account.nickname == "Dana"
       assert get_session(conn, "guest_id") == "g1"
+      assert get_session(conn, "was_guest_id") == "g1"
+      assert get_session(conn, "new_account") == true
       assert get_session(conn, "return_to") == nil
       assert conn.private[:plug_session_info] == :renew
+    end
+
+    test "of an Account that already exists marks the session as not a new Account" do
+      {:created, _account} = Accounts.find_or_create_from_google(@auth)
+
+      conn =
+        google_callback(%{"guest_id" => "g1", "new_account" => true}, ueberauth_auth: @auth)
+
+      assert get_session(conn, "account_id")
+      assert get_session(conn, "was_guest_id") == "g1"
+      assert get_session(conn, "new_account") == nil
+    end
+
+    test "tells the Guest's other tabs to disconnect, and gives the Account a live socket id of its own" do
+      ThreeSixesWeb.Endpoint.subscribe("guest_session:g1")
+
+      conn =
+        google_callback(%{"guest_id" => "g1", "live_socket_id" => "guest_session:g1"},
+          ueberauth_auth: @auth
+        )
+
+      assert_receive %Phoenix.Socket.Broadcast{topic: "guest_session:g1", event: "disconnect"}
+      assert "account_session:" <> _ = get_session(conn, "live_socket_id")
     end
 
     test "with no Guest id in the session still signs the Account in" do
@@ -46,6 +71,7 @@ defmodule ThreeSixesWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/"
       assert get_session(conn, "account_id")
+      assert get_session(conn, "was_guest_id") == nil
     end
 
     test "goes to the landing page when no path was stored" do
@@ -76,7 +102,7 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       end
     end
 
-    test "a failed sign-in goes back to the sign-in page with the reason, still a Guest" do
+    test "a failed sign-in goes back to the sign-in page with a plain note, still a Guest" do
       failure = %Ueberauth.Failure{
         provider: :google,
         errors: [
@@ -90,7 +116,10 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       conn = google_callback(%{"guest_id" => "g1"}, ueberauth_failure: failure)
 
       assert redirected_to(conn) == "/signin"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Cross-Site Request Forgery attack"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Signing in didn't work. Please try again."
+
       assert get_session(conn, "account_id") == nil
     end
 
@@ -106,6 +135,28 @@ defmodule ThreeSixesWeb.AuthControllerTest do
         conn = google_callback(%{"guest_id" => "g1", "return_to" => "/account"}, assigns)
 
         assert redirected_to(conn) == "/signin?return_to=%2Faccount"
+        assert get_session(conn, "account_id") == nil
+      end
+    end
+
+    test "a failed sign-in from a Room goes back to the Room with a plain note, still a Guest" do
+      failure = %Ueberauth.Failure{
+        provider: :google,
+        errors: [
+          %Ueberauth.Failure.Error{message_key: "missing_code", message: "No code received"}
+        ]
+      }
+
+      no_email = %{@auth | info: %{@auth.info | email: nil}}
+
+      for assigns <- [[ueberauth_failure: failure], [ueberauth_auth: no_email]] do
+        conn = google_callback(%{"guest_id" => "g1", "return_to" => "/r/ABCD"}, assigns)
+
+        assert redirected_to(conn) == "/r/ABCD"
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Signing in didn't work. Please try again."
+
         assert get_session(conn, "account_id") == nil
       end
     end
@@ -154,6 +205,8 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       assert account.nickname == "Fox"
       assert account.email == "fox@dev.localhost"
       assert get_session(conn, "guest_id")
+      assert get_session(conn, "was_guest_id") == get_session(conn, "guest_id")
+      assert get_session(conn, "new_account") == true
     end
 
     test "the same name signs in as the same Account, another name as another", %{conn: conn} do
@@ -210,18 +263,38 @@ defmodule ThreeSixesWeb.AuthControllerTest do
   end
 
   test "logging out forgets the Account and gives the device a fresh Guest id", %{conn: conn} do
-    {:ok, account} = Accounts.find_or_create_dev("Fox")
+    {:created, account} = Accounts.find_or_create_dev("Fox")
 
     conn =
       conn
-      |> init_test_session(%{"guest_id" => "old", "account_id" => account.id})
+      |> init_test_session(%{
+        "guest_id" => "old",
+        "account_id" => account.id,
+        "was_guest_id" => "old",
+        "new_account" => true
+      })
       |> delete(~p"/auth/logout")
 
     assert redirected_to(conn) == "/"
     assert Phoenix.Flash.get(conn.assigns.flash, :info) == "You're logged out."
     assert get_session(conn, "account_id") == nil
+    assert get_session(conn, "was_guest_id") == nil
+    assert get_session(conn, "new_account") == nil
     assert get_session(conn, "guest_id") not in [nil, "old"]
     assert conn.private[:plug_session_info] == :renew
+  end
+
+  test "signing in again disconnects the LiveViews of the sign-in it replaces", %{conn: conn} do
+    conn = post(conn, ~p"/auth/dev", %{"name" => "Fox"})
+    fox = get_session(conn, "live_socket_id")
+    ThreeSixesWeb.Endpoint.subscribe(fox)
+
+    conn = conn |> recycle() |> post(~p"/auth/dev", %{"name" => "Fox"})
+
+    assert_receive %Phoenix.Socket.Broadcast{topic: ^fox, event: "disconnect"}
+    assert "account_session:" <> _ = get_session(conn, "live_socket_id")
+    assert get_session(conn, "live_socket_id") != fox
+    assert get_session(conn, "new_account") == nil
   end
 
   test "logging out disconnects the LiveViews of this sign-in only", %{conn: conn} do
@@ -231,8 +304,6 @@ defmodule ThreeSixesWeb.AuthControllerTest do
 
     assert "account_session:" <> _ = live_socket_id
     assert get_session(other_device, "live_socket_id") != live_socket_id
-    conn = conn |> recycle() |> post(~p"/auth/dev", %{"name" => "Dana"})
-    assert get_session(conn, "live_socket_id") == live_socket_id
 
     ThreeSixesWeb.Endpoint.subscribe(live_socket_id)
     conn = conn |> recycle() |> delete(~p"/auth/logout")

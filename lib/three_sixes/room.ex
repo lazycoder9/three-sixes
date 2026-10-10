@@ -261,6 +261,61 @@ defmodule ThreeSixes.Room do
     end
   end
 
+  @spec move_seat(t(), person_id(), person_id()) :: {:moved | :ok | :roll, t()}
+  def move_seat(room, id, id), do: {:ok, room}
+
+  def move_seat(room, from, to) do
+    cond do
+      not member?(room, from) -> {:ok, %{room | host_id: host_after_move(room, from, to)}}
+      member?(room, to) -> room |> take_over(from, to) |> leave(from, [])
+      true -> {:moved, room |> take_over(from, to) |> swap_seats(from, to)}
+    end
+  end
+
+  defp take_over(room, from, to) do
+    tally =
+      case Map.pop(room.tally, from) do
+        {nil, tally} -> tally
+        {wins, tally} -> Map.update(tally, to, wins, &(&1 + wins))
+      end
+
+    %{room | host_id: host_after_move(room, from, to), tally: tally}
+  end
+
+  defp host_after_move(%{host_id: from}, from, to), do: to
+  defp host_after_move(room, _from, _to), do: room.host_id
+
+  defp swap_seats(room, from, to) do
+    swap = fn
+      ^from -> to
+      ^to -> from
+      id -> id
+    end
+
+    away =
+      case Map.pop(room.away, from) do
+        {nil, away} -> away
+        {at, away} -> Map.put(away, to, at)
+      end
+
+    %{
+      room
+      | members: Enum.map(room.members, &%{&1 | id: swap.(&1.id)}),
+        away: away,
+        game: room.game && Game.move_seat(room.game, from, to),
+        last: room.last && swap_last(room.last, swap)
+    }
+  end
+
+  defp swap_last(last, swap) do
+    %{
+      last
+      | placement: Enum.map(last.placement, swap),
+        checks:
+          Enum.map(last.checks, &%{&1 | checker: swap.(&1.checker), bidder: swap.(&1.bidder)})
+    }
+  end
+
   @spec away(t(), person_id(), integer()) :: t()
   def away(room, id, at) do
     if member?(room, id),
