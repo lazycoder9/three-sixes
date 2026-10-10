@@ -67,11 +67,15 @@ body:has(.game-table) .table-main {
     --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
     min-height: 0;
   }
-  .seat--compact .seat__dice:has(.is-flip) {
+  .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
+  .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
+    --d: calc(20 * var(--u));
+  }
+  .seat--compact .seat__dice:has(> .die:nth-of-type(4)) {
     gap: calc(1 * var(--u));
   }
-  .seat--compact .seat__dice .die.is-flip,
-  .seat--compact .seat__dice .die.is-penalty {
+  .seat--compact .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
+  .seat--compact .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
     --d: calc(12 * var(--u));
   }
 }
@@ -208,7 +212,7 @@ body:has(.game-table) .table-main {
 }
 .seat__dice .die.is-flip,
 .seat__dice .die.is-penalty {
-  --d: calc(20 * var(--u));
+  --d: calc(30 * var(--u));
 }
 .seat__n {
   display: none;
@@ -555,14 +559,17 @@ body:has(.game-table) .table-main {
   .game-table__ring {
     min-height: 430px;
   }
-  .game-table--arc:not(.is-counting) .game-table__ring {
-    min-height: 310px;
+  .game-table--arc .game-table__ring {
+    min-height: 290px;
+  }
+  .game-table--phone-compact .game-table__ring {
+    min-height: 350px;
   }
   .game-table--arc[data-seats="5"] .seat {
     top: calc(var(--sh) / 2 + (1 + var(--y)) * max(155px, 50% - var(--sh) / 2));
   }
-  .roombar:has(.spec) ~ .table-main .game-table__ring {
-    margin-top: 52px;
+  .roombar:has(.spec) ~ .table-main .game-table:not(.game-table--phone-compact) .game-table__ring {
+    margin-top: 38px;
   }
   .seat {
     --sw: 88px;
@@ -584,6 +591,18 @@ body:has(.game-table) .table-main {
   .seat__dice .die.is-flip,
   .seat__dice .die.is-penalty {
     --d: 23px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(4)) {
+    gap: 3px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(4)) .die {
+    --d: 17px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(5)) {
+    gap: 1px;
+  }
+  .game-table:not(.game-table--phone-compact) .seat__dice:has(> .die:nth-of-type(5)) .die {
+    --d: 12px;
   }
   .seat--compact,
   .game-table--phone-compact .seat {
@@ -642,7 +661,10 @@ body:has(.game-table) .table-main {
     font-size: 17px;
   }
   .game-table--arc .game-table__scrap {
-    top: 68%;
+    top: 74%;
+  }
+  .game-table[data-seats="3"]:not(.game-table--arc) .game-table__scrap {
+    width: min(36%, 190px);
   }
   .game-table__scrap .bidn {
     --b: 40px;
@@ -650,9 +672,35 @@ body:has(.game-table) .table-main {
   .game-table__scrap .scrawl {
     font-size: 25px;
   }
+  .game-table__scrap .scrap__bid {
+    gap: 6px;
+    font-size: 14px;
+  }
+  .game-table__scrap .scrap__bid .bidn {
+    --b: 16px;
+  }
   .game-table__scrap .scrap__found .bidn {
-    --b: 42px;
-    margin: 8px 0 10px;
+    --b: 32px;
+    margin: 2px 0 4px;
+  }
+  .game-table__scrap .scrap__found + .scrawl {
+    font-size: 20px;
+  }
+  .scrap__pen {
+    gap: 2px 4px;
+    margin-top: 0;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+  .scrap__pen b {
+    font-size: 20px;
+  }
+  .scrap__pen .die {
+    --d: 18px;
+  }
+  .scrap__pen em {
+    flex-basis: auto;
+    font-size: 19px;
   }
   .my-page {
     grid-template-columns: minmax(0, 1fr);

@@ -804,27 +804,6 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert has_element?(aziz, "#game-table[data-seats='5']:not([data-seated])")
     end
 
-    test "for a phone: the table is marked while the dice are counted, from the Check to the next Round" do
-      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      start(timur, [[3], [5]])
-      press(timur, "Bid one five")
-
-      for player <- [timur, dana], do: refute(has_element?(player, "#game-table.is-counting"))
-
-      check(dana)
-
-      for player <- [timur, dana], do: assert(has_element?(player, "#game-table.is-counting"))
-
-      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
-
-      assert has_element?(dana, "#game-table.is-counting")
-
-      Scripted.script([[4], [1, 6]])
-      reveal(code, {:next_round, 1})
-
-      for player <- [timur, dana], do: refute(has_element?(player, "#game-table.is-counting"))
-    end
-
     test "for a phone: past five seats they are compact, seated or watching" do
       {code, [host, other | _rest]} = crowd(6)
       aziz = late_arrival(code)

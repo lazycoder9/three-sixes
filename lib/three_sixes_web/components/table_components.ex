@@ -38,8 +38,7 @@ defmodule ThreeSixesWeb.TableComponents do
         "game-table",
         @compact? && "game-table--long",
         @seats > 5 && "game-table--phone-compact",
-        @game.seated? && @seats <= 5 && "game-table--arc",
-        @game.reveal && "is-counting"
+        @game.seated? && @seats <= 5 && "game-table--arc"
       ]}
       phx-hook="TableSeats"
       data-seats={@seats}
