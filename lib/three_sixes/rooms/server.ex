@@ -1,50 +1,91 @@
 defmodule ThreeSixes.Rooms.Server do
-  use GenServer, restart: :temporary
+  use GenServer, restart: :transient
+
+  require Logger
 
   alias ThreeSixes.Dice
   alias ThreeSixes.Game
   alias ThreeSixes.Reaction
   alias ThreeSixes.Room
+  alias ThreeSixes.Rooms
 
   @close_after :timer.minutes(15)
   @reaction_wait 2000
+  @save_after :timer.seconds(5)
+  @refresh_after :timer.minutes(5)
   @open_per_guest 5
   @open_per_address 20
 
-  @spec start_link({String.t(), Room.person_id(), String.t(), [pid()]}) :: GenServer.on_start()
-  def start_link({code, host_id, address, callers}) do
-    GenServer.start_link(__MODULE__, {code, host_id, address, callers},
-      name: {:via, Registry, {ThreeSixes.Rooms.Registry, code, {host_id, address}}}
+  @type creator :: {Room.person_id(), address :: String.t()} | nil
+
+  @spec start_link({String.t(), creator(), [pid()]}) :: GenServer.on_start()
+  def start_link({code, creator, callers}) do
+    GenServer.start_link(__MODULE__, {code, creator, callers},
+      name: {:via, Registry, {ThreeSixes.Rooms.Registry, code, creator || :restored}}
     )
   end
 
   @spec via(String.t()) :: GenServer.name()
   def via(code), do: {:via, Registry, {ThreeSixes.Rooms.Registry, code}}
 
-  @impl true
-  def init({code, host_id, address, callers}) do
-    Process.put(:"$callers", callers)
+  @spec close_after() :: pos_integer()
+  def close_after, do: @close_after
 
+  @impl true
+  def init({code, creator, callers}) do
+    Process.put(:"$callers", callers)
+    Process.flag(:trap_exit, true)
+
+    case Rooms.saved(code) do
+      {:ok, saved, closes_at} -> {:ok, restored(saved, closes_at)}
+      :none when creator == nil -> :ignore
+      :none -> new(code, creator)
+    end
+  rescue
+    error ->
+      Logger.error("Room #{code} could not be restored: #{Exception.message(error)}")
+      :ignore
+  end
+
+  defp restored(saved, closes_at) do
+    case Room.restore(saved) do
+      {:roll, room} -> room |> roll() |> state(closes_at) |> unsaved()
+      {:ok, room} -> state(room, closes_at)
+    end
+  end
+
+  defp new(code, {host_id, address}) do
     if open({host_id, :_}) > @open_per_guest or open({:_, address}) > @open_per_address do
       {:stop, :too_many}
     else
-      state = %{
-        room: Room.new(code, host_id),
-        joined: %{},
-        close_timer: nil,
-        reveal_timers: [],
-        waiting: MapSet.new()
-      }
-
-      {:ok, schedule_close(state)}
+      {:ok, state(Room.new(code, host_id), nil)}
     end
+  end
+
+  defp state(room, closes_at) do
+    schedule_close(%{
+      room: room,
+      joined: %{},
+      close_timer: nil,
+      reveal_timers: [],
+      waiting: MapSet.new(),
+      closes_at: closes_at,
+      changed?: false,
+      save_timer: nil,
+      refresh_timer: nil
+    })
   end
 
   @impl true
   def handle_call({:join, pid, person_id}, _from, state) do
     unless Map.has_key?(state.joined, pid), do: Process.monitor(pid)
     if state.close_timer, do: Process.cancel_timer(state.close_timer)
-    state = %{state | joined: Map.put(state.joined, pid, person_id), close_timer: nil}
+
+    state =
+      %{state | joined: Map.put(state.joined, pid, person_id), close_timer: nil}
+      |> put_closes_at(nil)
+      |> schedule_refresh()
+
     {:reply, {:ok, Room.view_for(state.room, person_id)}, state}
   end
 
@@ -170,10 +211,73 @@ defmodule ThreeSixes.Rooms.Server do
 
   def handle_info({:timeout, _stale, :close}, state), do: {:noreply, state}
 
-  defp schedule_close(%{joined: joined, close_timer: nil} = state) when joined == %{},
-    do: %{state | close_timer: :erlang.start_timer(@close_after, self(), :close)}
+  def handle_info({:timeout, timer, :refresh}, %{refresh_timer: timer} = state),
+    do: {:noreply, refresh(%{state | refresh_timer: nil})}
+
+  def handle_info({:timeout, _stale, :refresh}, state), do: {:noreply, state}
+
+  def handle_info(:save, state), do: {:noreply, save(%{state | save_timer: nil})}
+
+  @impl true
+  def terminate(:normal, state), do: quietly(state, fn -> Rooms.delete_save(state.room.code) end)
+  def terminate(:shutdown, state), do: last_save(state)
+  def terminate({:shutdown, _reason}, state), do: last_save(state)
+  def terminate(_crash, _state), do: :ok
+
+  defp last_save(state) do
+    state
+    |> put_closes_at(deadline(state, DateTime.utc_now()))
+    |> save()
+  end
+
+  defp refresh(%{joined: joined} = state) when joined == %{}, do: state
+  defp refresh(state), do: schedule_refresh(save(%{state | changed?: true}))
+
+  defp schedule_refresh(%{refresh_timer: nil} = state),
+    do: %{state | refresh_timer: :erlang.start_timer(@refresh_after, self(), :refresh)}
+
+  defp schedule_refresh(state), do: state
+
+  defp save(%{changed?: false} = state), do: state
+
+  defp save(state) do
+    case quietly(state, fn -> Rooms.save(state.room.code, state.room, state.closes_at) end) do
+      :ok -> %{state | changed?: false}
+      :failed -> unsaved(state)
+    end
+  end
+
+  defp quietly(state, write) do
+    write.()
+  rescue
+    error -> failed(state, Exception.message(error))
+  catch
+    :exit, reason -> failed(state, inspect(reason))
+  end
+
+  defp failed(state, why) do
+    Logger.warning("Room #{state.room.code} could not write its save: #{why}")
+    :failed
+  end
+
+  defp schedule_close(%{joined: joined, close_timer: nil} = state) when joined == %{} do
+    now = DateTime.utc_now()
+    state = put_closes_at(state, deadline(state, now))
+    wait = max(DateTime.diff(state.closes_at, now, :millisecond), 0)
+    %{state | close_timer: :erlang.start_timer(wait, self(), :close)}
+  end
 
   defp schedule_close(state), do: state
+
+  defp deadline(state, now), do: state.closes_at || DateTime.add(now, @close_after, :millisecond)
+
+  defp put_closes_at(%{closes_at: closes_at} = state, closes_at), do: state
+  defp put_closes_at(state, closes_at), do: unsaved(%{state | closes_at: closes_at})
+
+  defp unsaved(%{save_timer: nil} = state),
+    do: %{state | changed?: true, save_timer: Process.send_after(self(), :save, @save_after)}
+
+  defp unsaved(state), do: %{state | changed?: true}
 
   defp open(creator),
     do: Registry.count_select(ThreeSixes.Rooms.Registry, [{{:_, :_, creator}, [], [true]}])
@@ -202,7 +306,7 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp changed(state, room) do
-    state = %{state | room: room}
+    state = unsaved(%{state | room: room})
     send_views(state)
     state
   end

@@ -303,6 +303,26 @@ defmodule ThreeSixes.Room do
     end
   end
 
+  @spec to_save(t()) :: t()
+  def to_save(room), do: %{room | game: room.game && Game.without_round(room.game)}
+
+  @spec restore(t()) :: {:roll, t()} | {:ok, t()}
+  def restore(saved) do
+    room = struct(__MODULE__, Map.from_struct(saved))
+
+    room = %{
+      room
+      | members: Enum.map(room.members, &Map.merge(member(&1.id, &1.nickname), &1)),
+        game: room.game && struct(Game, Map.from_struct(room.game))
+    }
+
+    cond do
+      room.game == nil -> {:ok, room}
+      Game.over?(room.game) -> {:ok, game_over(room)}
+      true -> {:roll, room}
+    end
+  end
+
   defp game_over(%{game: game} = room) do
     [winner | _] = placement = Game.placement(game)
 

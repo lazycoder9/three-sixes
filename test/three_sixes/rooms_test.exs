@@ -1,9 +1,13 @@
 defmodule ThreeSixes.RoomsTest do
-  use ExUnit.Case, async: false
+  use ThreeSixes.DataCase, async: false
+
+  import ExUnit.CaptureLog
 
   alias ThreeSixes.Dice.Scripted
+  alias ThreeSixes.Room
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
+  alias ThreeSixes.Rooms.Save
   alias ThreeSixes.Rooms.Server
 
   @host "guest:host"
@@ -74,7 +78,7 @@ defmodule ThreeSixes.RoomsTest do
     for code <- taken do
       DynamicSupervisor.start_child(
         ThreeSixes.Rooms.Supervisor,
-        {Server, {code, "guest:" <> code, code, []}}
+        {Server, {code, {"guest:" <> code, code}, []}}
       )
 
       open_until_exit(code)
@@ -622,6 +626,373 @@ defmodule ThreeSixes.RoomsTest do
     assert Rooms.leave(code, @host) == {:error, :closed}
     assert Rooms.remove(code, @host, 2) == {:error, :closed}
     assert Rooms.make_host(code, @host, 2) == {:error, :closed}
+  end
+
+  describe "saving" do
+    test "a change is written on the save tick, and nothing is written when nothing changed" do
+      {:ok, code} = Rooms.create(@host, @address)
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+
+      save(room)
+
+      assert %{members: [%{nickname: "Malika"}], host_id: @host} = saved_room(code)
+
+      Repo.delete_all(Save)
+      save(room)
+
+      assert Repo.get(Save, code) == nil
+
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      save(room)
+
+      assert %{members: [_malika, %{nickname: "Dana"}]} = saved_room(code)
+    end
+
+    test "the save never holds the Round's dice" do
+      {code, _dana} = started()
+      :ok = Rooms.raise(code, @host, 1, 6)
+
+      save(Rooms.whereis(code))
+
+      assert %{game: %{dice: dice, bid: nil, round: 1, counts: %{@host => 1}}} = saved_room(code)
+      assert dice == %{}
+    end
+
+    test "a clean shutdown saves with a close deadline, and the next join brings the Room back" do
+      {code, _dana} = started()
+      :ok = Rooms.raise(code, @host, 1, 6)
+
+      shut_down(code)
+
+      assert %{closes_at: closes_at} = Repo.get(Save, code)
+      assert DateTime.diff(closes_at, DateTime.utc_now(), :second) in 890..900
+      assert Rooms.open?(code)
+
+      Scripted.script([[4], [5]])
+
+      assert {:ok, %{people: [%{nickname: "Malika"}, %{nickname: "Dana"}], game: game}} =
+               Rooms.join(code, @host)
+
+      assert %{round: 2, my_dice: [4], bid: nil, my_turn?: true} = game
+    end
+
+    test "a crash restarts the Room from its last save: the Round re-rolled, the same opener, no Bid" do
+      {code, _dana} = started()
+      room = Rooms.whereis(code)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 3})
+      Scripted.script([[1], [2, 2]])
+      send(room, {:next_round, 1})
+      :ok = Rooms.raise(code, "guest:dana", 2, 2)
+      save(room)
+
+      Scripted.script([[5], [3, 3]])
+      Process.exit(room, :kill)
+      restarted = restarted(code, room)
+
+      assert {:ok, %{game: game}} = Rooms.join(code, @host)
+
+      assert %{round: 3, my_dice: [5], bid: nil, dice_on_table: 3, turn: %{nickname: "Dana"}} =
+               game
+
+      assert %{game: %{round: 3, turn: "guest:dana"}} = :sys.get_state(restarted).room
+    end
+
+    test "a restored Room closes at the deadline it saved" do
+      closes_at = DateTime.add(DateTime.utc_now(), 3, :minute)
+      write_save("KQXT", closes_at)
+
+      assert Rooms.sit_out("KQXT", "guest:aziz", true) == {:error, :not_member}
+
+      state = :sys.get_state(Rooms.whereis("KQXT"))
+
+      assert state.closes_at == closes_at
+      assert :erlang.read_timer(state.close_timer) in :timer.minutes(2)..:timer.minutes(3)
+    end
+
+    test "the close timeout deletes the save, so the code reads closed and can be opened again" do
+      :rand.seed(:exsss, {26, 26, 26})
+      {:ok, code} = Rooms.create(@host, @address)
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      save(room)
+      ref = Process.monitor(room)
+
+      send(room, close_timeout(room))
+
+      assert_receive {:DOWN, ^ref, :process, ^room, :normal}
+      assert Repo.get(Save, code) == nil
+      refute Rooms.open?(code)
+      assert Rooms.join(code, @host) == {:error, :closed}
+
+      :rand.seed(:exsss, {26, 26, 26})
+      assert Rooms.create(@host, @address) == {:ok, code}
+    end
+
+    test "a save past its close deadline, or written over 15 minutes ago with nobody gone, stays closed" do
+      now = DateTime.utc_now()
+      write_save("KQXT", DateTime.add(now, -1, :second))
+      write_save("BCDF", nil, DateTime.add(now, -16, :minute))
+      write_save("GHJK", DateTime.add(now, 1, :minute))
+      write_save("LMNP", nil, DateTime.add(now, -14, :minute))
+
+      for code <- ["KQXT", "BCDF"] do
+        refute Rooms.open?(code)
+        assert Rooms.join(code, @host) == {:error, :closed}
+        assert Rooms.whereis(code) == nil
+      end
+
+      for code <- ["GHJK", "LMNP"] do
+        assert Rooms.open?(code)
+        assert {:ok, %{code: ^code, people: [%{nickname: "Malika"}]}} = Rooms.join(code, @host)
+      end
+    end
+
+    test "creating skips a code with a live save, and clears a stale one" do
+      :rand.seed(:exsss, {26, 26, 26})
+      saved = RoomCode.random()
+      write_save(saved, DateTime.add(DateTime.utc_now(), 1, :minute))
+
+      :rand.seed(:exsss, {26, 26, 26})
+      assert {:ok, code} = Rooms.create(@host, @address)
+      assert code != saved
+
+      close(code)
+      write_save(code, DateTime.add(DateTime.utc_now(), -1, :minute))
+
+      :rand.seed(:exsss, {26, 26, 26})
+      assert {:ok, ^code} = Rooms.create(@host, @address)
+      assert {:ok, %{people: []}} = Rooms.join(code, @host)
+    end
+
+    test "leaving, removal and handing over the Host role are each saved, a Room with no Host too" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      save(room)
+
+      :ok = Rooms.make_host(code, @host, 2)
+      save(room)
+
+      assert %{host_id: "guest:dana"} = saved_room(code)
+
+      :ok = Rooms.remove(code, "guest:dana", 3)
+      save(room)
+
+      assert %{members: [_malika, _dana, %{nickname: "Timur", left?: true, removed?: true}]} =
+               saved_room(code)
+
+      :ok = Rooms.leave(code, @host)
+      :ok = Rooms.leave(code, "guest:dana")
+      save(room)
+
+      assert %{host_id: nil, members: members} = saved_room(code)
+      assert Enum.all?(members, & &1.left?)
+
+      shut_down(code)
+
+      assert {:ok, %{people: [], host?: false}} = Rooms.join(code, @host)
+      assert {:ok, %{host?: true}} = Rooms.enter(code, "guest:dana", "Dana")
+    end
+
+    test "a crash after a leave voided the Round re-rolls with the voided re-roll's opener" do
+      {code, _dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2], [3]])
+      :ok = Rooms.start_game(code, @host)
+      Scripted.script([[4], [5]])
+      :ok = Rooms.leave(code, "guest:dana")
+
+      assert %{game: %{round: 2, turn: "guest:timur", voided_by: "guest:dana"}} =
+               :sys.get_state(room).room
+
+      save(room)
+      Scripted.script([[1], [2]])
+      Process.exit(room, :kill)
+      restarted = restarted(code, room)
+
+      assert {:ok, %{game: game}} = Rooms.join(code, @host)
+      assert %{round: 3, my_dice: [1], voided_by: nil, turn: %{nickname: "Timur"}} = game
+      assert %{game: %{turn: "guest:timur", voided_by: nil}} = :sys.get_state(restarted).room
+    end
+
+    test "a save that fails is logged, the Room carries on, and a later tick writes it" do
+      {:ok, code} = Rooms.create(@host, @address)
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      Repo.query!("ALTER TABLE room_saves RENAME TO room_saves_away")
+
+      assert capture_log(fn -> save(room) end) =~ "could not write its save"
+
+      Repo.query!("ALTER TABLE room_saves_away RENAME TO room_saves")
+
+      assert {:ok, %{me: "Malika"}} = Rooms.join(code, @host)
+
+      save(room)
+
+      assert %{members: [%{nickname: "Malika"}]} = saved_room(code)
+    end
+
+    test "a save holding an atom this server has never made restores" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      shut_down(code)
+
+      %{members: [malika | rest]} = saved = saved_room(code)
+      member = Map.put(malika, :zq_fresh_atom_1, true)
+
+      bin =
+        %{saved | members: [member | rest]}
+        |> :erlang.term_to_binary()
+        |> :binary.replace("zq_fresh_atom_1", "zq_fresh_atom_9")
+
+      assert_raise ArgumentError, fn -> String.to_existing_atom("zq_fresh_atom_9") end
+      Repo.update_all(from(save in Save, where: save.code == ^code), set: [room: bin])
+
+      assert {:ok, %{people: [%{nickname: "Malika"}, %{nickname: "Dana"}]}} =
+               Rooms.join(code, @host)
+    end
+
+    test "while someone is joined, the save is written again every 5 minutes with nothing changed" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      save(room)
+      age_save(code, 16)
+
+      assert :erlang.read_timer(:sys.get_state(room).refresh_timer) in 1..:timer.minutes(5)
+
+      send(room, refresh(room))
+      :sys.get_state(room)
+
+      assert DateTime.diff(DateTime.utc_now(), Repo.get!(Save, code).updated_at, :second) < 5
+      assert :erlang.read_timer(:sys.get_state(room).refresh_timer) in 1..:timer.minutes(5)
+    end
+
+    test "a Room killed after sitting unchanged for 16 minutes is still live to the rejoin" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      save(room)
+      age_save(code, 16)
+      send(room, refresh(room))
+      :sys.get_state(room)
+
+      :sys.suspend(ThreeSixes.Rooms.Supervisor)
+      Process.exit(room, :kill)
+      wait_until_unregistered(code)
+
+      assert Rooms.open?(code)
+
+      :sys.resume(ThreeSixes.Rooms.Supervisor)
+      restarted(code, room)
+
+      assert {:ok, %{people: [%{nickname: "Malika"}, %{nickname: "Dana"}]}} =
+               Rooms.join(code, @host)
+    end
+
+    test "a crashed Room whose save cannot be restored stays closed, and every other Room stays up" do
+      supervisor = Process.whereis(ThreeSixes.Rooms.Supervisor)
+      {:ok, other} = Rooms.create("guest:aziz", @address)
+      {:ok, code} = Rooms.create(@host, @address)
+      room = Rooms.whereis(code)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      save(room)
+
+      Repo.update_all(from(save in Save, where: save.code == ^code),
+        set: [room: :erlang.term_to_binary("not a room")]
+      )
+
+      log =
+        capture_log(fn ->
+          Process.exit(room, :kill)
+          settled(supervisor, room)
+        end)
+
+      assert Process.whereis(ThreeSixes.Rooms.Supervisor) == supervisor
+      assert Rooms.whereis(code) == nil
+      assert is_pid(Rooms.whereis(other))
+      assert log =~ "could not be restored"
+    end
+
+    test "a save that cannot be read stays closed" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      shut_down(code)
+      Repo.update_all(from(save in Save, where: save.code == ^code), set: [room: "not a term"])
+
+      assert capture_log(fn ->
+               assert Rooms.join(code, @host) == {:error, :closed}
+               refute Rooms.open?(code)
+             end) =~ "has a save that cannot be read"
+
+      assert Rooms.whereis(code) == nil
+    end
+  end
+
+  defp save(room) do
+    send(room, :save)
+    :sys.get_state(room)
+  end
+
+  defp saved_room(code), do: :erlang.binary_to_term(Repo.get!(Save, code).room)
+
+  defp write_save(code, closes_at, updated_at \\ DateTime.utc_now()) do
+    {:ok, room} = code |> Room.new(@host) |> Room.enter(@host, "Malika")
+
+    Repo.insert!(
+      %Save{
+        code: code,
+        room: :erlang.term_to_binary(room),
+        closes_at: closes_at,
+        inserted_at: updated_at,
+        updated_at: updated_at
+      },
+      on_conflict: :replace_all,
+      conflict_target: :code
+    )
+  end
+
+  defp age_save(code, minutes) do
+    updated_at = DateTime.add(DateTime.utc_now(), -minutes, :minute)
+    Repo.update_all(from(save in Save, where: save.code == ^code), set: [updated_at: updated_at])
+  end
+
+  defp refresh(room) do
+    %{refresh_timer: timer} = :sys.get_state(room)
+    assert is_reference(timer)
+    {:timeout, timer, :refresh}
+  end
+
+  defp settled(supervisor, room) do
+    busy? =
+      Process.alive?(supervisor) and
+        Enum.any?(DynamicSupervisor.which_children(supervisor), fn {_id, pid, _type, _modules} ->
+          pid in [room, :restarting]
+        end)
+
+    if busy? do
+      Process.sleep(1)
+      settled(supervisor, room)
+    end
+  end
+
+  defp shut_down(code) do
+    :ok = DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, Rooms.whereis(code))
+    wait_until_unregistered(code)
+  end
+
+  defp restarted(code, old) do
+    case Rooms.whereis(code) do
+      pid when is_pid(pid) and pid != old ->
+        pid
+
+      _old_or_none ->
+        Process.sleep(1)
+        restarted(code, old)
+    end
   end
 
   defp assert_ignored(room, messages) do

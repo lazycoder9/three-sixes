@@ -1,6 +1,12 @@
 defmodule ThreeSixes.Rooms do
+  import Ecto.Query
+
+  require Logger
+
+  alias ThreeSixes.Repo
   alias ThreeSixes.Room
   alias ThreeSixes.RoomCode
+  alias ThreeSixes.Rooms.Save
   alias ThreeSixes.Rooms.Server
 
   @code_attempts 10
@@ -13,15 +19,25 @@ defmodule ThreeSixes.Rooms do
   defp create(host_id, address, attempts) do
     code = RoomCode.random()
 
-    case DynamicSupervisor.start_child(
-           ThreeSixes.Rooms.Supervisor,
-           {Server, {code, host_id, address, [self() | Process.get(:"$callers", [])]}}
-         ) do
-      {:ok, _pid} -> {:ok, code}
-      {:error, {:already_started, _pid}} -> create(host_id, address, attempts - 1)
-      {:error, :max_children} -> {:error, :busy}
-      {:error, :too_many} -> {:error, :too_many}
+    if open?(code) do
+      create(host_id, address, attempts - 1)
+    else
+      delete_save(code)
+
+      case start(code, {host_id, address}) do
+        {:ok, _pid} -> {:ok, code}
+        {:error, {:already_started, _pid}} -> create(host_id, address, attempts - 1)
+        {:error, :max_children} -> {:error, :busy}
+        {:error, :too_many} -> {:error, :too_many}
+      end
     end
+  end
+
+  defp start(code, creator) do
+    DynamicSupervisor.start_child(
+      ThreeSixes.Rooms.Supervisor,
+      {Server, {code, creator, [self() | Process.get(:"$callers", [])]}}
+    )
   end
 
   @spec join(String.t(), Room.person_id()) :: {:ok, Room.view()} | {:error, :closed}
@@ -72,9 +88,67 @@ defmodule ThreeSixes.Rooms do
     end
   end
 
-  defp call(code, request) do
+  @spec open?(String.t()) :: boolean()
+  def open?(code), do: whereis(code) != nil or live_save(code, DateTime.utc_now()) != nil
+
+  @spec save(String.t(), Room.t(), DateTime.t() | nil) :: :ok
+  def save(code, room, closes_at) do
+    Repo.insert!(
+      %Save{code: code, room: :erlang.term_to_binary(Room.to_save(room)), closes_at: closes_at},
+      on_conflict: {:replace_all_except, [:code, :inserted_at]},
+      conflict_target: :code
+    )
+
+    :ok
+  end
+
+  @spec saved(String.t()) :: {:ok, Room.t(), DateTime.t() | nil} | :none
+  def saved(code), do: Save |> Repo.get(code) |> decoded()
+
+  @spec delete_save(String.t()) :: :ok
+  def delete_save(code) do
+    Repo.delete_all(from save in Save, where: save.code == ^code)
+    :ok
+  end
+
+  defp live_save(code, now) do
+    case Repo.get(Save, code) do
+      %Save{} = save -> if live?(save, now) and decoded(save) != :none, do: save
+      nil -> nil
+    end
+  end
+
+  defp live?(%{closes_at: nil, updated_at: updated_at}, now),
+    do: DateTime.diff(now, updated_at, :millisecond) < Server.close_after()
+
+  defp live?(%{closes_at: closes_at}, now), do: DateTime.after?(closes_at, now)
+
+  defp decoded(nil), do: :none
+
+  defp decoded(save) do
+    {:ok, Plug.Crypto.non_executable_binary_to_term(save.room), save.closes_at}
+  rescue
+    ArgumentError ->
+      Logger.warning("Room #{save.code} has a save that cannot be read")
+      :none
+  end
+
+  defp call(code, request, restore? \\ true) do
     GenServer.call(Server.via(code), request)
   catch
-    :exit, {reason, _} when reason in [:noproc, :normal] -> {:error, :closed}
+    :exit, {:noproc, _} when restore? ->
+      if restored?(code), do: call(code, request, false), else: {:error, :closed}
+
+    :exit, {reason, _} when reason in [:noproc, :normal] ->
+      {:error, :closed}
+  end
+
+  defp restored?(code) do
+    live_save(code, DateTime.utc_now()) != nil and
+      case start(code, nil) do
+        {:ok, _pid} -> true
+        {:error, {:already_started, _pid}} -> true
+        _closed_or_busy -> false
+      end
   end
 end
