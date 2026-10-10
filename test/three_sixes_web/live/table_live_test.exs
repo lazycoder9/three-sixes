@@ -593,6 +593,20 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert count(dana, "#seat-1 .seat__dice .die.is-penalty") == 1
       assert count(timur, "#my-dice .die.is-penalty") == 1
     end
+
+    test "your two Penalty dice from three sixes lie in your band after your dice, and only yours" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[6], [6], [6]])
+      press(timur, "One more")
+      press(timur, "Bid three sixes")
+      check(dana)
+
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+
+      assert band(dana) == [{"six", false}, {"Penalty die", true}, {"Penalty die", true}]
+
+      assert band(timur) == [{"six", false}]
+    end
   end
 
   describe "Knocked out" do
@@ -1126,6 +1140,17 @@ defmodule ThreeSixesWeb.TableLiveTest do
     |> LazyHTML.query("[data-face]")
     |> LazyHTML.attribute("data-face")
     |> Enum.map(&String.to_integer/1)
+  end
+
+  defp band(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#my-dice > .die[role='img']")
+    |> Enum.map(fn die ->
+      [label] = LazyHTML.attribute(die, "aria-label")
+      {label, die |> LazyHTML.attribute("class") |> hd() |> String.contains?("is-penalty")}
+    end)
   end
 
   defp count(view, selector) do

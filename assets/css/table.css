@@ -876,6 +876,12 @@ body:has(.game-table) .table-main {
   .my-dice .die {
     --d: clamp(40px, calc((100vw - 64px) / 6.6), 54px);
   }
+  .my-dice:has(> .die:nth-of-type(7)) {
+    gap: 6px;
+  }
+  .my-dice:has(> .die:nth-of-type(7)) .die {
+    --d: clamp(34px, calc((100vw - 64px) / 7.7), 47px);
+  }
   .my-page__head {
     font-size: 22px;
     text-align: center;
