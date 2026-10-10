@@ -140,6 +140,16 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("blind", %{"blind" => flag}, socket) when flag in ~w(true false) do
+    Rooms.blind(socket.assigns.code, socket.assigns.person_id, flag == "true")
+    {:noreply, socket}
+  end
+
+  def handle_event("peek", _params, socket) do
+    Rooms.peek(socket.assigns.code, socket.assigns.person_id)
+    {:noreply, socket}
+  end
+
   def handle_event("spectators", _params, socket),
     do: {:noreply, update(socket, :spectators_open?, &(!&1))}
 
@@ -221,7 +231,7 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   def handle_event(event, _params, socket)
-      when event in ~w(raise step sit_out key react vote),
+      when event in ~w(raise step sit_out blind key react vote),
       do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -363,6 +373,8 @@ defmodule ThreeSixesWeb.RoomLive do
       my_turn?={@view.game.my_turn?}
       return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
+      blind?={@view.blind?}
+      blind_note={blind_note(@view)}
       playing?={@view.playing?}
       revealing?={@view.game.reveal != nil}
     >
@@ -410,6 +422,7 @@ defmodule ThreeSixesWeb.RoomLive do
       account={@account}
       return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
+      blind?={@view.blind?}
       playing?={@view.playing?}
     >
       <:banner :if={@view.host_away}>
@@ -631,6 +644,12 @@ defmodule ThreeSixesWeb.RoomLive do
             Sit out the next Game
           </label>
         </form>
+        <form id="blind-form" phx-change="blind" phx-auto-recover="ignore">
+          <label class="tick">
+            <input type="hidden" name="blind" value="false" />
+            <input type="checkbox" name="blind" value="true" checked={@view.blind?} /> Play blind
+          </label>
+        </form>
         <div :if={@view.host?} class="lobby__start">
           <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
             {if @view.over, do: "Next Game", else: "Start Game"}
@@ -702,6 +721,20 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp rolled(%{game: %{round: round}}, _old, _rolled), do: round
   defp rolled(_view, _old, _rolled), do: nil
+
+  defp blind_note(%{blind?: on?, game: %{seated?: true, seats: [me | _], reveal: reveal}}),
+    do: blind_note(on?, me, reveal)
+
+  defp blind_note(_view), do: nil
+
+  defp blind_note(false, %{blind?: false, peeked?: false}, _reveal),
+    do: "Starts from the next Round."
+
+  defp blind_note(true, %{blind?: false, peeked?: false}, _reveal),
+    do: "You play blind from the next Round."
+
+  defp blind_note(false, %{blind?: true}, nil), do: "This Round stays blind unless you peek."
+  defp blind_note(_on?, _me, _reveal), do: nil
 
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
   defp bid_key(_view), do: nil

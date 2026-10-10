@@ -127,6 +127,7 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@seat.out?} class="seat__out">out</small>
+      <small :if={blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
       <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
       <span
         :if={@seat.said && !@game.reveal && (!@compact? || said_now?(@seat, @game))}
@@ -191,7 +192,10 @@ defmodule ThreeSixesWeb.TableComponents do
 
   defp scrap(assigns) do
     ~H"""
-    <p class="faint">{name(@game.bid.by)} {verb(@game.bid.by, "bids", "bid")}</p>
+    <p class="faint">
+      {name(@game.bid.by)} {verb(@game.bid.by, "bids", "bid")}
+      <em :if={@game.bid.blind?} class="scrap__blind">blind</em>
+    </p>
     <.bidn count={@game.bid.count} face={@game.bid.face} />
     <p class="faint">{@game.dice_on_table} dice on the table</p>
     """
@@ -224,11 +228,34 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :rolled, :integer, default: nil
 
+  defp my_dice(%{game: %{my_dice: nil}} = assigns) do
+    assigns = assign(assigns, :me, hd(assigns.game.seats))
+
+    ~H"""
+    <div id="my-dice" class="my-dice" role="group" aria-label="Your dice, blind">
+      <span
+        :for={i <- 0..(@me.dice - 1)//1}
+        id={"my-die-#{@game.round}-#{i}"}
+        class={["die is-down", @rolled == @game.round && "is-rolling"]}
+        role="img"
+        aria-label="face down"
+      >
+      </span>
+      <span class="my-dice__blind">
+        <small class="my-dice__mark">blind</small>
+        <.block :if={!@game.reveal} id="peek" class="my-dice__peek" phx-click="peek">Peek</.block>
+      </span>
+    </div>
+    """
+  end
+
   defp my_dice(assigns) do
+    assigns = assign(assigns, :me, hd(assigns.game.seats))
+
     ~H"""
     <div id="my-dice" class="my-dice" role="group" aria-label="Your dice">
       <.die
-        :for={{face, i} <- Enum.with_index(@game.my_dice || [])}
+        :for={{face, i} <- Enum.with_index(@game.my_dice)}
         id={"my-die-#{@game.round}-#{i}"}
         face={face}
         data-face={face}
@@ -237,16 +264,23 @@ defmodule ThreeSixesWeb.TableComponents do
         class={[@rolled == @game.round && "is-rolling", counted(face, @game.reveal)]}
       />
       <.penalty_dice
-        :if={hd(@game.seats).penalty?}
+        :if={@me.penalty?}
         count={@game.reveal.penalty}
         role="img"
         aria-label="Penalty die"
       />
+      <span :if={blind_mark(@me)} class="my-dice__blind">
+        <small class="my-dice__mark">{blind_mark(@me)}</small>
+      </span>
     </div>
     """
   end
 
   defp face_word(face), do: Enum.at(@faces, face - 1)
+
+  defp blind_mark(%{blind?: true}), do: "blind"
+  defp blind_mark(%{peeked?: true}), do: "peeked"
+  defp blind_mark(_seat), do: nil
 
   attr :game, :map, required: true
   attr :step, :integer, required: true

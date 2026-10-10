@@ -162,6 +162,10 @@ body:has(.game-table) .table-main {
 .red {
   color: var(--color-tomato);
 }
+.scrap__blind {
+  color: var(--color-tomato);
+  font-style: normal;
+}
 .slam {
   animation: slam 0.35s var(--ease-press) both;
 }
@@ -270,6 +274,20 @@ body:has(.game-table) .table-main {
 .seat__out {
   font: 400 max(12px, calc(15 * var(--u))) / 1 var(--font-hand);
 }
+.seat__tag {
+  position: absolute;
+  top: calc(13 * var(--u));
+  left: calc(50% + 15 * var(--u));
+  z-index: 1;
+  padding: 0 calc(5 * var(--u)) calc(1 * var(--u));
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 3px 5px -2px rgba(0, 0, 0, 0.45);
+  font: 400 max(13px, calc(16 * var(--u))) / 1.1 var(--font-hand);
+  transform: rotate(7deg);
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 .seat--compact {
   --sw: calc(66 * var(--u));
@@ -298,6 +316,12 @@ body:has(.game-table) .table-main {
 }
 .seat--compact .die.is-down + .die.is-down {
   display: none;
+}
+.seat--compact .seat__tag {
+  top: calc(9 * var(--u));
+  left: calc(50% + 9 * var(--u));
+  padding: 0 calc(3 * var(--u));
+  font-size: max(11px, calc(12 * var(--u)));
 }
 
 .game-table__scrap {
@@ -522,6 +546,35 @@ body:has(.game-table) .table-main {
   box-shadow:
     0 0 0 calc(var(--d) * 0.08) var(--color-mustard),
     var(--rest);
+}
+.my-dice .die.is-down {
+  background:
+    radial-gradient(120% 120% at 30% 22%, rgba(255, 253, 245, 0.7), transparent 60%),
+    linear-gradient(150deg, #f4ead2, #ddcca6);
+  box-shadow:
+    inset 0 0 0 1px rgba(120, 95, 50, 0.35),
+    inset 0 calc(var(--d) * -0.06) calc(var(--d) * 0.1) rgba(120, 95, 50, 0.3),
+    0 calc(var(--d) * 0.05) 0 rgba(70, 45, 20, 0.35),
+    0 calc(var(--d) * 0.1) calc(var(--d) * 0.16) rgba(0, 0, 0, 0.3);
+}
+.my-dice__blind {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  margin-left: calc(4 * var(--u));
+}
+.my-dice__mark {
+  padding: calc(2 * var(--u)) calc(9 * var(--u)) calc(3 * var(--u));
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.45);
+  font: 400 max(20px, calc(24 * var(--u))) / 1 var(--font-hand);
+  transform: rotate(-4deg);
+}
+.my-dice__peek.block {
+  min-height: max(40px, calc(46 * var(--u)));
+  padding: 0 max(16px, calc(20 * var(--u)));
+  font-size: max(15px, calc(18 * var(--u)));
 }
 .my-dice .die.is-penalty {
   box-shadow:
@@ -797,6 +850,18 @@ body:has(.game-table) .table-main {
   .game-table--phone-compact .seat__n {
     display: inline;
   }
+  .seat__tag {
+    top: 11px;
+    left: calc(50% + 12px);
+    font-size: 14px;
+  }
+  .seat--compact .seat__tag,
+  .game-table--phone-compact .seat__tag {
+    top: 12px;
+    left: calc(50% + 8px);
+    padding: 0 3px;
+    font-size: 12px;
+  }
   .seat--compact .seat__said,
   .game-table--phone-compact .seat__said {
     top: 1px;
@@ -881,6 +946,19 @@ body:has(.game-table) .table-main {
   }
   .my-dice:has(> .die:nth-of-type(7)) .die {
     --d: clamp(34px, calc((100vw - 64px) / 7.7), 47px);
+  }
+  .my-dice:has(.my-dice__blind) {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .my-dice__blind {
+    gap: 10px;
+    margin-left: 0;
+  }
+  .my-dice__peek.block {
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 15px;
   }
   .my-page__head {
     font-size: 22px;
