@@ -97,17 +97,18 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   @impl true
-  def handle_call({:join, pid, person_id}, _from, state) do
+  def handle_call({:join, pid, person_id, was}, _from, state) do
     unless Map.has_key?(state.joined, pid), do: Process.monitor(pid)
     if state.close_timer, do: Process.cancel_timer(state.close_timer)
-    state = changed_if_new(state, Room.back(state.room, person_id))
+    {moved, room} = move_seat(state.room, was, person_id)
+    state = state |> changed_if_new(Room.back(room, person_id)) |> stop_reveal()
 
     state =
       %{state | joined: Map.put(state.joined, pid, person_id), close_timer: nil}
       |> put_closes_at(nil)
       |> schedule_refresh()
 
-    {:reply, {:ok, Room.view_for(state.room, person_id)}, state}
+    {:reply, {moved, Room.view_for(state.room, person_id)}, state}
   end
 
   def handle_call({:enter, person_id, nickname}, _from, state) do
@@ -326,6 +327,15 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp stop_reveal(state), do: state
+
+  defp move_seat(room, nil, _to), do: {:ok, room}
+
+  defp move_seat(room, from, to) do
+    case Room.move_seat(room, from, to) do
+      {:roll, room} -> {:ok, roll(room)}
+      moved_or_not -> moved_or_not
+    end
+  end
 
   defp connected(state), do: state.joined |> Map.values() |> Enum.uniq() |> Dice.shuffle()
 

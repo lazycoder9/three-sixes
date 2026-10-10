@@ -40,8 +40,9 @@ defmodule ThreeSixes.Rooms do
     )
   end
 
-  @spec join(String.t(), Room.person_id()) :: {:ok, Room.view()} | {:error, :closed}
-  def join(code, person_id), do: call(code, {:join, self(), person_id})
+  @spec join(String.t(), Room.person_id(), was :: Room.person_id() | nil) ::
+          {:ok | :moved, Room.view()} | {:error, :closed}
+  def join(code, person_id, was \\ nil), do: call(code, {:join, self(), person_id, was})
 
   @spec enter(String.t(), Room.person_id(), String.t()) ::
           {:ok, Room.view()}

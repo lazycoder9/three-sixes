@@ -1231,4 +1231,212 @@ defmodule ThreeSixes.RoomTest do
              } = Room.finished(before, room)
     end
   end
+
+  describe "moving a Guest's seat to their Account" do
+    @account "account:1"
+
+    defp people(room, viewer),
+      do: for(p <- Room.view_for(room, viewer).people, do: {p.n, p.nickname, p.host?, p.me?})
+
+    test "of a Guest not in the Room, or who left it, changes nothing" do
+      {:ok, left} = Room.leave(lobby(), "guest:timur", [])
+
+      assert Room.move_seat(lobby(), "guest:aziz", @account) == {:ok, lobby()}
+      assert Room.move_seat(left, "guest:timur", @account) == {:ok, left}
+    end
+
+    test "onto the same person changes nothing" do
+      assert Room.move_seat(lobby(), "guest:dana", "guest:dana") == {:ok, lobby()}
+    end
+
+    test "of the creator who never entered makes the Account the Host, with no seat to move" do
+      room = enter!(room(), "guest:dana", "Dana")
+
+      assert {:ok, room} = Room.move_seat(room, @host, @account)
+
+      assert room.host_id == @account
+      assert %{host?: true, me: nil, can_start?: false} = Room.view_for(room, @account)
+
+      room = enter!(room, @account, "Malika")
+
+      assert people(room, @account) == [{1, "Dana", false, false}, {2, "Malika", true, true}]
+    end
+
+    test "in the lobby gives the Account the seat: the number, Nickname, Host, Tally, sitting out and Away" do
+      room =
+        %{lobby() | tally: %{@host => 2, "guest:dana" => 1}}
+        |> sit_out!(@host)
+        |> Room.away(@host, 1_000)
+
+      assert {:moved, room} = Room.move_seat(room, @host, @account)
+
+      refute Room.member?(room, @host)
+      assert Room.member?(room, @account)
+      assert room.host_id == @account
+      assert room.tally == %{@account => 2, "guest:dana" => 1}
+      assert room.away == %{@account => 1_000}
+      assert Room.dealt_in(room) == ["guest:timur", "guest:dana"]
+
+      assert %{me: "Malika", host?: true, sitting_out?: true} = Room.view_for(room, @account)
+      assert %{me: nil, host?: false} = Room.view_for(room, @host)
+
+      assert people(room, @account) ==
+               [{1, "Timur", false, false}, {2, "Malika", true, true}, {3, "Dana", false, false}]
+
+      assert people(room, "guest:dana") ==
+               [{1, "Timur", false, false}, {2, "Malika", true, false}, {3, "Dana", false, true}]
+
+      assert %{nickname: "Malika", tally: 2, sitting_out?: true} =
+               Enum.at(Room.view_for(room, "guest:dana").people, 1)
+    end
+
+    test "of a Guest in a Room their Account created and never entered keeps the Account Host" do
+      room = "KQXT" |> Room.new(@account) |> enter!("guest:dana", "Dana")
+
+      assert {:moved, room} = Room.move_seat(room, "guest:dana", @account)
+
+      assert room.host_id == @account
+      assert people(room, @account) == [{1, "Dana", true, true}]
+    end
+
+    test "mid-bidding, the Account holds the same dice and the turn, and the others see the same Nickname" do
+      {:ok, before} = Room.raise(playing(), "guest:dana", 1, 6)
+
+      assert {:moved, room} = Room.move_seat(before, "guest:timur", @account)
+
+      mine = Room.view_for(room, @account).game
+      assert %{seated?: true, my_dice: [2], my_turn?: true, can_check?: true} = mine
+      assert mine.turn == %{nickname: "Timur", me?: true, n: 1}
+      assert mine.seats == Room.view_for(before, "guest:timur").game.seats
+
+      assert Room.view_for(room, "guest:dana") == Room.view_for(before, "guest:dana")
+      assert Room.view_for(room, @host) == Room.view_for(before, @host)
+
+      assert Room.raise(room, "guest:timur", 2, 6) == {:error, :not_your_turn}
+
+      assert {:ok, %{game: %{turn: @host, bid: %{by: @account}}}} =
+               Room.raise(room, @account, 2, 6)
+    end
+
+    test "mid-reveal, the Check plays out with the Account as its loser" do
+      before = dana_loses(%{})
+
+      assert {:moved, room} = Room.move_seat(before, "guest:dana", @account)
+
+      assert Room.view_for(room, "guest:timur") == Room.view_for(before, "guest:timur")
+
+      {:ok, room} = Room.reveal(room, 1, 3)
+
+      assert %{loser: %{nickname: "Dana", me?: true}} = Room.view_for(room, @account).game.reveal
+      assert room.game.counts == %{@account => 2, "guest:timur" => 1, @host => 1}
+    end
+
+    test "after a Game over, the Placement and the Tally name the Account" do
+      before = over()
+
+      assert {:moved, room} = Room.move_seat(before, "guest:timur", @account)
+
+      assert room.last.placement == [@account, "guest:dana", @host]
+      assert room.tally == %{@account => 1}
+      assert %{winner: %{nickname: "Timur", me?: true}} = Room.view_for(room, @account).over
+      assert Room.view_for(room, "guest:dana").over == Room.view_for(before, "guest:dana").over
+    end
+
+    test "when the Account has a seat, the Guest's seat leaves, the Host role and the Tally going to the Account" do
+      room = %{enter!(lobby(), @account, "Aziz") | tally: %{@host => 2, @account => 1}}
+      room = Room.away(room, @host, 1_000)
+
+      assert {:ok, room} = Room.move_seat(room, @host, @account)
+
+      refute Room.member?(room, @host)
+      assert room.host_id == @account
+      assert room.tally == %{@account => 3}
+      assert room.away == %{}
+
+      assert people(room, @account) ==
+               [{1, "Timur", false, false}, {3, "Dana", false, false}, {4, "Aziz", true, true}]
+    end
+
+    defp four_playing do
+      room = enter!(lobby(), @account, "Aziz")
+      seats = ["guest:dana", "guest:timur", @host, @account]
+      {:ok, room} = Room.start_game(room, @host, seats)
+
+      Room.start_round(room, %{
+        "guest:dana" => [6],
+        "guest:timur" => [2],
+        @host => [6],
+        @account => [1]
+      })
+    end
+
+    test "when the Account has a seat mid-bidding, the Guest's seat is Knocked out and the Round voided" do
+      assert {:roll, room} = Room.move_seat(four_playing(), "guest:timur", @account)
+
+      refute Room.member?(room, "guest:timur")
+      assert %{out: ["guest:timur"], voided_by: "guest:timur", dice: %{}} = room.game
+      assert Room.view_for(room, @account).playing?
+    end
+
+    test "when the Account has a seat mid-reveal, the Check stands" do
+      {:ok, room} = Room.raise(four_playing(), "guest:dana", 1, 6)
+      {:ok, room} = Room.check(room, "guest:timur")
+
+      assert {:ok, room} = Room.move_seat(room, "guest:dana", @account)
+
+      assert %{out: ["guest:dana"], reveal: %{step: 0, loser: "guest:timur"}} = room.game
+    end
+
+    test "when the Account holds the other seat of the last two, the Game ends and the Account wins" do
+      room = enter!(lobby(), @account, "Aziz")
+
+      {:ok, room} =
+        room
+        |> sit_out!(@host)
+        |> sit_out!("guest:timur")
+        |> Room.start_game(@host, ["guest:dana", @account])
+
+      room = Room.start_round(room, %{"guest:dana" => [6], @account => [1]})
+
+      assert {:ok, room} = Room.move_seat(room, "guest:dana", @account)
+
+      assert room.game == nil
+      assert room.tally == %{@account => 1}
+      assert room.last.placement == [@account, "guest:dana"]
+    end
+
+    defp account_knocked_out do
+      {:roll, room} = Room.leave(four_playing(), @account, [])
+      Room.start_round(room, %{"guest:dana" => [5], "guest:timur" => [2], @host => [3]})
+    end
+
+    test "when the Account left a Knocked-out seat, the two seats swap, nobody's number moving" do
+      before = %{account_knocked_out() | tally: %{"guest:dana" => 1, @account => 2}}
+      before = Room.away(before, "guest:dana", 1_000)
+
+      assert {:moved, room} = Room.move_seat(before, "guest:dana", @account)
+
+      assert Room.member?(room, @account)
+      refute Room.member?(room, "guest:dana")
+      assert room.tally == %{@account => 3}
+      assert room.away == %{@account => 1_000}
+
+      assert %{seats: [@account, "guest:timur", @host, "guest:dana"], out: ["guest:dana"]} =
+               room.game
+
+      mine = Room.view_for(room, @account)
+      assert %{me: "Dana", playing?: true} = mine
+      assert %{seated?: true, my_dice: [5], my_turn?: true} = mine.game
+      assert mine.game.seats == Room.view_for(before, "guest:dana").game.seats
+
+      theirs = Room.view_for(room, "guest:timur")
+      assert theirs.game == Room.view_for(before, "guest:timur").game
+      assert theirs.away == %{3 => 1_000}
+
+      assert for(p <- theirs.people, do: {p.n, p.nickname, p.tally}) ==
+               [{1, "Timur", 0}, {2, "Malika", 0}, {3, "Dana", 3}]
+
+      assert Room.enter(room, "guest:bek", "Aziz") == {:taken, "Aziz", "Aziz 2"}
+    end
+  end
 end
