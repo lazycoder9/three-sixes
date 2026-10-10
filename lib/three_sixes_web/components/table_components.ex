@@ -198,10 +198,11 @@ defmodule ThreeSixesWeb.TableComponents do
   end
 
   attr :count, :integer, required: true
+  attr :rest, :global
 
   defp penalty_dice(assigns) do
     ~H"""
-    <span :for={_ <- 1..@count} class="die is-penalty"></span>
+    <span :for={_ <- 1..@count} class="die is-penalty" {@rest}></span>
     """
   end
 
@@ -225,18 +226,27 @@ defmodule ThreeSixesWeb.TableComponents do
 
   defp my_dice(assigns) do
     ~H"""
-    <div id="my-dice" class="my-dice">
+    <div id="my-dice" class="my-dice" role="group" aria-label="Your dice">
       <.die
         :for={{face, i} <- Enum.with_index(@game.my_dice)}
         id={"my-die-#{@game.round}-#{i}"}
         face={face}
         data-face={face}
+        role="img"
+        aria-label={face_word(face)}
         class={[@rolled == @game.round && "is-rolling", counted(face, @game.reveal)]}
       />
-      <.penalty_dice :if={hd(@game.seats).penalty?} count={@game.reveal.penalty} />
+      <.penalty_dice
+        :if={hd(@game.seats).penalty?}
+        count={@game.reveal.penalty}
+        role="img"
+        aria-label="Penalty die"
+      />
     </div>
     """
   end
+
+  defp face_word(face), do: Enum.at(@faces, face - 1)
 
   attr :game, :map, required: true
   attr :step, :integer, required: true

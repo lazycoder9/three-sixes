@@ -62,8 +62,11 @@ body:has(.game-table) .table-main {
     container-type: size;
   }
   .game-table {
-    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 703), 1.8px);
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 596), 1.8px);
     min-height: 0;
+  }
+  .game-table[data-seated] {
+    --u: clamp(0.75px, min(100cqw / 1100, (100cqh - 124px) / 630), 1.8px);
   }
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-flip,
   .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
@@ -76,15 +79,22 @@ body:has(.game-table) .table-main {
   .seat--compact .seat__dice:has(> .die:nth-of-type(4)) .die.is-penalty {
     --d: calc(12 * var(--u));
   }
-  .game-table[data-seated] .game-table__scrap {
-    top: 54%;
+  .game-table[data-seated]:not(.game-table--long) .game-table__scrap {
+    top: 66%;
   }
 }
 @media (min-width: 1000px) {
   .game-table {
     --u: clamp(
       0.75px,
-      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 703),
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 596),
+      1.8px
+    );
+  }
+  .game-table[data-seated] {
+    --u: clamp(
+      0.75px,
+      min(100cqw / 1100, (100cqw - 120px) / 1118, (100cqh - 62px) / 630),
       1.8px
     );
   }

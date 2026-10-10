@@ -78,6 +78,15 @@ defmodule ThreeSixesWeb.TableLiveTest do
       end
 
       assert count(dana, "#seat-1 .seat__dice .die.is-down") == 1
+
+      assert has_element?(
+               timur,
+               "#my-dice[role='group'][aria-label='Your dice'] .die[role='img'][aria-label='two']"
+             )
+
+      assert has_element?(dana, "#my-dice .die[role='img'][aria-label='five']")
+      refute has_element?(dana, "[aria-label='two']")
+      refute has_element?(timur, "[aria-label='five']")
     end
 
     test "your dice roll at Start and at a new Round, and lie still after a reload" do
@@ -460,7 +469,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
       assert has_element?(timur, "#scrap .scrap__pen .die.is-penalty")
       assert has_element?(timur, "#seat-2.is-loser .seat__dice .die.is-penalty")
       assert count(timur, "#seat-2 .seat__dice .die") == 2
-      assert has_element?(dana, "#my-dice .die.is-penalty")
+      assert has_element?(dana, "#my-dice .die.is-penalty[role='img'][aria-label='Penalty die']")
       refute has_element?(timur, "#my-dice .is-penalty")
 
       Scripted.script([[4], [1, 6]])

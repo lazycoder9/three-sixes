@@ -175,6 +175,16 @@
   transform: rotate(-3deg);
   animation-name: reaction-in-side, reaction-out-side;
 }
+.my-page > .reaction {
+  --x: 0.75;
+}
+@media (width < 720px) {
+  .my-page > .reaction {
+    --x: -1;
+    top: -10px;
+    bottom: auto;
+  }
+}
 @keyframes reaction-in {
   from {
     opacity: 0;
