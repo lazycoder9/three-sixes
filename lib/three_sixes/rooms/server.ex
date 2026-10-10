@@ -330,7 +330,7 @@ defmodule ThreeSixes.Rooms.Server do
   defp stop_reveal(state), do: state
 
   defp tell_signed_in(state, was, to) do
-    if was != to and Room.member?(state.room, was) do
+    if was != to do
       for {pid, ^was} <- state.joined, do: send(pid, :signed_in)
     end
   end

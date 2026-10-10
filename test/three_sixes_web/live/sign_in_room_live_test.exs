@@ -131,6 +131,17 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
 
       assert_redirect(other_tab, ~p"/r/#{code}")
     end
+
+    test "on the join step are sent to the Room again too" do
+      %{code: code} = table(~w(Timur))
+      {dana_conn, _} = visit(guest("dana"), code)
+      {_, other_window} = visit(guest("dana"), code)
+      assert has_element?(other_window, "#join-form")
+
+      sign_in(dana_conn, code, "Scully")
+
+      assert_redirect(other_window, ~p"/r/#{code}")
+    end
   end
 
   describe "the Room restarting from a save before the sign-in" do

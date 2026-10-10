@@ -1,6 +1,8 @@
 defmodule ThreeSixesWeb.AuthController do
   use ThreeSixesWeb, :controller
 
+  require Logger
+
   alias ThreeSixes.Accounts
   alias ThreeSixesWeb.Guest
 
@@ -12,10 +14,10 @@ defmodule ThreeSixesWeb.AuthController do
   def request(conn, _params), do: conn
 
   def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
-    message = Enum.map_join(failure.errors, ", ", & &1.message)
+    Logger.info("Google sign-in failed: " <> Enum.map_join(failure.errors, ", ", & &1.message))
 
     conn
-    |> put_flash(:error, "Sign-in failed: #{message}")
+    |> put_flash(:error, "Signing in didn't work. Please try again.")
     |> redirect(to: after_failure(conn))
   end
 

@@ -102,7 +102,7 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       end
     end
 
-    test "a failed sign-in goes back to the sign-in page with the reason, still a Guest" do
+    test "a failed sign-in goes back to the sign-in page with a plain note, still a Guest" do
       failure = %Ueberauth.Failure{
         provider: :google,
         errors: [
@@ -116,7 +116,10 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       conn = google_callback(%{"guest_id" => "g1"}, ueberauth_failure: failure)
 
       assert redirected_to(conn) == "/signin"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Cross-Site Request Forgery attack"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Signing in didn't work. Please try again."
+
       assert get_session(conn, "account_id") == nil
     end
 
@@ -136,22 +139,24 @@ defmodule ThreeSixesWeb.AuthControllerTest do
       end
     end
 
-    test "a failed sign-in from a Room goes back to the Room with the reason, still a Guest" do
+    test "a failed sign-in from a Room goes back to the Room with a plain note, still a Guest" do
       failure = %Ueberauth.Failure{
         provider: :google,
-        errors: [%Ueberauth.Failure.Error{message_key: "access_denied", message: "denied"}]
+        errors: [
+          %Ueberauth.Failure.Error{message_key: "missing_code", message: "No code received"}
+        ]
       }
 
       no_email = %{@auth | info: %{@auth.info | email: nil}}
 
-      for {assigns, reason} <- [
-            {[ueberauth_failure: failure], "Sign-in failed: denied"},
-            {[ueberauth_auth: no_email], "Signing in didn't work. Please try again."}
-          ] do
+      for assigns <- [[ueberauth_failure: failure], [ueberauth_auth: no_email]] do
         conn = google_callback(%{"guest_id" => "g1", "return_to" => "/r/ABCD"}, assigns)
 
         assert redirected_to(conn) == "/r/ABCD"
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) == reason
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Signing in didn't work. Please try again."
+
         assert get_session(conn, "account_id") == nil
       end
     end
