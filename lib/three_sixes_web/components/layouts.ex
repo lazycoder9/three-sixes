@@ -71,6 +71,7 @@ defmodule ThreeSixesWeb.Layouts do
   attr :flash, :map, required: true
   attr :code, :string, required: true
   attr :sitting_out?, :boolean, required: true
+  attr :playing?, :boolean, required: true
   slot :under_code
   slot :inner_block, required: true
 
@@ -114,7 +115,25 @@ defmodule ThreeSixesWeb.Layouts do
         <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
       </div>
       <div class="row">
+        <.block :if={@playing?} variant={:walnut} popovertarget="leave-dialog">Leave Room</.block>
+        <.block :if={!@playing?} variant={:walnut} phx-click="leave">Leave Room</.block>
         <.block popovertarget="room-menu" popovertargetaction="hide">Close</.block>
+      </div>
+    </div>
+
+    <div
+      :if={@playing?}
+      id="leave-dialog"
+      class="dialog"
+      popover
+      role="dialog"
+      aria-labelledby="leave-dialog-title"
+    >
+      <h2 id="leave-dialog-title">Leave the Room?</h2>
+      <p>You'll be Knocked out of this Game, and the Round in play is voided.</p>
+      <div class="row">
+        <.block variant={:walnut} phx-click="leave">Leave Room</.block>
+        <.block popovertarget="room-menu" popovertargetaction="hide">Stay</.block>
       </div>
     </div>
 

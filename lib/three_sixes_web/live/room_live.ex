@@ -143,6 +143,27 @@ defmodule ThreeSixesWeb.RoomLive do
       ),
       do: {:noreply, play_key(socket, game, key)}
 
+  def handle_event("remove", %{"n" => n}, socket) do
+    with {:ok, n} <- whole(n), do: Rooms.remove(socket.assigns.code, socket.assigns.person_id, n)
+    {:noreply, socket}
+  end
+
+  def handle_event("leave", _params, socket) do
+    Rooms.leave(socket.assigns.code, socket.assigns.person_id)
+
+    {:noreply,
+     socket
+     |> put_flash(:info, "You left Room #{socket.assigns.code}.")
+     |> push_navigate(to: ~p"/")}
+  end
+
+  def handle_event("make_host", %{"n" => n}, socket) do
+    with {:ok, n} <- whole(n),
+         do: Rooms.make_host(socket.assigns.code, socket.assigns.person_id, n)
+
+    {:noreply, socket}
+  end
+
   def handle_event(event, _params, socket) when event in ~w(raise step sit_out key),
     do: {:noreply, socket}
 
@@ -226,7 +247,21 @@ defmodule ThreeSixesWeb.RoomLive do
     %{view: old, step: step, rolled: rolled} = socket.assigns
     step = if bid_key(view) == bid_key(old), do: step, else: 0
     socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
-    {:noreply, assign(socket, view: view, step: step, rolled: rolled(view, old, rolled))}
+
+    {:noreply,
+     socket
+     |> assign(view: view, step: step, rolled: rolled(view, old, rolled))
+     |> new_host(old, view)}
+  end
+
+  def handle_info(:removed, socket) do
+    {:noreply,
+     socket
+     |> put_flash(
+       :info,
+       "You were removed from Room #{socket.assigns.code}. You can come back with the Room code."
+     )
+     |> push_navigate(to: ~p"/")}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{assigns: %{room_ref: ref}} = socket),
@@ -235,19 +270,35 @@ defmodule ThreeSixesWeb.RoomLive do
   @impl true
   def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do
     ~H"""
-    <Layouts.room flash={@flash} code={@view.code} sitting_out?={@view.sitting_out?}>
+    <Layouts.room
+      flash={@flash}
+      code={@view.code}
+      sitting_out?={@view.sitting_out?}
+      playing?={@view.playing?}
+    >
       <:under_code :if={@view.spectators != []}>
-        <.spectators spectators={@view.spectators} open?={@spectators_open?} />
+        <.spectators
+          spectators={@view.spectators}
+          open?={@spectators_open?}
+          tappable={tappable(@view)}
+        />
       </:under_code>
-      <.game_table game={@view.game} step={@step} rolled={@rolled} />
+      <.game_table game={@view.game} step={@step} rolled={@rolled} tappable={tappable(@view)} />
+      <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
     """
   end
 
   def render(%{view: %{me: me}} = assigns) when is_binary(me) do
     ~H"""
-    <Layouts.room flash={@flash} code={@view.code} sitting_out?={@view.sitting_out?}>
+    <Layouts.room
+      flash={@flash}
+      code={@view.code}
+      sitting_out?={@view.sitting_out?}
+      playing?={@view.playing?}
+    >
       <.lobby view={@view} />
+      <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
     """
   end
@@ -359,6 +410,51 @@ defmodule ThreeSixesWeb.RoomLive do
     """
   end
 
+  attr :person, :map, required: true
+
+  defp person_dialog(assigns) do
+    ~H"""
+    <div
+      id={"person-dialog-#{@person.n}"}
+      class="dialog"
+      popover
+      role="dialog"
+      aria-labelledby={"person-dialog-#{@person.n}-title"}
+    >
+      <h2 id={"person-dialog-#{@person.n}-title"}>{@person.nickname}</h2>
+      <div class="stack">
+        <.block
+          phx-click="make_host"
+          phx-value-n={@person.n}
+          popovertarget={"person-dialog-#{@person.n}"}
+          popovertargetaction="hide"
+        >
+          Make {@person.nickname} the Host
+        </.block>
+        <.block
+          variant={:walnut}
+          phx-click="remove"
+          phx-value-n={@person.n}
+          popovertarget={"person-dialog-#{@person.n}"}
+          popovertargetaction="hide"
+        >
+          Remove from the Room
+        </.block>
+      </div>
+      <small>
+        {if @person.playing?,
+          do: "Removing a Player mid-Game Knocks them out and voids the Round."}
+        {@person.nickname} can come back with the Room code, as a Spectator.
+      </small>
+      <div class="row">
+        <.block popovertarget={"person-dialog-#{@person.n}"} popovertargetaction="hide">
+          Cancel
+        </.block>
+      </div>
+    </div>
+    """
+  end
+
   attr :view, :map, required: true
 
   defp lobby(assigns) do
@@ -373,12 +469,14 @@ defmodule ThreeSixesWeb.RoomLive do
           <h1>{if @view.over, do: "Next Game", else: "Who's playing"}</h1>
           <ul id="people" class="people">
             <li :for={person <- @view.people} id={"person-#{person.n}"}>
-              <.person_token person={person} />
-              <span class="people__name">
-                {if person.me?, do: "You", else: person.nickname}
-                <span :if={person.host?} class="host-tag">Host</span>
-                <small :if={person.sitting_out?}>sitting out</small>
-              </span>
+              <.person_tap person={person} tappable={tappable(@view)}>
+                <.person_token person={person} />
+                <span class="people__name">
+                  {if person.me?, do: "You", else: person.nickname}
+                  <span :if={person.host?} class="host-tag">Host</span>
+                  <small :if={person.sitting_out?}>sitting out</small>
+                </span>
+              </.person_tap>
               <.tally count={person.tally} />
             </li>
           </ul>
@@ -450,6 +548,17 @@ defmodule ThreeSixesWeb.RoomLive do
     "#{Enum.join(others, ", ")} and #{last} are in this Room."
   end
 
+  defp new_host(socket, %{host_nickname: old}, %{host_nickname: new} = view)
+       when is_binary(old) and is_binary(new) and old != new,
+       do:
+         put_flash(
+           socket,
+           :info,
+           if(view.host?, do: "You're the Host now.", else: "#{new} is the Host now.")
+         )
+
+  defp new_host(socket, _old, _view), do: socket
+
   defp rolled(%{game: %{round: round}}, %{game: %{round: round}}, rolled), do: rolled
 
   defp rolled(%{game: %{round: round}}, %{game: %{my_dice: [_ | _] = dice}}, _rolled),
@@ -460,6 +569,11 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
   defp bid_key(_view), do: nil
+
+  defp tappable_people(%{host?: true, people: people}), do: Enum.reject(people, & &1.me?)
+  defp tappable_people(_view), do: []
+
+  defp tappable(view), do: MapSet.new(tappable_people(view), & &1.n)
 
   defp crowded?(view), do: length(view.people) > @fits_zoomed
 end
