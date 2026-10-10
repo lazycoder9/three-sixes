@@ -149,14 +149,15 @@ defmodule ThreeSixesWeb.KitchenComponents do
   end
 
   attr :count, :integer, required: true
+  attr :rest, :global
 
   def tally(assigns) do
-    assigns = assign(assigns, fives: div(assigns.count, 5), rest: rem(assigns.count, 5))
+    assigns = assign(assigns, fives: div(assigns.count, 5), ones: rem(assigns.count, 5))
 
     ~H"""
-    <span :if={@count > 0} class="tally" role="img" aria-label={wins(@count)}>
+    <span :if={@count > 0} class="tally" role="img" aria-label={wins(@count)} {@rest}>
       <span :for={_ <- 1..@fives//1} class="five"><i :for={_ <- 1..4}></i></span>
-      <span :if={@rest > 0}><i :for={_ <- 1..@rest//1}></i></span>
+      <span :if={@ones > 0}><i :for={_ <- 1..@ones//1}></i></span>
     </span>
     """
   end

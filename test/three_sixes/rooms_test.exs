@@ -4,6 +4,7 @@ defmodule ThreeSixes.RoomsTest do
   import ExUnit.CaptureLog
 
   alias ThreeSixes.Dice.Scripted
+  alias ThreeSixes.Records.GameRecord
   alias ThreeSixes.Room
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
@@ -360,6 +361,142 @@ defmodule ThreeSixes.RoomsTest do
 
       assert_receive {:forwarded, ^dana,
                       {:room_view, %{game: %{round: 1, my_dice: [3], my_turn?: true}}}}
+    end
+  end
+
+  defp recorded do
+    for game <- GameRecord |> Repo.all() |> Repo.preload([:placements, :checks]) do
+      %{
+        room_code: game.room_code,
+        rounds: game.rounds,
+        placements:
+          game.placements |> Enum.sort_by(& &1.place) |> Enum.map(&{&1.person_id, &1.nickname}),
+        checks:
+          game.checks
+          |> Enum.sort_by(& &1.round)
+          |> Enum.map(&{&1.round, &1.checker_id, &1.bidder_id, &1.stood})
+      }
+    end
+  end
+
+  describe "recording" do
+    test "a Game played to its end is recorded once, with its Placements, Nicknames and Checks" do
+      {code, _dana} = table()
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.raise(code, "guest:dana", 2, 2)
+      :ok = Rooms.check(code, @host)
+      send(room, {:reveal, 1, 3})
+
+      Scripted.script([[1], [2, 2]])
+      send(room, {:next_round, 1})
+      :ok = Rooms.raise(code, "guest:dana", 2, 2)
+      :ok = Rooms.check(code, @host)
+      send(room, {:reveal, 2, 3})
+
+      for round <- 3..6 do
+        Scripted.script([List.duplicate(1, round - 1), [2, 2]])
+        send(room, {:next_round, round - 1})
+        :ok = Rooms.raise(code, @host, round + 1, 6)
+        :ok = Rooms.check(code, "guest:dana")
+        send(room, {:reveal, round, 3})
+      end
+
+      send(room, {:next_round, 6})
+      flush_after(room)
+      :ok = Rooms.sit_out(code, "guest:dana", true)
+      send(room, {:next_round, 6})
+      flush_after(room)
+
+      assert recorded() == [
+               %{
+                 room_code: code,
+                 rounds: 6,
+                 placements: [{"guest:dana", "Dana"}, {@host, "Malika"}],
+                 checks:
+                   [{1, @host, "guest:dana", false}, {2, @host, "guest:dana", true}] ++
+                     for(round <- 3..6, do: {round, "guest:dana", @host, false})
+               }
+             ]
+    end
+
+    test "a Game ended by a leave is recorded, the leaver placed with their Nickname" do
+      {code, _dana} = started()
+      room = Rooms.whereis(code)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 3})
+
+      assert Rooms.leave(code, "guest:dana") == :ok
+
+      assert recorded() == [
+               %{
+                 room_code: code,
+                 rounds: 1,
+                 placements: [{@host, "Malika"}, {"guest:dana", "Dana"}],
+                 checks: [{1, "guest:dana", @host, true}]
+               }
+             ]
+    end
+
+    test "a Room that closes mid-Game records nothing" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      room = Rooms.whereis(code)
+      ref = Process.monitor(room)
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 3})
+      flush_after(room)
+
+      send(room, close_timeout(room))
+
+      assert_receive {:DOWN, ^ref, :process, ^room, :normal}
+      assert recorded() == []
+    end
+
+    test "a record that cannot be written is logged, and the Room plays on" do
+      {code, dana} = started()
+      room = Rooms.whereis(code)
+      Ecto.Adapters.SQL.Sandbox.mode(Repo, :manual)
+
+      log = capture_log(fn -> assert Rooms.leave(code, "guest:dana") == :ok end)
+
+      assert log =~ "Game in Room #{code} not recorded"
+      assert_receive {:room_view, %{over: %{winner: %{nickname: "Malika"}}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{me: nil}}}
+      assert Rooms.whereis(code) == room
+      assert {:ok, %{over: %{rounds: 1}}} = Rooms.join(code, @host)
+
+      assert capture_log(&close_every_room/0) =~ "could not write its save"
+    end
+
+    test "a Game a restore finishes is recorded once, and not again from the save after it" do
+      {code, _dana} = table()
+      knock_out_the_host(code)
+      shut_down(code)
+      assert recorded() == []
+
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+
+      assert recorded() == [
+               %{
+                 room_code: code,
+                 rounds: 5,
+                 placements: [{"guest:dana", "Dana"}, {@host, "Malika"}],
+                 checks: for(round <- 1..5, do: {round, "guest:dana", @host, false})
+               }
+             ]
+
+      shut_down(code)
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+
+      assert length(recorded()) == 1
     end
   end
 

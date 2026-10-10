@@ -417,7 +417,7 @@ defmodule ThreeSixes.RoomTest do
 
       assert room.game == nil
       assert room.tally == %{"guest:timur" => 1}
-      assert room.last == %{placement: ["guest:timur", "guest:dana", @host], rounds: 1}
+      assert %{placement: ["guest:timur", "guest:dana", @host], rounds: 1} = room.last
       assert Room.next_round(room, 1) == :stale
     end
 
@@ -478,7 +478,12 @@ defmodule ThreeSixes.RoomTest do
 
       assert room == over()
       assert room.tally == %{"guest:timur" => 1}
-      assert room.last == %{placement: ["guest:timur", "guest:dana", @host], rounds: 1}
+
+      assert room.last == %{
+               placement: ["guest:timur", "guest:dana", @host],
+               rounds: 1,
+               checks: [%{round: 1, checker: "guest:timur", bidder: "guest:dana", stood?: false}]
+             }
     end
 
     test "from before a field existed restores with that field's default" do
@@ -487,12 +492,13 @@ defmodule ThreeSixes.RoomTest do
       older = %{
         Map.delete(saved, :last)
         | members: Enum.map(saved.members, &Map.delete(&1, :sitting_out?)),
-          game: Map.delete(saved.game, :opener)
+          game: Map.drop(saved.game, [:opener, :checks])
       }
 
       assert {:roll, room} = Room.restore(older)
       assert room.last == nil
       assert room.game.opener == nil
+      assert room.game.checks == []
       assert Enum.all?(room.members, &(&1.sitting_out? == false))
       assert room.members |> Enum.map(& &1.nickname) == ["Timur", "Malika", "Dana"]
     end
@@ -880,7 +886,7 @@ defmodule ThreeSixes.RoomTest do
 
       assert room.game == nil
       assert room.tally == %{"guest:dana" => 1}
-      assert room.last == %{placement: ["guest:dana", "guest:timur", @host], rounds: 1}
+      assert %{placement: ["guest:dana", "guest:timur", @host], rounds: 1} = room.last
 
       assert %{winner: %{nickname: "Dana"}, placement: [_, %{nickname: "Timur"}, _]} =
                Room.view_for(room, "guest:dana").over
@@ -1085,6 +1091,64 @@ defmodule ThreeSixes.RoomTest do
       for room <- [dana_left(), handed], viewer <- ids, id <- ids do
         refute inspect(Room.view_for(room, viewer)) =~ id
       end
+    end
+  end
+
+  describe "what finished" do
+    test "is nothing mid-Game, at the Game's start, or between Games" do
+      {:ok, raised} = Room.raise(playing(), "guest:dana", 3, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+      {:ok, settled} = Room.reveal(checked, 1, 3)
+      {:roll, rolled} = Room.next_round(dana_loses(%{"guest:dana" => 5}), 1)
+      {:ok, next_game} = Room.start_game(over(), @host, [@host, "guest:dana", "guest:timur"])
+
+      assert Room.finished(lobby(), playing()) == nil
+      assert Room.finished(raised, checked) == nil
+      assert Room.finished(checked, settled) == nil
+      assert Room.finished(dana_loses(%{"guest:dana" => 5}), rolled) == nil
+      assert Room.finished(over(), enter!(over(), "guest:aziz", "Aziz")) == nil
+      assert Room.finished(over(), next_game) == nil
+    end
+
+    test "after the last Penalty die is the Game with every Placement, Nickname and Check" do
+      before = dana_loses(%{"guest:dana" => 5, @host => 6}, [@host])
+      {:over, room} = Room.next_round(before, 1)
+
+      assert Room.finished(before, room) == %{
+               room_code: "KQXT",
+               rounds: 1,
+               placement: [
+                 %{person_id: "guest:timur", nickname: "Timur", place: 1},
+                 %{person_id: "guest:dana", nickname: "Dana", place: 2},
+                 %{person_id: @host, nickname: "Malika", place: 3}
+               ],
+               checks: [%{round: 1, checker: "guest:timur", bidder: "guest:dana", stood?: false}]
+             }
+    end
+
+    test "after a leave in the reveal that ends the Game keeps the leaver's Nickname, place and every Check" do
+      {:roll, room} = Room.next_round(dana_loses(%{}, [@host]), 1)
+
+      {:ok, before} =
+        room
+        |> Room.start_round(%{"guest:dana" => [2, 2], "guest:timur" => [3]})
+        |> Room.raise("guest:dana", 1, 2)
+
+      {:ok, before} = Room.check(before, "guest:timur")
+      {:ok, room} = Room.leave(before, "guest:timur", [])
+
+      assert %{
+               rounds: 2,
+               placement: [
+                 %{person_id: "guest:dana", nickname: "Dana", place: 1},
+                 %{person_id: "guest:timur", nickname: "Timur", place: 2},
+                 %{person_id: @host, nickname: "Malika", place: 3}
+               ],
+               checks: [
+                 %{round: 1, checker: "guest:timur", bidder: "guest:dana", stood?: false},
+                 %{round: 2, checker: "guest:timur", bidder: "guest:dana", stood?: true}
+               ]
+             } = Room.finished(before, room)
     end
   end
 end

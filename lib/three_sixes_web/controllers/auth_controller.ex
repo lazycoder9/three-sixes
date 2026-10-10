@@ -86,6 +86,10 @@ defmodule ThreeSixesWeb.AuthController do
   end
 
   defp complete_sign_in(conn, account, return_to) do
+    if guest_id = get_session(conn, "guest_id") do
+      Accounts.take_over_guest(Accounts.guest_person_id(guest_id), account)
+    end
+
     conn
     |> put_session("account_id", account.id)
     |> put_session("live_socket_id", live_socket_id(conn))

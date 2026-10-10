@@ -82,7 +82,13 @@ defmodule ThreeSixes.Room do
           members: [member()],
           game: Game.t() | nil,
           tally: %{person_id() => pos_integer()},
-          last: %{placement: [person_id()], rounds: pos_integer()} | nil
+          last: %{placement: [person_id()], rounds: pos_integer(), checks: [Game.check()]} | nil
+        }
+  @type finished :: %{
+          room_code: String.t(),
+          rounds: pos_integer(),
+          placement: [%{person_id: person_id(), nickname: String.t(), place: pos_integer()}],
+          checks: [Game.check()]
         }
 
   @spec new(String.t(), person_id()) :: t()
@@ -330,9 +336,28 @@ defmodule ThreeSixes.Room do
       room
       | game: nil,
         tally: Map.update(room.tally, winner, 1, &(&1 + 1)),
-        last: %{placement: placement, rounds: game.round}
+        last: %{placement: placement, rounds: game.round, checks: game.checks}
     }
   end
+
+  @spec finished(t(), t()) :: finished() | nil
+  def finished(%{game: %Game{}}, %{game: nil, last: %{} = last} = room) do
+    %{
+      room_code: room.code,
+      rounds: last.rounds,
+      placement:
+        for {id, place} <- Enum.with_index(last.placement, 1) do
+          %{
+            person_id: id,
+            nickname: Enum.find(room.members, &(&1.id == id)).nickname,
+            place: place
+          }
+        end,
+      checks: last.checks
+    }
+  end
+
+  def finished(_old, _new), do: nil
 
   @spec reveal_schedule(t()) :: [
           {pos_integer(), {:reveal, pos_integer(), 1..3} | {:next_round, pos_integer()}}

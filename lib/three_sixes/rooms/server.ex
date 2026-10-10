@@ -6,6 +6,7 @@ defmodule ThreeSixes.Rooms.Server do
   alias ThreeSixes.Dice
   alias ThreeSixes.Game
   alias ThreeSixes.Reaction
+  alias ThreeSixes.Records
   alias ThreeSixes.Room
   alias ThreeSixes.Rooms
 
@@ -50,8 +51,15 @@ defmodule ThreeSixes.Rooms.Server do
   defp restored(saved, closes_at) do
     case Room.restore(saved) do
       {:roll, room} -> room |> roll() |> state(closes_at) |> unsaved()
-      {:ok, room} -> state(room, closes_at)
+      {:ok, room} -> room |> state(closes_at) |> finished_on_restore(Room.finished(saved, room))
     end
+  end
+
+  defp finished_on_restore(state, nil), do: state
+
+  defp finished_on_restore(state, game) do
+    record(game)
+    unsaved(state)
   end
 
   defp new(code, {host_id, address}) do
@@ -306,10 +314,28 @@ defmodule ThreeSixes.Rooms.Server do
   end
 
   defp changed(state, room) do
+    record(Room.finished(state.room, room))
     state = unsaved(%{state | room: room})
     send_views(state)
     state
   end
+
+  defp record(nil), do: :ok
+
+  defp record(game) do
+    case Records.record_game(game) do
+      {:ok, _record} -> :ok
+      {:error, changeset} -> not_recorded(game, inspect(traverse_errors(changeset)))
+    end
+  catch
+    kind, reason -> not_recorded(game, Exception.format(kind, reason, __STACKTRACE__))
+  end
+
+  defp traverse_errors(changeset),
+    do: Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+
+  defp not_recorded(game, reason),
+    do: Logger.error("Game in Room #{game.room_code} not recorded: #{reason}")
 
   defp send_views(state) do
     for {pid, person_id} <- state.joined do

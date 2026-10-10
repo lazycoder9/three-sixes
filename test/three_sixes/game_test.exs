@@ -314,6 +314,74 @@ defmodule ThreeSixes.GameTest do
     end
   end
 
+  describe "the Check outcomes" do
+    test "each Check is kept when its Penalty die lands, whether the Bid stood or was false" do
+      game = round_one() |> raise!("a", 2, 5) |> check!("b") |> Game.advance_reveal(2)
+      assert game.checks == []
+
+      game = Game.advance_reveal(game, 3)
+      stood = %{round: 1, checker: "b", bidder: "a", stood?: true}
+      assert game.checks == [stood]
+      assert Game.advance_reveal(game, 3) == game
+
+      game =
+        game
+        |> Game.start_round(%{"a" => [2], "b" => [5, 5], "c" => [5]})
+        |> raise!("b", 3, 2)
+        |> check!("c")
+        |> Game.advance_reveal(3)
+
+      assert game.checks == [stood, %{round: 2, checker: "c", bidder: "b", stood?: false}]
+    end
+
+    test "a leave during the reveal still keeps the Check, at the Penalty die" do
+      checked = round_one() |> raise!("a", 3, 5) |> check!("b")
+
+      {:ok, game} = Game.leave(checked, "c")
+      assert game.checks == []
+
+      assert Game.advance_reveal(game, 3).checks == [
+               %{round: 1, checker: "b", bidder: "a", stood?: false}
+             ]
+    end
+
+    test "a leave that ends the Game during the reveal keeps that Check, with no Penalty die" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      checked =
+        game |> Game.start_round(%{"a" => [2], "b" => [5]}) |> raise!("a", 2, 5) |> check!("b")
+
+      for step <- 0..2 do
+        game = if step == 0, do: checked, else: Game.advance_reveal(checked, step)
+
+        assert {:over, game} = Game.leave(game, "a")
+        assert game.checks == [%{round: 2, checker: "b", bidder: "a", stood?: false}]
+        assert game.counts == %{"a" => 1, "b" => 1, "c" => 1}
+        assert Game.placement(game) == ["b", "a", "c"]
+      end
+    end
+
+    test "a leave that ends the Game after the Penalty die keeps the Check once" do
+      {:void, game} = Game.leave(round_one(), "c")
+
+      settled =
+        game
+        |> Game.start_round(%{"a" => [2], "b" => [5]})
+        |> raise!("a", 2, 5)
+        |> check!("b")
+        |> Game.advance_reveal(3)
+
+      assert {:over, game} = Game.leave(settled, "b")
+      assert game.checks == [%{round: 2, checker: "b", bidder: "a", stood?: false}]
+    end
+
+    test "a Round voided before any Check keeps none" do
+      {:void, game} = round_one() |> raise!("a", 1, 5) |> Game.leave("b")
+
+      assert game.checks == []
+    end
+  end
+
   defp holding(counts, dice) do
     counts
     |> Map.keys()

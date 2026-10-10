@@ -47,6 +47,8 @@ defmodule ThreeSixesWeb.Layouts do
       {render_slot(@inner_block)}
     </main>
 
+    <.rough_filter />
+
     <.flash_group flash={@flash} />
     """
   end
@@ -144,14 +146,20 @@ defmodule ThreeSixesWeb.Layouts do
       {render_slot(@inner_block)}
     </main>
 
+    <.rough_filter />
+
+    <.flash_group flash={@flash} />
+    """
+  end
+
+  defp rough_filter(assigns) do
+    ~H"""
     <svg class="defs" width="0" height="0" aria-hidden="true">
       <filter id="rough" x="-6%" y="-10%" width="112%" height="120%">
         <feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3" />
         <feDisplacementMap in="SourceGraphic" scale="2.4" />
       </filter>
     </svg>
-
-    <.flash_group flash={@flash} />
     """
   end
 
