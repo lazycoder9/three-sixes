@@ -49,6 +49,17 @@ defmodule ThreeSixes.Rooms do
           :ok | {:error, :not_bidding | :not_your_turn | :no_bid | :closed}
   def check(code, person_id), do: call(code, {:check, person_id})
 
+  @spec leave(String.t(), Room.person_id()) :: :ok | {:error, :not_member | :closed}
+  def leave(code, person_id), do: call(code, {:leave, person_id})
+
+  @spec remove(String.t(), Room.person_id(), pos_integer()) ::
+          :ok | {:error, :not_host | :not_member | :self | :closed}
+  def remove(code, by, n), do: call(code, {:remove, by, n})
+
+  @spec make_host(String.t(), Room.person_id(), pos_integer()) ::
+          :ok | {:error, :not_host | :not_member | :self | :closed}
+  def make_host(code, by, n), do: call(code, {:make_host, by, n})
+
   @spec whereis(String.t()) :: pid() | nil
   def whereis(code) do
     case Registry.lookup(ThreeSixes.Rooms.Registry, code) do

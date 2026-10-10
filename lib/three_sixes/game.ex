@@ -9,7 +9,8 @@ defmodule ThreeSixes.Game do
     said: %{},
     turn: nil,
     reveal: nil,
-    out: []
+    out: [],
+    voided_by: nil
   ]
 
   @knocked_out_at 6
@@ -35,7 +36,8 @@ defmodule ThreeSixes.Game do
           said: %{person_id() => bid()},
           turn: person_id() | nil,
           reveal: reveal() | nil,
-          out: [person_id()]
+          out: [person_id()],
+          voided_by: person_id() | nil
         }
 
   @spec new([person_id()]) :: t()
@@ -50,7 +52,8 @@ defmodule ThreeSixes.Game do
         bid: nil,
         said: %{},
         turn: opener(game),
-        reveal: nil
+        reveal: nil,
+        voided_by: if(game.reveal, do: nil, else: game.voided_by)
     }
   end
 
@@ -58,6 +61,7 @@ defmodule ThreeSixes.Game do
     if loser in game.out, do: next_seat(game, loser), else: loser
   end
 
+  defp opener(%{voided_by: leaver} = game) when leaver != nil, do: next_seat(game, leaver)
   defp opener(game), do: hd(game.seats)
 
   @spec to_roll(t()) :: [{person_id(), pos_integer()}]
@@ -154,6 +158,26 @@ defmodule ThreeSixes.Game do
     {before, [^seat | rest]} = Enum.split_while(game.seats, &(&1 != seat))
     Enum.find(rest ++ before, &(&1 not in game.out))
   end
+
+  @spec leave(t(), person_id()) :: {:ok, t()} | {:void, t()} | {:over, t()}
+  def leave(game, id) do
+    cond do
+      id not in in_play(game) -> {:ok, game}
+      over?(game) -> {:over, game}
+      true -> knock_out(%{game | out: game.out ++ [id]}, id)
+    end
+  end
+
+  defp knock_out(game, id) do
+    cond do
+      over?(game) -> {:over, game}
+      match?(%{step: 3}, game.reveal) -> {:ok, game}
+      true -> {:void, void(game, id)}
+    end
+  end
+
+  defp void(game, leaver),
+    do: %{game | turn: nil, bid: nil, said: %{}, dice: %{}, reveal: nil, voided_by: leaver}
 
   @type offer :: %{count: pos_integer(), faces: [face()], stepped?: boolean()}
 

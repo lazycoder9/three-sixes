@@ -8,7 +8,12 @@ defmodule ThreeSixes.Room do
   defstruct [:code, :host_id, members: [], game: nil, tally: %{}, last: nil]
 
   @type person_id :: String.t()
-  @type member :: %{id: person_id(), nickname: String.t(), sitting_out?: boolean()}
+  @type member :: %{
+          id: person_id(),
+          nickname: String.t(),
+          sitting_out?: boolean(),
+          left?: boolean()
+        }
   @type person_ref :: %{nickname: String.t(), me?: boolean(), n: pos_integer()}
   @type bid_view :: %{count: pos_integer(), face: Game.face(), by: person_ref()}
   @type game_view :: %{
@@ -42,7 +47,8 @@ defmodule ThreeSixes.Room do
               loser: person_ref() | nil,
               knocked_out?: boolean()
             }
-            | nil
+            | nil,
+          voided_by: person_ref() | nil
         }
   @type view :: %{
           code: String.t(),
@@ -53,11 +59,13 @@ defmodule ThreeSixes.Room do
               me?: boolean(),
               n: pos_integer(),
               tally: non_neg_integer(),
-              sitting_out?: boolean()
+              sitting_out?: boolean(),
+              playing?: boolean()
             }
           ],
           me: String.t() | nil,
           sitting_out?: boolean(),
+          playing?: boolean(),
           host?: boolean(),
           host_nickname: String.t() | nil,
           can_start?: boolean(),
@@ -68,7 +76,7 @@ defmodule ThreeSixes.Room do
         }
   @type t :: %__MODULE__{
           code: String.t(),
-          host_id: person_id(),
+          host_id: person_id() | nil,
           members: [member()],
           game: Game.t() | nil,
           tally: %{person_id() => pos_integer()},
@@ -88,7 +96,7 @@ defmodule ThreeSixes.Room do
   def enter(room, person_id, nickname) do
     cond do
       member?(room, person_id) -> {:ok, room}
-      length(room.members) >= @capacity -> {:error, :full}
+      length(present(room)) >= @capacity -> {:error, :full}
       true -> add(room, person_id, nickname)
     end
   end
@@ -96,13 +104,35 @@ defmodule ThreeSixes.Room do
   defp add(room, person_id, nickname) do
     with {:ok, nickname} <- clean(nickname) do
       case holder(room, nickname) do
-        nil -> {:ok, %{room | members: room.members ++ [member(person_id, nickname)]}}
+        nil -> {:ok, room |> put_member(member(person_id, nickname)) |> claim_host(person_id)}
         holder -> {:taken, holder.nickname, suggestion(room, holder.nickname)}
       end
     end
   end
 
-  defp member(person_id, nickname), do: %{id: person_id, nickname: nickname, sitting_out?: false}
+  defp put_member(room, %{id: id} = member) do
+    if Enum.any?(room.members, &(&1.id == id)),
+      do: update_member(room, id, fn _left -> member end),
+      else: %{room | members: room.members ++ [member]}
+  end
+
+  defp update_member(room, id, fun) do
+    members =
+      Enum.map(room.members, fn
+        %{id: ^id} = member -> fun.(member)
+        member -> member
+      end)
+
+    %{room | members: members}
+  end
+
+  defp claim_host(%{host_id: nil} = room, person_id), do: %{room | host_id: person_id}
+  defp claim_host(room, _person_id), do: room
+
+  defp member(person_id, nickname),
+    do: %{id: person_id, nickname: nickname, sitting_out?: false, left?: false}
+
+  defp present(room), do: Enum.reject(room.members, & &1.left?)
 
   defp clean(nickname) when not is_binary(nickname), do: {:error, :blank}
 
@@ -118,7 +148,7 @@ defmodule ThreeSixes.Room do
 
   defp holder(room, nickname) do
     wanted = String.downcase(nickname)
-    Enum.find(room.members, &(String.downcase(&1.nickname) == wanted))
+    Enum.find(present(room), &(String.downcase(&1.nickname) == wanted))
   end
 
   defp suggestion(room, held) do
@@ -142,25 +172,75 @@ defmodule ThreeSixes.Room do
   end
 
   @spec member?(t(), person_id()) :: boolean()
-  def member?(room, person_id), do: Enum.any?(room.members, &(&1.id == person_id))
+  def member?(room, person_id), do: Enum.any?(present(room), &(&1.id == person_id))
 
   @spec sit_out(t(), person_id(), boolean()) :: {:ok, t()} | {:error, :not_member}
   def sit_out(room, person_id, sitting_out?) when is_boolean(sitting_out?) do
     if member?(room, person_id) do
-      members =
-        Enum.map(room.members, fn
-          %{id: ^person_id} = member -> %{member | sitting_out?: sitting_out?}
-          member -> member
-        end)
-
-      {:ok, %{room | members: members}}
+      {:ok, update_member(room, person_id, &%{&1 | sitting_out?: sitting_out?})}
     else
       {:error, :not_member}
     end
   end
 
+  @spec leave(t(), person_id(), [person_id()]) :: {:ok | :roll, t()} | {:error, :not_member}
+  def leave(room, id, connected) do
+    if member?(room, id) do
+      room
+      |> update_member(id, &%{&1 | left?: true})
+      |> pass_host(id, connected)
+      |> leave_game(id)
+    else
+      {:error, :not_member}
+    end
+  end
+
+  @spec remove(t(), person_id(), pos_integer(), [person_id()]) ::
+          {:ok | :roll, t()} | {:error, :not_host | :not_member | :self}
+  def remove(room, by, n, connected) do
+    with {:ok, id} <- other_present(room, by, n), do: leave(room, id, connected)
+  end
+
+  @spec make_host(t(), person_id(), pos_integer()) ::
+          {:ok, t()} | {:error, :not_host | :not_member | :self}
+  def make_host(room, by, n) do
+    with {:ok, id} <- other_present(room, by, n), do: {:ok, %{room | host_id: id}}
+  end
+
+  defp other_present(%{host_id: host_id} = room, host_id, n) do
+    case Enum.find(Enum.with_index(room.members, 1), &match?({%{left?: false}, ^n}, &1)) do
+      nil -> {:error, :not_member}
+      {%{id: ^host_id}, _n} -> {:error, :self}
+      {%{id: id}, _n} -> {:ok, id}
+    end
+  end
+
+  defp other_present(_room, _by, _n), do: {:error, :not_host}
+
+  defp pass_host(%{host_id: id} = room, id, connected),
+    do: %{room | host_id: Enum.find(connected, &member?(room, &1)) || first_present(room)}
+
+  defp pass_host(room, _id, _connected), do: room
+
+  defp first_present(room) do
+    case present(room) do
+      [first | _] -> first.id
+      [] -> nil
+    end
+  end
+
+  defp leave_game(%{game: nil} = room, _id), do: {:ok, room}
+
+  defp leave_game(room, id) do
+    case Game.leave(room.game, id) do
+      {:void, game} -> {:roll, %{room | game: game}}
+      {:ok, game} -> {:ok, %{room | game: game}}
+      {:over, game} -> {:ok, game_over(%{room | game: game})}
+    end
+  end
+
   @spec dealt_in(t()) :: [person_id()]
-  def dealt_in(room), do: for(member <- room.members, not member.sitting_out?, do: member.id)
+  def dealt_in(room), do: for(member <- present(room), not member.sitting_out?, do: member.id)
 
   @spec start_game(t(), person_id(), [person_id()]) ::
           {:ok, t()} | {:error, :not_host | :playing | :too_few | :wrong_seats}
@@ -242,20 +322,20 @@ defmodule ThreeSixes.Room do
     %{
       code: room.code,
       people:
-        room.members
-        |> Enum.with_index(1)
-        |> Enum.map(fn {member, n} ->
+        for {member, n} <- Enum.with_index(room.members, 1), not member.left? do
           %{
             nickname: member.nickname,
             host?: member.id == room.host_id,
             me?: member.id == person_id,
             n: n,
             tally: Map.get(room.tally, member.id, 0),
-            sitting_out?: member.sitting_out?
+            sitting_out?: member.sitting_out?,
+            playing?: playing?(room, member.id)
           }
-        end),
+        end,
       me: me && me.nickname,
       sitting_out?: me != nil and me.sitting_out?,
+      playing?: playing?(room, person_id),
       host?: host?,
       host_nickname: host && host.nickname,
       can_start?: host? and room.game == nil and dealt_in >= 2,
@@ -266,10 +346,13 @@ defmodule ThreeSixes.Room do
     }
   end
 
+  defp playing?(%{game: nil}, _id), do: false
+  defp playing?(%{game: game}, id), do: id in game.seats and id not in game.out
+
   defp spectators(%{game: nil}, _viewer), do: []
 
   defp spectators(%{game: game} = room, viewer) do
-    for %{id: id} <- room.members, id not in game.seats or id in game.out do
+    for %{id: id} <- present(room), id not in game.seats or id in game.out do
       %{person: person_ref(room, id, viewer), out?: id in game.out}
     end
   end
@@ -298,7 +381,8 @@ defmodule ThreeSixes.Room do
       turn: game.turn && ref.(game.turn),
       bid: game.bid && bid_view(game.bid, ref),
       seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
-      reveal: game.reveal && reveal_view(game, ref)
+      reveal: game.reveal && reveal_view(game, ref),
+      voided_by: game.voided_by && ref.(game.voided_by)
     }
   end
 
@@ -352,5 +436,5 @@ defmodule ThreeSixes.Room do
     %{nickname: member.nickname, me?: person_id == viewer, n: n}
   end
 
-  defp find_member(room, person_id), do: Enum.find(room.members, &(&1.id == person_id))
+  defp find_member(room, person_id), do: Enum.find(present(room), &(&1.id == person_id))
 end

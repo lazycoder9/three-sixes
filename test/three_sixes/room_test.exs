@@ -123,7 +123,8 @@ defmodule ThreeSixes.RoomTest do
                  me?: false,
                  n: 1,
                  tally: 0,
-                 sitting_out?: false
+                 sitting_out?: false,
+                 playing?: false
                },
                %{
                  nickname: "Malika",
@@ -131,12 +132,22 @@ defmodule ThreeSixes.RoomTest do
                  me?: false,
                  n: 2,
                  tally: 0,
-                 sitting_out?: false
+                 sitting_out?: false,
+                 playing?: false
                },
-               %{nickname: "Dana", host?: false, me?: true, n: 3, tally: 0, sitting_out?: false}
+               %{
+                 nickname: "Dana",
+                 host?: false,
+                 me?: true,
+                 n: 3,
+                 tally: 0,
+                 sitting_out?: false,
+                 playing?: false
+               }
              ],
              me: "Dana",
              sitting_out?: false,
+             playing?: false,
              host?: false,
              host_nickname: "Malika",
              can_start?: false,
@@ -614,7 +625,8 @@ defmodule ThreeSixes.RoomTest do
                    out?: false
                  }
                ],
-               reveal: nil
+               reveal: nil,
+               voided_by: nil
              }
     end
 
@@ -731,7 +743,8 @@ defmodule ThreeSixes.RoomTest do
                  stood?: true,
                  loser: @timur,
                  knocked_out?: false
-               }
+               },
+               voided_by: nil
              }
     end
 
@@ -742,6 +755,225 @@ defmodule ThreeSixes.RoomTest do
           room = enter!(room, "guest:aziz", "Aziz"),
           viewer <- ids,
           id <- ids do
+        refute inspect(Room.view_for(room, viewer)) =~ id
+      end
+    end
+  end
+
+  describe "leaving" do
+    test "in the lobby takes the person out of the Room, the others keeping their numbers" do
+      assert {:ok, room} = Room.leave(lobby(), "guest:timur", [])
+
+      refute Room.member?(room, "guest:timur")
+      assert Room.dealt_in(room) == [@host, "guest:dana"]
+
+      assert [%{nickname: "Malika", n: 2}, %{nickname: "Dana", n: 3, me?: true}] =
+               Room.view_for(room, "guest:dana").people
+
+      assert %{me: nil} = Room.view_for(room, "guest:timur")
+    end
+
+    test "mid-Round Knocks the Player out and voids the Round, for the Room to roll again" do
+      assert {:roll, room} = Room.leave(playing(), "guest:dana", [])
+
+      refute Room.member?(room, "guest:dana")
+      assert %{out: ["guest:dana"], voided_by: "guest:dana", dice: %{}, turn: nil} = room.game
+
+      room = Room.start_round(room, %{"guest:timur" => [3], @host => [4]})
+
+      assert %{round: 2, turn: "guest:timur"} = room.game
+    end
+
+    test "by one of the last two Players ends the Game: the other wins, the Tally goes up" do
+      room = dana_loses(%{@host => 6}, [@host])
+
+      assert {:ok, room} = Room.leave(room, "guest:timur", [])
+
+      assert room.game == nil
+      assert room.tally == %{"guest:dana" => 1}
+      assert room.last == %{placement: ["guest:dana", "guest:timur", @host], rounds: 1}
+
+      assert %{winner: %{nickname: "Dana"}, placement: [_, %{nickname: "Timur"}, _]} =
+               Room.view_for(room, "guest:dana").over
+    end
+
+    test "by a Spectator mid-Game leaves the Game as it is" do
+      room = enter!(playing(), "guest:aziz", "Aziz")
+
+      assert {:ok, left} = Room.leave(room, "guest:aziz", [])
+      assert left.game == room.game
+    end
+
+    test "is refused to someone not in the Room, and to someone who already left" do
+      {:ok, room} = Room.leave(lobby(), "guest:timur", [])
+
+      assert Room.leave(room, "guest:timur", []) == {:error, :not_member}
+      assert Room.leave(room, "guest:aziz", []) == {:error, :not_member}
+    end
+  end
+
+  describe "the Host leaving" do
+    test "passes the role to the first connected person still in the Room" do
+      {:ok, room} = Room.leave(lobby(), "guest:timur", [])
+      connected = [@host, "guest:visitor", "guest:timur", "guest:dana"]
+
+      assert {:ok, room} = Room.leave(room, @host, connected)
+
+      assert room.host_id == "guest:dana"
+      assert %{host?: true, host_nickname: "Dana"} = Room.view_for(room, "guest:dana")
+    end
+
+    test "with nobody in the Room connected, passes it to whoever entered first" do
+      room = enter!(lobby(), "guest:aziz", "Aziz")
+
+      assert {:ok, %{host_id: "guest:timur"}} = Room.leave(room, @host, [@host, "guest:visitor"])
+
+      {:ok, room} = Room.leave(room, "guest:timur", [])
+
+      assert {:ok, %{host_id: "guest:dana"}} = Room.leave(room, @host, ["guest:timur"])
+    end
+
+    test "last leaves the Room with no Host, and the next to enter becomes Host" do
+      room = enter!(room(), @host, "Malika")
+
+      assert {:ok, room} = Room.leave(room, @host, [@host])
+      assert room.host_id == nil
+      assert %{host?: false, host_nickname: nil, people: []} = Room.view_for(room, "guest:dana")
+
+      room = enter!(room, "guest:dana", "Dana")
+
+      assert room.host_id == "guest:dana"
+      assert %{host?: true, host_nickname: "Dana"} = Room.view_for(room, "guest:dana")
+    end
+  end
+
+  describe "coming back after leaving" do
+    test "in the lobby, a person is back with their own number and the Nickname they enter" do
+      {:ok, room} = lobby() |> sit_out!("guest:timur") |> Room.leave("guest:timur", [])
+
+      room = enter!(room, "guest:timur", "  Timka ")
+
+      assert Room.member?(room, "guest:timur")
+      assert Room.dealt_in(room) == ["guest:timur", @host, "guest:dana"]
+
+      assert [%{nickname: "Timka", n: 1, me?: true, sitting_out?: false}, _, _] =
+               Room.view_for(room, "guest:timur").people
+    end
+
+    test "mid-Game, a Player who left is back as a Spectator, Knocked out, seat and number kept" do
+      {:roll, room} = Room.leave(playing(), "guest:dana", [])
+      room = Room.start_round(room, %{"guest:timur" => [3], @host => [4]})
+
+      assert spectators(room, "guest:timur") == []
+
+      room = enter!(room, "guest:dana", "Dana")
+
+      assert spectators(room, "guest:timur") == [{"Dana", true}]
+      view = Room.view_for(room, "guest:dana")
+      assert %{seated?: false, knocked_out?: true, my_dice: nil} = view.game
+      assert [%{person: %{nickname: "Dana", me?: true, n: 3}, out?: true} | _] = view.game.seats
+    end
+
+    test "while someone is gone their Nickname is free, and taken when they come back" do
+      {:ok, room} = Room.leave(lobby(), "guest:dana", [])
+      room = enter!(room, "guest:aziz", "dana")
+
+      assert Room.enter(room, "guest:dana", "Dana") == {:taken, "dana", "dana 2"}
+    end
+
+    test "a Room is full at 30 present, not counting those who left" do
+      room = Enum.reduce(1..30, room(), &enter!(&2, "guest:#{&1}", "Person #{&1}"))
+      {:ok, room} = Room.leave(room, "guest:1", [])
+
+      room = enter!(room, "guest:31", "Person 31")
+
+      assert Room.enter(room, "guest:1", "Person 1") == {:error, :full}
+    end
+  end
+
+  describe "the Host removing someone" do
+    test "mid-Round names them by number, Knocks them out and voids the Round" do
+      assert {:roll, room} = Room.remove(playing(), @host, 3, [])
+
+      refute Room.member?(room, "guest:dana")
+      assert %{out: ["guest:dana"], voided_by: "guest:dana"} = room.game
+    end
+
+    test "is the Host's alone, of someone present other than the Host" do
+      {:ok, room} = Room.leave(lobby(), "guest:timur", [])
+
+      assert Room.remove(room, "guest:dana", 2, []) == {:error, :not_host}
+      assert Room.remove(room, @host, 1, []) == {:error, :not_member}
+      assert Room.remove(room, @host, 4, []) == {:error, :not_member}
+      assert Room.remove(room, @host, 0, []) == {:error, :not_member}
+      assert Room.remove(room, @host, 2, []) == {:error, :self}
+    end
+  end
+
+  describe "handing over the Host role" do
+    test "makes the person with that number the Host, the old Host a person like any other" do
+      assert {:ok, room} = Room.make_host(playing(), @host, 1)
+
+      assert room.host_id == "guest:timur"
+      assert %{host?: true, host_nickname: "Timur"} = Room.view_for(room, "guest:timur")
+      assert %{host?: false} = Room.view_for(room, @host)
+      assert Room.make_host(room, @host, 3) == {:error, :not_host}
+    end
+
+    test "is the Host's alone, to someone present other than the Host" do
+      {:ok, room} = Room.leave(lobby(), "guest:timur", [])
+
+      assert Room.make_host(room, "guest:dana", 3) == {:error, :not_host}
+      assert Room.make_host(room, @host, 1) == {:error, :not_member}
+      assert Room.make_host(room, @host, 9) == {:error, :not_member}
+      assert Room.make_host(room, @host, 2) == {:error, :self}
+    end
+  end
+
+  describe "the view of who is playing" do
+    defp playing_flags(room, viewer),
+      do: for(p <- Room.view_for(room, viewer).people, do: {p.nickname, p.playing?})
+
+    test "marks the Players in play, and tells the viewer whether they are one" do
+      room = next_round_after_dana() |> enter!("guest:aziz", "Aziz")
+
+      assert playing_flags(room, "guest:aziz") ==
+               [{"Timur", true}, {"Malika", true}, {"Dana", false}, {"Aziz", false}]
+
+      assert %{playing?: true} = Room.view_for(room, "guest:timur")
+      assert %{playing?: false} = Room.view_for(room, "guest:dana")
+      assert %{playing?: false} = Room.view_for(room, "guest:aziz")
+    end
+
+    test "marks nobody with no Game on" do
+      assert playing_flags(over(), @host) == [
+               {"Timur", false},
+               {"Malika", false},
+               {"Dana", false}
+             ]
+
+      assert %{playing?: false} = Room.view_for(lobby(), @host)
+    end
+  end
+
+  describe "the view of a voided Round" do
+    defp dana_left do
+      {:roll, room} = Room.leave(playing(), "guest:dana", [@host])
+      Room.start_round(room, %{"guest:timur" => [3], @host => [4]})
+    end
+
+    test "names who left on the re-rolled Round, and nobody otherwise" do
+      assert %{voided_by: %{nickname: "Dana", me?: false, n: 3}, turn: %{nickname: "Timur"}} =
+               Room.view_for(dana_left(), "guest:timur").game
+
+      assert %{voided_by: nil} = Room.view_for(playing(), "guest:timur").game
+    end
+
+    test "carries no person id, the one who left included" do
+      ids = [@host, "guest:dana", "guest:timur"]
+      {:ok, handed} = Room.make_host(dana_left(), @host, 1)
+
+      for room <- [dana_left(), handed], viewer <- ids, id <- ids do
         refute inspect(Room.view_for(room, viewer)) =~ id
       end
     end

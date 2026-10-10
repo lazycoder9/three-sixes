@@ -87,6 +87,29 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
+  def handle_call({:leave, person_id}, _from, state) do
+    case Room.leave(state.room, person_id, connected(state)) do
+      {:roll, room} -> {:reply, :ok, changed(state, roll(room))}
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:remove, by, n}, _from, state) do
+    case Room.remove(state.room, by, n, connected(state)) do
+      {:roll, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(roll(room))}
+      {:ok, room} -> {:reply, :ok, state |> tell_removed(room) |> changed(room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
+  def handle_call({:make_host, by, n}, _from, state) do
+    case Room.make_host(state.room, by, n) do
+      {:ok, room} -> {:reply, :ok, changed(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
   @impl true
   def handle_info({:reveal, round, step}, state) do
     case Room.reveal(state.room, round, step) do
@@ -119,6 +142,17 @@ defmodule ThreeSixes.Rooms.Server do
 
   defp open(creator),
     do: Registry.count_select(ThreeSixes.Rooms.Registry, [{{:_, :_, creator}, [], [true]}])
+
+  defp tell_removed(state, room) do
+    for {pid, id} <- state.joined,
+        Room.member?(state.room, id),
+        not Room.member?(room, id),
+        do: send(pid, :removed)
+
+    state
+  end
+
+  defp connected(state), do: state.joined |> Map.values() |> Enum.uniq() |> Dice.shuffle()
 
   defp roll(room) do
     dice = Map.new(Game.to_roll(room.game), fn {seat, count} -> {seat, Dice.roll(count)} end)

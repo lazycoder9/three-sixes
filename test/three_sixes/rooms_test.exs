@@ -433,6 +433,103 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "leaving" do
+    test "takes the person out of the Room and every joined process gets its view" do
+      {code, dana} = table()
+
+      assert Rooms.leave(code, "guest:dana") == :ok
+
+      assert_receive {:room_view, %{people: [%{nickname: "Malika"}]}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{me: nil, people: [_]}}}
+    end
+
+    test "mid-reveal voids the Round: everyone re-rolls and the reveal's timers change nothing" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      room = Rooms.whereis(code)
+      Scripted.script([[6], [2], [3]])
+      :ok = Rooms.start_game(code, @host)
+      :ok = Rooms.raise(code, @host, 3, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      send(room, {:reveal, 1, 1})
+      flush_after(room)
+
+      Scripted.script([[4], [5]])
+      assert Rooms.leave(code, "guest:timur") == :ok
+
+      assert_receive {:room_view,
+                      %{game: %{round: 2, my_dice: [4], my_turn?: true, reveal: nil} = game}}
+
+      assert %{voided_by: %{nickname: "Timur"}, dice_on_table: 2} = game
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, my_dice: [5]}}}}
+
+      assert_ignored(room, [{:reveal, 1, 2}, {:reveal, 1, 3}, {:next_round, 1}])
+      assert %{counts: %{@host => 1, "guest:dana" => 1}} = :sys.get_state(room).room.game
+    end
+
+    test "by the Host passes the role to someone connected, in the order shuffled" do
+      {code, dana} = table()
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      {:ok, _view} = Rooms.enter(code, "guest:aziz", "Aziz")
+      timur = join_from_another_process(code, "guest:timur")
+      flush_views()
+      Scripted.script_seats([@host, "guest:timur", "guest:dana"])
+
+      assert Rooms.leave(code, @host) == :ok
+
+      assert_receive {:forwarded, ^timur, {:room_view, %{host?: true}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{host?: false, host_nickname: "Timur"}}}
+    end
+  end
+
+  describe "the Host removing someone" do
+    test "tells each of the removed person's processes, before any view, and the rest see it" do
+      {code, dana} = table()
+      dana_again = join_from_another_process(code, "guest:dana")
+
+      assert Rooms.remove(code, @host, 2) == :ok
+
+      assert_receive {:room_view, %{people: [%{nickname: "Malika"}]}}
+
+      for pid <- [dana, dana_again] do
+        assert_receive {:forwarded, ^pid, first}
+        assert first == :removed
+        assert_receive {:forwarded, ^pid, {:room_view, %{me: nil}}}
+      end
+    end
+  end
+
+  describe "handing over the Host role" do
+    test "makes the new Host, and every joined process gets its view" do
+      {code, dana} = table()
+
+      assert Rooms.make_host(code, @host, 2) == :ok
+
+      assert_receive {:room_view, %{host?: false, host_nickname: "Dana"}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{host?: true, can_start?: true}}}
+      assert Rooms.start_game(code, @host) == {:error, :not_host}
+    end
+  end
+
+  test "a refused leave, removal or handover replies an error and sends nothing" do
+    {code, _dana} = table()
+
+    assert Rooms.leave(code, "guest:aziz") == {:error, :not_member}
+    assert Rooms.remove(code, "guest:dana", 1) == {:error, :not_host}
+    assert Rooms.remove(code, @host, 3) == {:error, :not_member}
+    assert Rooms.remove(code, @host, 1) == {:error, :self}
+    assert Rooms.make_host(code, "guest:dana", 2) == {:error, :not_host}
+    assert Rooms.make_host(code, @host, 1) == {:error, :self}
+    refute_receive {:room_view, _view}
+    refute_receive {:forwarded, _pid, _message}
+
+    close(code)
+
+    assert Rooms.leave(code, @host) == {:error, :closed}
+    assert Rooms.remove(code, @host, 2) == {:error, :closed}
+    assert Rooms.make_host(code, @host, 2) == {:error, :closed}
+  end
+
   defp assert_ignored(room, messages) do
     before = :sys.get_state(room)
     for message <- messages, do: send(room, message)
