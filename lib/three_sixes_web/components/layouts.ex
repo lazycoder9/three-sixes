@@ -76,6 +76,7 @@ defmodule ThreeSixesWeb.Layouts do
   attr :playing?, :boolean, required: true
   attr :revealing?, :boolean, default: false
   slot :under_code
+  slot :banner
   slot :inner_block, required: true
 
   def room(assigns) do
@@ -141,6 +142,8 @@ defmodule ThreeSixesWeb.Layouts do
         <.block popovertarget="room-menu" popovertargetaction="hide">Stay</.block>
       </div>
     </div>
+
+    <div :if={@banner != []} id="banners">{render_slot(@banner)}</div>
 
     <main class="table-main">
       {render_slot(@inner_block)}

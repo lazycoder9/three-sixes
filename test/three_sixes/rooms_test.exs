@@ -746,6 +746,66 @@ defmodule ThreeSixes.RoomsTest do
     end
   end
 
+  describe "Away" do
+    test "a member's last process exiting makes them Away at the Room's clock, and the rest see it" do
+      {code, dana} = table()
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+
+      leave(dana)
+
+      assert_receive {:room_view, %{away: %{2 => 1_000}, dealt_in: 1}}
+    end
+
+    test "one of two processes exiting leaves the person not Away, and sends nothing" do
+      {code, dana} = table()
+      _dana_again = join_from_another_process(code, "guest:dana")
+
+      leave(dana)
+
+      :sys.get_state(Rooms.whereis(code))
+      refute_receive {:room_view, _view}
+    end
+
+    test "joining again ends being Away, and every other joined process is told" do
+      {code, dana} = table()
+      leave(dana)
+      assert_receive {:room_view, %{away: %{2 => since}}}
+      assert_in_delta since, System.system_time(:millisecond), 1_000
+
+      dana = join_from_another_process(code, "guest:dana")
+
+      assert_receive {:room_view, %{away: away, dealt_in: 2}}
+      assert away == %{}
+      refute_receive {:forwarded, ^dana, {:room_view, _view}}
+    end
+
+    test "a restored Room has every member Away until they join again" do
+      {code, _dana} = table()
+      shut_down(code)
+
+      assert Rooms.sit_out(code, "guest:aziz", true) == {:error, :not_member}
+      assert %{away: away} = :sys.get_state(Rooms.whereis(code)).room
+      assert away |> Map.keys() |> Enum.sort() == Enum.sort([@host, "guest:dana"])
+
+      assert {:ok, %{away: %{2 => _since}, dealt_in: 1}} = Rooms.join(code, @host)
+
+      _dana = join_from_another_process(code, "guest:dana")
+
+      assert_receive {:room_view, %{away: away, dealt_in: 2}}
+      assert away == %{}
+    end
+
+    test "the process of someone who never entered exiting sends nothing" do
+      {code, _dana} = table()
+
+      leave(join_from_another_process(code, "guest:aziz"))
+
+      :sys.get_state(Rooms.whereis(code))
+      refute_receive {:room_view, _view}
+    end
+  end
+
   test "a refused leave, removal or handover replies an error and sends nothing" do
     {code, _dana} = table()
 

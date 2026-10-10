@@ -155,6 +155,7 @@ defmodule ThreeSixes.RoomTest do
              dealt_in: 3,
              game: nil,
              spectators: [],
+             away: %{},
              over: nil
            }
 
@@ -1068,6 +1069,85 @@ defmodule ThreeSixes.RoomTest do
              ]
 
       assert %{playing?: false} = Room.view_for(lobby(), @host)
+    end
+  end
+
+  describe "Away" do
+    defp away(room, viewer), do: Room.view_for(room, viewer).away
+
+    test "a member who goes Away shows by number, with since when, to everyone but themselves" do
+      room = Room.away(lobby(), "guest:dana", 1_000)
+
+      assert away(room, @host) == %{3 => 1_000}
+      assert away(room, "guest:timur") == %{3 => 1_000}
+      assert away(room, "guest:dana") == %{}
+      assert away(lobby(), @host) == %{}
+    end
+
+    test "going Away again keeps the first since, and coming back clears it" do
+      room = lobby() |> Room.away("guest:dana", 1_000) |> Room.away("guest:dana", 5_000)
+
+      assert away(room, @host) == %{3 => 1_000}
+      assert away(Room.back(room, "guest:dana"), @host) == %{}
+    end
+
+    test "only a member goes Away: someone who never entered, or who left, changes nothing" do
+      {:ok, left} = Room.leave(lobby(), "guest:timur", [])
+
+      assert Room.away(lobby(), "guest:aziz", 1_000) == lobby()
+      assert Room.away(left, "guest:timur", 1_000) == left
+    end
+
+    test "leaving or being removed ends being Away, so a person who enters again is not Away" do
+      room = Room.away(lobby(), "guest:dana", 1_000)
+      {:ok, left} = Room.leave(room, "guest:dana", [])
+      {:ok, removed} = Room.remove(room, @host, 3, [])
+
+      for room <- [left, removed] do
+        assert away(enter!(room, "guest:dana", "Dana"), @host) == %{}
+      end
+    end
+
+    test "an Away person is not dealt in, and watches as a Spectator once back" do
+      room = Room.away(lobby(), "guest:dana", 1_000)
+
+      assert Room.dealt_in(room) == ["guest:timur", @host]
+      assert %{dealt_in: 2, can_start?: true} = Room.view_for(room, @host)
+
+      assert Room.start_game(room, @host, ["guest:timur", @host, "guest:dana"]) ==
+               {:error, :wrong_seats}
+
+      {:ok, room} = Room.start_game(room, @host, ["guest:timur", @host])
+      room = Room.back(room, "guest:dana")
+
+      assert %{game: %{seated?: false}, spectators: [%{person: %{me?: true}, out?: false}]} =
+               Room.view_for(room, "guest:dana")
+    end
+
+    test "with one of two people Away, the Host cannot start a Game" do
+      room =
+        room()
+        |> enter!(@host, "Malika")
+        |> enter!("guest:dana", "Dana")
+        |> Room.away("guest:dana", 1_000)
+
+      assert %{dealt_in: 1, can_start?: false} = Room.view_for(room, @host)
+      assert Room.start_game(room, @host, [@host]) == {:error, :too_few}
+    end
+
+    test "an Away Player not on turn: their dice count in a Check and they take the Penalty die" do
+      {:ok, room} = Room.raise(playing(), "guest:dana", 1, 6)
+      {:ok, room} = Room.raise(room, "guest:timur", 2, 6)
+      {:ok, room} = Room.raise(room, @host, 3, 6)
+      room = Room.away(room, @host, 1_000)
+
+      {:ok, room} = Room.check(room, "guest:dana")
+      {:ok, room} = Room.reveal(room, 1, 3)
+
+      assert %{count: 2, stood?: false, loser: %{nickname: "Malika"}} =
+               Room.view_for(room, "guest:dana").game.reveal
+
+      assert room.game.counts[@host] == 2
     end
   end
 

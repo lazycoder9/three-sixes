@@ -101,6 +101,27 @@ defmodule ThreeSixesWeb.RestoreLiveTest do
       assert has_element?(dana, "#seat-1", "Timur")
       refute render(dana) =~ ~s(data-face="6")
     end
+
+    test "after a deploy, a Player who has not come back is Away, and the table waits on them" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[3], [5]])
+      seated = :sys.get_state(Rooms.whereis(code)).room
+      leave(code, [timur, dana])
+
+      :ok = DynamicSupervisor.terminate_child(ThreeSixes.Rooms.Supervisor, Rooms.whereis(code))
+      unregistered(code)
+      :ok = Rooms.save(code, seated, nil)
+
+      Scripted.script([[6], [1]])
+      dana = visit(code, "dana")
+
+      assert has_element?(dana, "#seat-1.is-away.is-turn")
+      assert text(dana, "#seat-1 .seat__away") == "away 0:00"
+      refute has_element?(dana, "#seat-2.is-away")
+
+      assert text(dana, "#banners") ==
+               "Timur is on turn and away 0:00. The table waits. Only the Host can Remove."
+    end
   end
 
   describe "closing" do
