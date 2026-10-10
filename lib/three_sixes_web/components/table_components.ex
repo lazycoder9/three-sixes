@@ -59,6 +59,14 @@ defmodule ThreeSixesWeb.TableComponents do
         </ol>
         <.torn_scrap id="scrap" class="game-table__scrap">
           <.scrap game={@game} />
+          <span
+            :if={@game.three_sixes?}
+            id={"three-sixes-#{@game.round}"}
+            class="three-sixes"
+            aria-hidden="true"
+          >
+            3 <small>&times;</small> <.die face={6} />
+          </span>
         </.torn_scrap>
       </div>
       <div class="game-table__bottom">
@@ -112,7 +120,7 @@ defmodule ThreeSixesWeb.TableComponents do
           face={face}
           class={["is-flip", counted(face, @game.reveal)]}
         />
-        <span :if={@seat.penalty?} class="die is-penalty"></span>
+        <.penalty_dice :if={@seat.penalty?} count={@game.reveal.penalty} />
       </span>
       <span :if={!@seat.faces and !@seat.out?} class="seat__dice">
         <b class="seat__n">{@seat.dice}</b>
@@ -160,9 +168,11 @@ defmodule ThreeSixesWeb.TableComponents do
       {if @reveal.stood?, do: "The Bid stands.", else: "Bluff caught."}
     </p>
     <p :if={@reveal.loser} class="scrap__pen">
-      {name(@reveal.loser)} <b>+</b><span class="die is-penalty"></span>
+      {name(@reveal.loser)} <b>+{if @reveal.penalty > 1, do: @reveal.penalty}</b>
+      <.penalty_dice count={@reveal.penalty} />
       <em :if={@reveal.knocked_out?} class="red">Knocked out</em>
     </p>
+    <p :if={@reveal.penalty == 2} class="scrap__double">Three sixes counts double.</p>
     """
   end
 
@@ -181,6 +191,14 @@ defmodule ThreeSixesWeb.TableComponents do
     <p class="faint">{name(@game.bid.by)} {verb(@game.bid.by, "bids", "bid")}</p>
     <.bidn count={@game.bid.count} face={@game.bid.face} />
     <p class="faint">{@game.dice_on_table} dice on the table</p>
+    """
+  end
+
+  attr :count, :integer, required: true
+
+  defp penalty_dice(assigns) do
+    ~H"""
+    <span :for={_ <- 1..@count} class="die is-penalty"></span>
     """
   end
 
@@ -224,7 +242,7 @@ defmodule ThreeSixesWeb.TableComponents do
           <.cube face={face} turns={@game.round} from={tumble_from(@rolled, @game.round, i, face)} />
         </span>
         <span :if={hd(@game.seats).penalty?} class="slot slot--pen">
-          <span class="die is-penalty"></span>
+          <.penalty_dice count={@game.reveal.penalty} />
         </span>
       </div>
       <p class={["scrawl my-page__head", !@game.my_turn? && "faint"]}>{head(@game)}</p>

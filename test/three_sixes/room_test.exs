@@ -693,6 +693,7 @@ defmodule ThreeSixes.RoomTest do
                can_check?: true,
                turn: @timur,
                bid: %{count: 1, face: 6, by: @dana},
+               three_sixes?: false,
                seats: [
                  %{
                    person: @timur,
@@ -773,6 +774,7 @@ defmodule ThreeSixes.RoomTest do
                count: nil,
                stood?: nil,
                loser: nil,
+               penalty: nil,
                knocked_out?: false
              }
     end
@@ -803,6 +805,7 @@ defmodule ThreeSixes.RoomTest do
                can_check?: false,
                turn: nil,
                bid: %{count: 1, face: 6, by: @dana},
+               three_sixes?: false,
                seats: [
                  %{
                    person: @timur,
@@ -839,10 +842,41 @@ defmodule ThreeSixes.RoomTest do
                  count: 2,
                  stood?: true,
                  loser: @timur,
+                 penalty: 1,
                  knocked_out?: false
                },
                voided_by: nil
              }
+    end
+
+    test "a Check on 3 × ⚅ shows its two Penalty dice to every seat, from step 3" do
+      {:ok, raised} = Room.raise(playing(), "guest:dana", 3, 6)
+      {:ok, checked} = Room.check(raised, "guest:timur")
+      at_zero = enter!(checked, "guest:aziz", "Aziz")
+      {:ok, at_one} = Room.reveal(at_zero, 1, 1)
+      {:ok, at_two} = Room.reveal(at_one, 1, 2)
+      {:ok, at_three} = Room.reveal(at_two, 1, 3)
+
+      for viewer <- ["guest:timur", @host, "guest:dana", "guest:aziz"] do
+        for room <- [at_zero, at_one, at_two] do
+          assert %{penalty: nil, loser: nil} = Room.view_for(room, viewer).game.reveal
+        end
+
+        assert %{penalty: 2, loser: %{nickname: "Dana"}} =
+                 Room.view_for(at_three, viewer).game.reveal
+      end
+    end
+
+    test "says while 3 × ⚅ is the Bid on the table, and not once it is Raised past or Checked" do
+      {:ok, two} = Room.raise(playing(), "guest:dana", 2, 6)
+      {:ok, three} = Room.raise(two, "guest:timur", 3, 6)
+      {:ok, checked} = Room.check(three, @host)
+
+      for viewer <- ["guest:timur", @host, "guest:dana"] do
+        assert %{three_sixes?: false} = Room.view_for(two, viewer).game
+        assert %{three_sixes?: true} = Room.view_for(three, viewer).game
+        assert %{three_sixes?: false} = Room.view_for(checked, viewer).game
+      end
     end
 
     test "carries no person id, at any point in the Round" do

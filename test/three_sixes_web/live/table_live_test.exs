@@ -491,6 +491,91 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "three sixes" do
+    test "a Bid of 3 × ⚅ stamps the logo onto every screen's table, out of the way of play" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
+      start(timur, [[6], [6], [6]])
+      press(timur, "One more")
+
+      press(timur, "Bid three sixes")
+
+      for view <- [timur, dana, malika] do
+        assert has_element?(view, "#three-sixes-1.three-sixes[aria-hidden='true']")
+      end
+
+      assert has_element?(dana, "#my-page button:not([disabled])", "Check")
+    end
+
+    test "2 × ⚅ and 4 × ⚅ are ordinary Bids, and Raising past 3 × ⚅ takes the stamp away" do
+      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika Aziz))
+      start(timur, [[6], [6], [6], [6]])
+
+      press(timur, "Bid two sixes")
+
+      refute has_element?(timur, ".three-sixes")
+      refute has_element?(dana, ".three-sixes")
+
+      press(dana, "Raise to three sixes")
+
+      assert has_element?(timur, "#three-sixes-1")
+      assert has_element?(dana, "#three-sixes-1")
+
+      press(malika, "Raise to four sixes")
+
+      refute has_element?(timur, ".three-sixes")
+      refute has_element?(dana, ".three-sixes")
+    end
+
+    test "a Check on 3 × ⚅ costs its loser two Penalty dice, and the scrap says why" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[6], [6], [6]])
+      press(timur, "One more")
+      press(timur, "Bid three sixes")
+
+      check(dana)
+
+      refute has_element?(timur, ".three-sixes")
+      refute has_element?(dana, ".three-sixes")
+
+      reveal(code, {:reveal, 1, 1})
+      reveal(code, {:reveal, 1, 2})
+
+      assert text(timur, "#scrap") == "Bid 3 × 3 × The Bid stands."
+
+      reveal(code, {:reveal, 1, 3})
+
+      assert text(timur, "#scrap") ==
+               "Bid 3 × 3 × The Bid stands. Dana +2 Three sixes counts double."
+
+      assert text(dana, "#scrap") ==
+               "Bid 3 × 3 × The Bid stands. You +2 Three sixes counts double."
+
+      for view <- [timur, dana, malika] do
+        assert count(view, "#scrap .scrap__pen .die.is-penalty") == 2
+      end
+
+      assert count(timur, "#seat-2.is-loser .seat__dice .die.is-penalty") == 2
+      assert count(malika, "#seat-2.is-loser .seat__dice .die.is-penalty") == 2
+      assert count(dana, "#my-page .slot--pen .die.is-penalty") == 2
+      refute has_element?(timur, "#my-page .is-penalty")
+    end
+
+    test "a Check on any other Bid costs one Penalty die, with no word of three sixes" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[6], [2], [3]])
+      press(timur, "Bid two sixes")
+      check(dana)
+
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+
+      assert text(dana, "#scrap") == "Bid 2 × 1 × Bluff caught. Timur +"
+      assert text(timur, "#scrap") == "Bid 2 × 1 × Bluff caught. You +"
+      assert count(dana, "#scrap .scrap__pen .die.is-penalty") == 1
+      assert count(dana, "#seat-1 .seat__dice .die.is-penalty") == 1
+      assert count(timur, "#my-page .slot--pen .die.is-penalty") == 1
+    end
+  end
+
   describe "Knocked out" do
     test "the Penalty die that makes six Knocks the loser out, and the next Player opens" do
       %{timur: timur, dana: dana, malika: malika, code: code} =
