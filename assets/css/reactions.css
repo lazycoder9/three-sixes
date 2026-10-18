@@ -195,7 +195,6 @@
   transform: rotate(-3deg);
   animation-name: reaction-in-side, reaction-out-side;
 }
-/* Over the token: the said tag above, the name and dice below stay in sight. */
 .seat > .reaction {
   --at: calc((1 + var(--x, 0) * 0.3) * 50%);
   top: calc(31 * var(--u, 1px));
