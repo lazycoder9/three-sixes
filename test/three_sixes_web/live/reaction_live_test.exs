@@ -56,7 +56,7 @@ defmodule ThreeSixesWeb.ReactionLiveTest do
       assert count(dana, ".reaction") == 1
 
       assert has_element?(dana, "#reactions.is-cooling")
-      assert count(dana, "#reactions button[aria-disabled=true]") == 8
+      assert count(dana, "#reactions button[aria-disabled=true]") == 9
       refute has_element?(timur, "#reactions.is-cooling")
       refute has_element?(timur, "#reactions button[aria-disabled]")
     end
@@ -121,6 +121,25 @@ defmodule ThreeSixesWeb.ReactionLiveTest do
       assert count(dana, ".reaction") == 1
     end
 
+    test "three sixes is drawn like the logo, a 3 and a six die, on the sender's seat and page" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      start(timur, [[2], [5]])
+
+      assert has_element?(
+               dana,
+               "#reactions button[phx-value-reaction=threesixes][aria-label='Three sixes'] .die"
+             )
+
+      react(dana, "Three sixes")
+
+      sixes = "#seat-2 .reaction[aria-label='Dana: Three sixes']"
+      assert has_element?(timur, sixes, "3")
+      assert count(timur, "#{sixes} .die") == 1
+      assert count(timur, "#{sixes} .die i.on") == 6
+      refute has_element?(timur, "#{sixes}.is-line")
+      assert has_element?(dana, "#my-page .reaction[aria-label='You: Three sixes'] .die")
+    end
+
     test "one sent during the reveal shows over the sender's seat" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
       start(timur, [[2], [5]])
@@ -165,7 +184,18 @@ defmodule ThreeSixesWeb.ReactionLiveTest do
     %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
     aziz = visit(code, "aziz")
 
-    assert note(timur) == ["Laugh", "Gasp", "Hmm", "Clap", "Fire", "GG", "No way", "Check it!"]
+    assert note(timur) == [
+             "Three sixes",
+             "Laugh",
+             "Gasp",
+             "Hmm",
+             "Clap",
+             "Fire",
+             "GG",
+             "No way",
+             "Check it!"
+           ]
+
     refute has_element?(aziz, "#reactions")
 
     start(timur, [[2], [5]])

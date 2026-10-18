@@ -6,14 +6,17 @@ type Listener = (event: KeyboardEvent) => void;
 function mountKeys({
   myTurn = true,
   querySelector = (_selector: string): object | null => null,
+  vibrate = true as boolean,
 } = {}) {
   const listeners = new Set<Listener>();
+  const buzzes: unknown[] = [];
   Object.assign(globalThis, {
     window: {
       addEventListener: (_type: string, listener: Listener) => listeners.add(listener),
       removeEventListener: (_type: string, listener: Listener) => listeners.delete(listener),
     },
     document: { querySelector },
+    navigator: vibrate ? { vibrate: (pattern: unknown) => buzzes.push(pattern) } : {},
   });
   const pushed: unknown[] = [];
   const el = { dataset: { myTurn: String(myTurn) } as Record<string, string> };
@@ -45,7 +48,12 @@ function mountKeys({
     el,
     pushed,
     listeners,
+    buzzes,
     press,
+    patch: (turn: boolean) => {
+      el.dataset.myTurn = String(turn);
+      PlayKeys.updated?.call(hook);
+    },
     destroy: () => PlayKeys.destroyed?.call(hook),
   };
 }
@@ -179,5 +187,31 @@ describe("play keys", () => {
     keys.press("c");
     expect(keys.listeners.size).toBe(0);
     expect(keys.pushed).toEqual([]);
+  });
+
+  test("the phone buzzes once when the turn comes to me, not while it stays or goes", () => {
+    const keys = mountKeys({ myTurn: false });
+    keys.patch(false);
+    expect(keys.buzzes).toEqual([]);
+
+    keys.patch(true);
+    keys.patch(true);
+    expect(keys.buzzes).toHaveLength(1);
+
+    keys.patch(false);
+    keys.patch(true);
+    expect(keys.buzzes).toHaveLength(2);
+  });
+
+  test("a page opened on my turn does not buzz", () => {
+    const keys = mountKeys({ myTurn: true });
+    keys.patch(true);
+    expect(keys.buzzes).toEqual([]);
+  });
+
+  test("a browser without vibration takes the turn quietly", () => {
+    const keys = mountKeys({ myTurn: false, vibrate: false });
+    expect(() => keys.patch(true)).not.toThrow();
+    expect(keys.buzzes).toEqual([]);
   });
 });

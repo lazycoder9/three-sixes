@@ -360,8 +360,12 @@ defmodule ThreeSixesWeb.RoomLive do
 
     socket
     |> assign(view: view, step: step, rolled: rolled(view, old, rolled), now: now())
+    |> assign(page_title: page_title(view))
     |> keep_ticking()
   end
+
+  defp page_title(%{game: %{my_turn?: true}}), do: "Your turn · Three Sixes"
+  defp page_title(_view), do: "Three Sixes"
 
   @impl true
   def render(%{view: %{me: me, game: %{}}} = assigns) when is_binary(me) do

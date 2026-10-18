@@ -1,6 +1,6 @@
 .reactions {
   display: grid;
-  grid-template-columns: repeat(6, calc(23 * var(--u, 1px)));
+  grid-template-columns: repeat(12, calc(14 * var(--u, 1px)));
   padding: calc(8 * var(--u, 1px));
   margin-bottom: calc(8 * var(--u, 1px));
   background: linear-gradient(rgba(0, 0, 0, 0.07), transparent 30px), var(--color-note);
@@ -13,7 +13,7 @@
 }
 .reactions__button {
   all: unset;
-  grid-column: span 2;
+  grid-column: span 4;
   display: grid;
   place-items: center;
   height: calc(38 * var(--u, 1px));
@@ -29,8 +29,25 @@
 .reactions__button.is-line {
   font: 700 calc(21 * var(--u, 1px)) / 1 var(--font-scrawl);
 }
-.reactions__button:nth-child(n + 7) {
+.reactions__button:nth-child(7) {
   grid-column: span 3;
+}
+.reactions__button:nth-child(9) {
+  grid-column: span 5;
+}
+.reaction-sixes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08em;
+  font: 400 0.92em / 1 var(--font-display);
+}
+.reaction-sixes small {
+  font: 700 0.62em/1 var(--font-scrawl);
+}
+.reaction-sixes .die {
+  --d: 0.95em;
+  margin-left: 0.06em;
+  rotate: 7deg;
 }
 .reactions__button:focus-visible {
   outline: 3px solid var(--color-tomato);
@@ -132,12 +149,12 @@
     padding: 2px 4px;
   }
   .reactions__button {
-    min-width: 28px;
-    padding: 0 3px;
-    font-size: 20px;
+    min-width: 26px;
+    padding: 0 2px;
+    font-size: 18px;
   }
   .reactions__button.is-line {
-    font-size: 19px;
+    font-size: 17px;
   }
 }
 
@@ -175,13 +192,41 @@
   transform: rotate(-3deg);
   animation-name: reaction-in-side, reaction-out-side;
 }
+/* Over the token: the said tag above, the name and dice below stay in sight. */
+.seat > .reaction {
+  --at: calc((1 + var(--x, 0) * 0.3) * 50%);
+  top: calc(31 * var(--u, 1px));
+  bottom: auto;
+  translate: calc(-1 * var(--at)) -50%;
+}
+.seat--compact > .reaction {
+  top: calc(18.5 * var(--u, 1px));
+  padding: calc(3 * var(--u, 1px)) calc(7 * var(--u, 1px)) calc(4 * var(--u, 1px));
+  font-size: calc(20 * var(--u, 1px));
+}
+.seat--compact > .reaction.is-line {
+  font-size: calc(18 * var(--u, 1px));
+}
 .my-page > .reaction {
-  --x: 0.75;
+  --x: -0.75;
 }
 @media (width < 720px) {
+  .seat > .reaction {
+    top: 26px;
+  }
+  .seat--compact > .reaction,
+  .game-table--phone-compact .seat > .reaction {
+    top: 15px;
+    padding: 2px 6px 3px;
+    font-size: 17px;
+  }
+  .seat--compact > .reaction.is-line,
+  .game-table--phone-compact .seat > .reaction.is-line {
+    font-size: 16px;
+  }
   .my-page > .reaction {
-    --x: -1;
-    top: -10px;
+    --x: 1;
+    top: -20px;
     bottom: auto;
     animation-name: reaction-in, reaction-in;
     animation-direction: normal, reverse;

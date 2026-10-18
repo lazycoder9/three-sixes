@@ -36,10 +36,13 @@ export function playKey(
   return null;
 }
 
-type PlayKeysHook = Hook<{ onKey: (event: KeyboardEvent) => void }>;
+const TURN_BUZZ = [70, 50, 70];
+
+type PlayKeysHook = Hook<{ onKey: (event: KeyboardEvent) => void; myTurn: boolean }>;
 
 export const PlayKeys: PlayKeysHook = {
   mounted() {
+    this.myTurn = this.el.dataset.myTurn === "true";
     this.onKey = (event) => {
       const key = playKey(event, document, this.el.dataset.myTurn === "true");
       if (key === null) return;
@@ -47,6 +50,11 @@ export const PlayKeys: PlayKeysHook = {
       this.pushEvent("key", { key });
     };
     window.addEventListener("keydown", this.onKey);
+  },
+  updated() {
+    const myTurn = this.el.dataset.myTurn === "true";
+    if (myTurn && !this.myTurn) navigator.vibrate?.(TURN_BUZZ);
+    this.myTurn = myTurn;
   },
   destroyed() {
     window.removeEventListener("keydown", this.onKey);

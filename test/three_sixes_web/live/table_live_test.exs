@@ -61,6 +61,101 @@ defmodule ThreeSixesWeb.TableLiveTest do
     end
   end
 
+  describe "the turn" do
+    test "your turn names itself in the tab title, and the title goes back once you have played" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      assert title(timur) == "Three Sixes"
+
+      start(timur, [[3], [5]])
+
+      assert title(timur) == "Your turn · Three Sixes"
+      assert title(dana) == "Three Sixes"
+
+      press(timur, "Bid one five")
+
+      assert title(timur) == "Three Sixes"
+      assert title(dana) == "Your turn · Three Sixes"
+
+      check(dana)
+
+      assert title(dana) == "Three Sixes"
+    end
+
+    test "the seat on turn carries an on turn tag for every other seat and a Spectator" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[3], [5], [4]])
+      aziz = late_arrival(code)
+
+      for other <- [dana, malika, aziz] do
+        assert text(other, "#seat-1.is-turn .seat__turn") == "on turn"
+        assert count(other, ".seat__turn") == 1
+      end
+
+      refute has_element?(timur, ".seat__turn")
+      assert has_element?(timur, "#my-page.is-turn .my-page__turn", "Your turn")
+      refute has_element?(dana, ".my-page__turn")
+
+      press(timur, "Bid one five")
+
+      for other <- [timur, malika, aziz],
+          do: assert(text(other, "#seat-2 .seat__turn") == "on turn")
+
+      refute has_element?(dana, ".seat__turn")
+      assert has_element?(dana, "#my-page .my-page__turn")
+      refute has_element?(timur, ".my-page__turn")
+
+      press(dana, "Raise to one six")
+      check(malika)
+
+      for view <- [timur, dana, malika, aziz] do
+        refute has_element?(view, ".seat__turn")
+        refute has_element?(view, ".my-page__turn")
+      end
+    end
+  end
+
+  describe "your own Bid" do
+    test "lies in your band beside your dice, lit while it is the current Bid, and goes at the Check" do
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      start(timur, [[3], [5], [4]])
+
+      for player <- [timur, dana, malika], do: refute(has_element?(player, "#my-said"))
+
+      press(timur, "Bid two fives")
+
+      assert text(timur, "#my-said") == "You: 2 ×"
+      assert has_element?(timur, ".my-band #my-said.is-now .bidn[aria-label='two fives']")
+      refute has_element?(timur, "#my-dice #my-said")
+      refute has_element?(dana, "#my-said")
+      refute has_element?(late_arrival(code), "#my-said")
+
+      press(dana, "Raise to two sixes")
+
+      assert has_element?(timur, "#my-said:not(.is-now) .bidn[aria-label='two fives']")
+      assert has_element?(dana, "#my-said.is-now .bidn[aria-label='two sixes']")
+      refute has_element?(malika, "#my-said")
+
+      check(malika)
+
+      for player <- [timur, dana, malika], do: refute(has_element?(player, "#my-said"))
+    end
+
+    test "a Bid made blind is marked blind in your band" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      tick_blind(timur, true)
+      start(timur, [[3], [5]])
+
+      press(timur, "Bid one five")
+
+      assert text(timur, "#my-said") == "You: 1 × blind"
+      refute_own_faces(timur)
+
+      press(dana, "Raise to one six")
+
+      assert text(dana, "#my-said") == "You: 1 ×"
+    end
+  end
+
   describe "the dice" do
     test "each Player sees only their own dice, flat on the table above their page" do
       %{timur: timur, dana: dana} = table(~w(Timur Dana))
@@ -870,8 +965,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
       refute has_element?(aziz, "#my-page")
       refute has_element?(aziz, "#my-dice")
       assert html |> LazyHTML.query(".cube, [data-face]") |> Enum.empty?()
-      assert html |> LazyHTML.query(".die:not(.is-down)") |> Enum.count() == 1
-      assert html |> LazyHTML.query(".logo .die") |> Enum.count() == 1
+      assert html |> LazyHTML.query(".die:not(.is-down)") |> Enum.count() == 2
+      assert html |> LazyHTML.query(".logo .die, #reactions .die") |> Enum.count() == 2
       assert html |> LazyHTML.query(".seat__dice .die.is-down") |> Enum.count() == 2
     end
 
@@ -1323,6 +1418,11 @@ defmodule ThreeSixesWeb.TableLiveTest do
     |> LazyHTML.from_fragment()
     |> LazyHTML.query(selector)
     |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
+  end
+
+  defp title(view) do
+    render(view)
+    page_title(view)
   end
 
   defp text(view, selector) do

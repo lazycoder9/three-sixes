@@ -235,6 +235,7 @@ body:has(.game-table) .table-main {
 }
 .seat__said {
   position: absolute;
+  z-index: 4;
   left: 50%;
   bottom: calc(100% - 8 * var(--u));
   transform: translateX(-50%) rotate(-3deg);
@@ -262,9 +263,43 @@ body:has(.game-table) .table-main {
   background: var(--color-sheet);
   color: var(--color-espresso);
   box-shadow:
-    0 0 0 3px var(--color-mustard),
+    0 0 0 4px var(--color-tomato),
+    0 0 0 7px rgba(233, 180, 59, 0.85),
     0 12px 16px -8px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -50%) scale(1.08);
+}
+.seat.is-turn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  animation: turn-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes turn-pulse {
+  from {
+    box-shadow: 0 0 0 4px rgba(213, 69, 47, 0.7);
+  }
+  to {
+    box-shadow: 0 0 0 calc(18 * var(--u)) rgba(213, 69, 47, 0);
+  }
+}
+.seat__turn {
+  position: absolute;
+  left: 50%;
+  top: calc(100% - 4 * var(--u));
+  z-index: 1;
+  padding: 0 calc(7 * var(--u)) calc(1 * var(--u));
+  border-radius: calc(4 * var(--u));
+  background: var(--color-tomato);
+  color: var(--color-cream);
+  box-shadow: 0 3px 5px -2px rgba(0, 0, 0, 0.45);
+  font: 400 max(13px, calc(16 * var(--u))) / 1.15 var(--font-hand);
+  white-space: nowrap;
+  translate: -50% 0;
+  rotate: -3deg;
+  pointer-events: none;
 }
 .seat.is-loser {
   box-shadow: 0 0 0 3px var(--color-tomato);
@@ -330,6 +365,11 @@ body:has(.game-table) .table-main {
   padding: 0 calc(3 * var(--u));
   font-size: max(11px, calc(12 * var(--u)));
   transform: translateX(-50%) rotate(3deg);
+}
+.seat--compact .seat__turn {
+  top: calc(100% - 3 * var(--u));
+  padding: 0 calc(4 * var(--u));
+  font-size: max(11px, calc(12 * var(--u)));
 }
 .seat--compact .seat__dice:has(> .seat__n):has(~ .seat__tag) {
   justify-self: start;
@@ -541,10 +581,87 @@ body:has(.game-table) .table-main {
   padding-top: calc(var(--spacing-rule) * 0.75);
   padding-bottom: calc(10 * var(--u));
 }
+.my-page.is-turn {
+  animation: nudge 0.6s var(--ease-press);
+}
 .my-page.is-turn::after {
   box-shadow:
-    0 0 0 calc(4 * var(--u)) var(--color-mustard),
+    0 0 0 max(3px, calc(4 * var(--u))) var(--color-tomato),
+    0 0 calc(26 * var(--u)) calc(6 * var(--u)) rgba(233, 180, 59, 0.75),
     0 18px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.my-page.is-turn .my-page__head {
+  color: var(--color-tomato);
+}
+@keyframes nudge {
+  20% {
+    translate: 0 calc(-10 * var(--u));
+    rotate: -0.8deg;
+  }
+  45% {
+    translate: 0 0;
+    rotate: 0.6deg;
+  }
+  70% {
+    rotate: -0.3deg;
+  }
+}
+.my-page__turn {
+  position: absolute;
+  right: calc(18 * var(--u));
+  top: calc(-14 * var(--u));
+  z-index: 3;
+  padding: calc(2 * var(--u)) calc(14 * var(--u)) calc(4 * var(--u));
+  background: var(--color-tomato);
+  color: var(--color-cream);
+  box-shadow: 0 6px 8px -4px rgba(0, 0, 0, 0.45);
+  font: 700 max(20px, calc(26 * var(--u))) / 1 var(--font-scrawl);
+  white-space: nowrap;
+  rotate: 4deg;
+  animation: slam 0.35s var(--ease-press) both;
+}
+.game-table:has(.my-page.is-turn) .my-dice {
+  translate: 0 calc(-4 * var(--u));
+  filter: drop-shadow(0 0 calc(10 * var(--u)) rgba(233, 180, 59, 0.9));
+}
+.my-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: calc(18 * var(--u));
+}
+.my-band > .my-dice {
+  grid-column: 2;
+  grid-row: 1;
+  transition: translate 0.25s var(--ease-press);
+}
+.my-said {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  margin: 0;
+  padding: calc(2 * var(--u)) calc(10 * var(--u)) calc(3 * var(--u));
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.45);
+  font: 400 max(17px, calc(21 * var(--u))) / 1 var(--font-hand);
+  white-space: nowrap;
+  opacity: 0.7;
+  rotate: -3deg;
+}
+.my-said .bidn {
+  --b: max(20px, calc(26 * var(--u)));
+}
+.my-said .seat__blind {
+  margin-left: 0;
+  font-size: inherit;
+}
+.my-said.is-now {
+  opacity: 1;
+  animation: slam 0.3s var(--ease-press);
 }
 .my-dice {
   display: flex;
@@ -884,6 +1001,25 @@ body:has(.game-table) .table-main {
     font-size: 12px;
     transform: translateX(-50%) rotate(3deg);
   }
+  .seat--compact.is-turn,
+  .game-table--phone-compact .seat.is-turn {
+    box-shadow:
+      0 0 0 3px var(--color-tomato),
+      0 0 0 5px rgba(233, 180, 59, 0.85),
+      0 8px 12px -6px rgba(0, 0, 0, 0.5);
+  }
+  .seat--compact:has(> .reaction) > .seat__said,
+  .game-table--phone-compact .seat:has(> .reaction) > .seat__said {
+    top: auto;
+    bottom: calc(100% - 2px);
+  }
+  .seat--compact .seat__turn,
+  .game-table--phone-compact .seat__turn {
+    top: calc(100% - 3px);
+    padding: 0 4px;
+    font-size: 12px;
+    line-height: 1.1;
+  }
   .seat--compact .seat__dice:has(> .seat__n):has(~ .seat__tag),
   .game-table--phone-compact .seat__dice:has(> .seat__n):has(~ .seat__tag) {
     justify-self: start;
@@ -975,6 +1111,39 @@ body:has(.game-table) .table-main {
   .my-dice {
     gap: 8px;
     margin: 8px 0 12px;
+  }
+  .my-band {
+    column-gap: 12px;
+  }
+  .my-band:has(> .my-dice > .die:nth-of-type(3)),
+  .my-band:has(.my-dice__blind) {
+    grid-template-columns: auto;
+    justify-content: center;
+  }
+  .my-band:has(> .my-dice > .die:nth-of-type(3)) > .my-said,
+  .my-band:has(.my-dice__blind) > .my-said {
+    justify-self: center;
+    margin-top: 6px;
+  }
+  .my-band:has(> .my-dice > .die:nth-of-type(3)) > .my-dice,
+  .my-band:has(.my-dice__blind) > .my-dice {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .my-said {
+    padding: 1px 8px 2px;
+    font-size: 16px;
+  }
+  .my-said .bidn {
+    --b: 19px;
+  }
+  .my-page__turn {
+    right: auto;
+    left: 6px;
+    top: -16px;
+    padding: 2px 10px 4px;
+    font-size: 21px;
+    rotate: -4deg;
   }
   .my-dice .die {
     --d: clamp(40px, calc((100vw - 64px) / 6.6), 54px);

@@ -1,5 +1,6 @@
 defmodule ThreeSixes.Reaction do
   @set [
+    {"threesixes", "3 × ⚅"},
     {"lol", "😂"},
     {"gasp", "😱"},
     {"hmm", "🤨"},

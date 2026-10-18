@@ -10,6 +10,7 @@ defmodule ThreeSixesWeb.TableComponents do
   @numbers ~w(no one two three four five six seven eight nine ten eleven twelve)
   @faces ~w(one two three four five six)
   @reaction_labels %{
+    "threesixes" => "Three sixes",
     "lol" => "Laugh",
     "gasp" => "Gasp",
     "hmm" => "Hmm",
@@ -69,7 +70,10 @@ defmodule ThreeSixesWeb.TableComponents do
           </span>
         </.torn_scrap>
       </div>
-      <.my_dice :if={@game.seated?} game={@game} rolled={@rolled} />
+      <div :if={@game.seated?} class="my-band">
+        <.my_dice game={@game} rolled={@rolled} />
+        <.my_said :if={hd(@game.seats).said && !@game.reveal} game={@game} />
+      </div>
       <div class="game-table__bottom">
         <.my_page
           :if={@game.seated?}
@@ -126,6 +130,7 @@ defmodule ThreeSixesWeb.TableComponents do
         <b class="seat__n">{@seat.dice}</b>
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
+      <small :if={@turn?} class="seat__turn">on turn</small>
       <small :if={@seat.out?} class="seat__out">out</small>
       <small :if={!@seat.out? && blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
       <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
@@ -277,6 +282,19 @@ defmodule ThreeSixesWeb.TableComponents do
     """
   end
 
+  attr :game, :map, required: true
+
+  defp my_said(assigns) do
+    assigns = assign(assigns, :me, hd(assigns.game.seats))
+
+    ~H"""
+    <p id="my-said" class={["my-said", said_now?(@me, @game) && "is-now"]}>
+      You: <.bidn count={@me.said.count} face={@me.said.face} />
+      <em :if={@me.said.blind?} class="seat__blind">blind</em>
+    </p>
+    """
+  end
+
   defp face_word(face), do: Enum.at(@faces, face - 1)
 
   defp blind_mark(%{blind?: true}), do: "blind"
@@ -296,6 +314,7 @@ defmodule ThreeSixesWeb.TableComponents do
       phx-hook="PlayKeys"
       data-my-turn={to_string(@game.my_turn?)}
     >
+      <span :if={@game.my_turn?} class="my-page__turn" aria-hidden="true">Your turn</span>
       <p class={["scrawl my-page__head", !@game.my_turn? && "faint"]}>{head(@game)}</p>
       <.offers game={@game} step={@step} />
       <.block
@@ -588,7 +607,7 @@ defmodule ThreeSixesWeb.TableComponents do
         aria-label={reaction_label(key)}
         aria-disabled={@waiting? && "true"}
       >
-        {Reaction.text(key)}
+        <.reaction_text key={key} />
       </button>
     </div>
     """
@@ -605,10 +624,20 @@ defmodule ThreeSixesWeb.TableComponents do
       role="img"
       aria-label={"#{name(@reaction.by)}: #{reaction_label(@reaction.key)}"}
     >
-      {Reaction.text(@reaction.key)}
+      <.reaction_text key={@reaction.key} />
     </span>
     """
   end
+
+  attr :key, :string, required: true
+
+  defp reaction_text(%{key: "threesixes"} = assigns) do
+    ~H"""
+    <span class="reaction-sixes">3<small>&times;</small><.die face={6} /></span>
+    """
+  end
+
+  defp reaction_text(assigns), do: ~H"{Reaction.text(@key)}"
 
   defp reaction_label(key), do: Map.get(@reaction_labels, key, Reaction.text(key))
 
