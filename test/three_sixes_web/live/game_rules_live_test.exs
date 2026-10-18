@@ -118,6 +118,22 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       refute_own_faces(dana)
     end
 
+    test "your own Bid made before Look is marked blind in your band, and the next is not" do
+      %{timur: timur, dana: dana} = table(~w(Timur Dana))
+      rules(timur, "off", true)
+      start(timur, [[3], [5]])
+
+      press(timur, "Bid one five")
+
+      assert text(timur, "#my-said") == "You: 1 × blind"
+      refute_own_faces(timur)
+
+      dana |> element("#look") |> render_click()
+      press(dana, "Raise to one six")
+
+      assert text(dana, "#my-said") == "You: 1 ×"
+    end
+
     test "a Look before Bidding shows the dice and leaves no mark" do
       %{timur: timur, dana: dana} = table(~w(Timur Dana))
       rules(timur, "off", true)
