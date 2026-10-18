@@ -148,6 +148,11 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("blind", %{"blind" => flag}, socket) when flag in ~w(true false) do
+    Rooms.blind(socket.assigns.code, socket.assigns.person_id, flag == "true")
+    {:noreply, socket}
+  end
+
   def handle_event("look", _params, socket) do
     Rooms.look(socket.assigns.code, socket.assigns.person_id)
     {:noreply, socket}
@@ -234,7 +239,7 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   def handle_event(event, _params, socket)
-      when event in ~w(raise step sit_out key react vote),
+      when event in ~w(raise step sit_out blind key react vote),
       do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -284,10 +289,8 @@ defmodule ThreeSixesWeb.RoomLive do
 
   defp whole(_value), do: :error
 
-  defp rules(%{"turn_timer" => timer, "blind_play" => blind_play})
-       when blind_play in ~w(true false) do
-    with {:ok, timer} <- turn_timer(timer),
-         do: {:ok, %{turn_timer: timer, blind_play?: blind_play == "true"}}
+  defp rules(%{"turn_timer" => timer}) do
+    with {:ok, timer} <- turn_timer(timer), do: {:ok, %{turn_timer: timer}}
   end
 
   defp rules(_params), do: :error
@@ -419,6 +422,7 @@ defmodule ThreeSixesWeb.RoomLive do
       </:banner>
       <.game_table
         game={@view.game}
+        blind?={@view.blind?}
         step={@step}
         rolled={@rolled}
         tappable={tappable(@view)}

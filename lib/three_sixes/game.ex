@@ -1,5 +1,5 @@
 defmodule ThreeSixes.Game do
-  @plain_rules %{turn_timer: nil, blind_play?: false}
+  @plain_rules %{turn_timer: nil}
   @turn_timers [15, 30, 60]
 
   @enforce_keys [:seats, :counts]
@@ -30,7 +30,7 @@ defmodule ThreeSixes.Game do
   @type bid :: %{count: pos_integer(), face: face()}
   @type placed_bid :: %{count: pos_integer(), face: face(), by: person_id()}
   @type said :: %{count: pos_integer(), face: face(), blind?: boolean()}
-  @type rules :: %{turn_timer: 15 | 30 | 60 | nil, blind_play?: boolean()}
+  @type rules :: %{turn_timer: 15 | 30 | 60 | nil}
   @type reveal :: %{
           bid: placed_bid(),
           checker: person_id(),
@@ -77,13 +77,12 @@ defmodule ThreeSixes.Game do
   def turn_timers, do: @turn_timers
 
   @spec rules?(term()) :: boolean()
-  def rules?(%{turn_timer: timer, blind_play?: blind_play?}),
-    do: (timer == nil or timer in @turn_timers) and is_boolean(blind_play?)
+  def rules?(%{turn_timer: timer}), do: timer == nil or timer in @turn_timers
 
   def rules?(_rules), do: false
 
-  @spec start_round(t(), %{person_id() => [face()]}) :: t()
-  def start_round(game, dice) do
+  @spec start_round(t(), %{person_id() => [face()]}, [person_id()]) :: t()
+  def start_round(game, dice, face_down \\ []) do
     opener = opener(game)
 
     %{
@@ -96,7 +95,7 @@ defmodule ThreeSixes.Game do
         reveal: nil,
         opener: opener,
         voided_by: if(game.reveal, do: nil, else: game.voided_by),
-        covered: if(game.rules.blind_play?, do: in_play(game), else: []),
+        covered: Enum.filter(in_play(game), &(&1 in face_down)),
         peeked: [],
         bid_blind?: false,
         timed_out?: false

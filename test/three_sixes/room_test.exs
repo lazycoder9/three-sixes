@@ -158,7 +158,8 @@ defmodule ThreeSixes.RoomTest do
              away: %{},
              host_away: nil,
              over: nil,
-             rules: %{turn_timer: nil, blind_play?: false}
+             rules: %{turn_timer: nil},
+             blind?: false
            }
 
     assert %{me: "Malika", host?: true} = Room.view_for(room, @host)
@@ -296,8 +297,8 @@ defmodule ThreeSixes.RoomTest do
   end
 
   describe "the Game rules" do
-    @plain %{turn_timer: nil, blind_play?: false}
-    @timed_blind %{turn_timer: 30, blind_play?: true}
+    @plain %{turn_timer: nil}
+    @timed %{turn_timer: 30}
 
     defp rules!(room, rules) do
       {:ok, room} = Room.set_rules(room, @host, rules)
@@ -307,50 +308,47 @@ defmodule ThreeSixes.RoomTest do
     test "start plain, and the Host's change reaches every viewer's lobby" do
       assert %{rules: @plain} = Room.view_for(lobby(), "guest:dana")
 
-      room = rules!(lobby(), @timed_blind)
+      room = rules!(lobby(), @timed)
 
       for viewer <- [@host, "guest:dana", "guest:aziz"] do
-        assert %{rules: @timed_blind} = Room.view_for(room, viewer)
+        assert %{rules: @timed} = Room.view_for(room, viewer)
       end
     end
 
     test "only the Host sets them, only with no Game in play, and only to a rule on offer" do
-      assert Room.set_rules(lobby(), "guest:dana", @timed_blind) == {:error, :not_host}
-      assert Room.set_rules(playing(), @host, @timed_blind) == {:error, :playing}
+      assert Room.set_rules(lobby(), "guest:dana", @timed) == {:error, :not_host}
+      assert Room.set_rules(playing(), @host, @timed) == {:error, :playing}
 
-      for junk <- [
-            %{turn_timer: 20, blind_play?: false},
-            %{turn_timer: "30", blind_play?: false},
-            %{turn_timer: nil, blind_play?: "yes"},
-            %{turn_timer: 30},
-            nil
-          ],
+      for junk <- [%{turn_timer: 20}, %{turn_timer: "30"}, %{}, nil],
           do: assert(Room.set_rules(lobby(), @host, junk) == {:error, :invalid})
 
       for timer <- [nil, 15, 30, 60],
-          do: assert({:ok, _room} = Room.set_rules(lobby(), @host, %{@plain | turn_timer: timer}))
+          do: assert({:ok, _room} = Room.set_rules(lobby(), @host, %{turn_timer: timer}))
+
+      assert {:ok, %{rules: @timed}} =
+               Room.set_rules(lobby(), @host, %{turn_timer: 30, blind_play?: true})
     end
 
     test "a Game takes the rules set when it starts, and every viewer's table shows them" do
-      room = lobby() |> rules!(@timed_blind) |> start_round()
+      room = lobby() |> rules!(@timed) |> start_round()
 
-      assert room.game.rules == @timed_blind
-      assert %{rules: @timed_blind} = Room.view_for(room, "guest:timur").game
+      assert room.game.rules == @timed
+      assert %{rules: @timed} = Room.view_for(room, "guest:timur").game
     end
 
     test "the rules outlast a Game, into the next" do
-      room = rules!(lobby(), @timed_blind)
+      room = rules!(lobby(), @timed)
       {:roll, room} = Room.leave(start_round(room), "guest:dana", [])
       {:ok, room} = Room.leave(room, "guest:timur", [])
 
-      assert %{game: nil, rules: @timed_blind} = room
+      assert %{game: nil, rules: @timed} = room
       assert {:ok, %{rules: @plain}} = Room.set_rules(room, @host, @plain)
     end
 
     test "a save keeps them, and a save from before them restores plain rules" do
-      room = lobby() |> rules!(@timed_blind) |> start_round()
+      room = lobby() |> rules!(@timed) |> start_round()
 
-      assert {:roll, %{rules: @timed_blind, game: %{rules: @timed_blind}}} =
+      assert {:roll, %{rules: @timed, game: %{rules: @timed}}} =
                Room.restore(Room.to_save(room))
 
       saved = Room.to_save(room)
@@ -359,15 +357,34 @@ defmodule ThreeSixes.RoomTest do
       assert {:roll, %{rules: @plain, game: %{rules: @plain}}} = Room.restore(older)
     end
 
+    test "a save with blind play as a Game rule restores the timer alone, and deals face up" do
+      saved = Room.to_save(lobby() |> rules!(@timed) |> start_round())
+      blind_play = %{turn_timer: 30, blind_play?: true}
+      older = %{saved | rules: blind_play, game: %{saved.game | rules: blind_play}}
+
+      assert {:roll, room} = Room.restore(older)
+      assert %{rules: @timed, game: %{rules: @timed}} = room
+      assert {:ok, %{game: nil, rules: @timed}} = Room.restore(%{older | game: nil})
+
+      dealt = Room.start_round(room, %{"guest:dana" => [1], "guest:timur" => [2], @host => [3]})
+
+      assert %{rules: @timed, my_dice: [2]} = Room.view_for(dealt, "guest:timur").game
+    end
+
     defp start_round(lobby) do
       {:ok, room} = Room.start_game(lobby, @host, ["guest:dana", "guest:timur", @host])
       Room.start_round(room, %{"guest:dana" => [6], "guest:timur" => [2], @host => [6]})
     end
   end
 
-  describe "blind play" do
+  describe "the blind switch" do
+    defp blind!(room, person_id, on? \\ true) do
+      {:ok, room} = Room.blind(room, person_id, on?)
+      room
+    end
+
     defp blind_play do
-      lobby() |> rules!(%{turn_timer: nil, blind_play?: true}) |> start_round()
+      lobby() |> blind!("guest:dana") |> blind!("guest:timur") |> blind!(@host) |> start_round()
     end
 
     defp look!(room, person_id) do
@@ -378,7 +395,56 @@ defmodule ThreeSixes.RoomTest do
     defp marks(room, viewer),
       do: for(seat <- Room.view_for(room, viewer).game.seats, do: {seat.blind?, seat.peeked?})
 
-    test "deals every seat covered: no Player holds their faces until a look or reveal step 1" do
+    test "is each member's own, on and off, and only they see it" do
+      room = lobby() |> enter!("guest:aziz", "Aziz") |> blind!("guest:dana")
+
+      assert %{blind?: true} = Room.view_for(room, "guest:dana")
+
+      for viewer <- ["guest:timur", @host, "guest:aziz", "guest:nobody"],
+          do: assert(%{blind?: false} = Room.view_for(room, viewer))
+
+      assert %{blind?: false} = Room.view_for(blind!(room, "guest:dana", false), "guest:dana")
+      assert Room.blind(lobby(), "guest:nobody", true) == {:error, :not_member}
+    end
+
+    test "a Round is dealt face down to exactly the seats in play switched on" do
+      room =
+        lobby()
+        |> enter!("guest:aziz", "Aziz")
+        |> sit_out!("guest:aziz")
+        |> blind!("guest:dana")
+        |> blind!("guest:aziz")
+        |> start_round()
+
+      assert room.game.covered == ["guest:dana"]
+      assert %{my_dice: nil} = Room.view_for(room, "guest:dana").game
+      assert %{my_dice: [2]} = Room.view_for(room, "guest:timur").game
+      assert %{my_dice: [6]} = Room.view_for(room, @host).game
+      assert %{seated?: false, my_dice: nil} = Room.view_for(room, "guest:aziz").game
+    end
+
+    test "turned on or off mid-Round, the switch leaves the Round as dealt, and holds for the next" do
+      on = blind!(start_round(lobby()), "guest:dana")
+      off = blind!(blind_play(), "guest:timur", false)
+
+      assert %{blind?: true, game: %{my_dice: [6]}} = Room.view_for(on, "guest:dana")
+      assert %{blind?: false, game: %{my_dice: nil}} = Room.view_for(off, "guest:timur")
+      assert on.game.covered == []
+      assert off.game.covered == ["guest:dana", "guest:timur", @host]
+
+      next = fn room ->
+        {:ok, room} = Room.raise(room, room.game.turn, 1, 6)
+        {:ok, room} = Room.check(room, room.game.turn)
+        {:roll, room} = Room.next_round(room, room.game.round)
+        Room.start_round(room, %{"guest:dana" => [1, 1], "guest:timur" => [2, 3], @host => [4]})
+      end
+
+      assert next.(on).game.covered == ["guest:dana"]
+      assert next.(off).game.covered == ["guest:dana", @host]
+      assert next.(next.(off)).game.covered == ["guest:dana", @host]
+    end
+
+    test "deals every switched seat covered: no Player holds their faces until a look or reveal step 1" do
       {:ok, raised} = Room.raise(blind_play(), "guest:dana", 1, 6)
       {:ok, checked} = Room.check(raised, "guest:timur")
       {:ok, at_one} = Room.reveal(checked, 1, 1)
@@ -445,26 +511,50 @@ defmodule ThreeSixes.RoomTest do
       assert %{my_dice: nil} = Room.view_for(room, "guest:dana").game
     end
 
-    test "a save keeps no Round's covered dice, and restores to be dealt covered again" do
-      {:ok, room} = Room.raise(blind_play(), "guest:dana", 1, 6)
+    test "a save keeps each switch and no Round's covered dice, and restores to be dealt covered again" do
+      {:ok, room} = Room.raise(blind!(blind_play(), "guest:dana", false), "guest:dana", 1, 6)
 
       saved = Room.to_save(room)
 
       assert %{covered: [], peeked: [], bid_blind?: false} = saved.game
       assert {:roll, restored} = Room.restore(saved)
+      assert Enum.map(restored.members, & &1.blind?) == [true, true, false]
 
       dealt =
         Room.start_round(restored, %{"guest:dana" => [1], "guest:timur" => [2], @host => [3]})
 
       assert %{my_dice: nil} = Room.view_for(dealt, "guest:timur").game
+      assert %{my_dice: [1]} = Room.view_for(dealt, "guest:dana").game
     end
 
-    test "a Guest's seat moved to their Account stays covered, and peeked" do
+    test "a save from before the switch, or with one from the first blind play, restores it" do
+      saved = Room.to_save(start_round(lobby()))
+
+      before = %{saved | members: Enum.map(saved.members, &Map.delete(&1, :blind?))}
+
+      switched = %{
+        saved
+        | members: Enum.map(saved.members, &Map.put(&1, :blind?, &1.id == @host))
+      }
+
+      assert {:roll, restored} = Room.restore(before)
+      assert Enum.all?(restored.members, &(&1.blind? == false))
+
+      assert {:roll, restored} = Room.restore(switched)
+      assert %{blind?: true} = Room.view_for(restored, @host)
+
+      dealt =
+        Room.start_round(restored, %{"guest:dana" => [1], "guest:timur" => [2], @host => [3]})
+
+      assert dealt.game.covered == [@host]
+    end
+
+    test "a Guest's seat moved to their Account stays covered, and peeked, and keeps the switch" do
       {:ok, room} = Room.raise(blind_play(), "guest:dana", 1, 6)
       room = look!(room, "guest:dana")
 
       assert {:moved, room} = Room.move_seat(room, "guest:timur", "account:1")
-      assert %{my_dice: nil} = Room.view_for(room, "account:1").game
+      assert %{blind?: true, game: %{my_dice: nil}} = Room.view_for(room, "account:1")
 
       assert {:moved, room} = Room.move_seat(room, "guest:dana", "account:2")
       assert %{my_dice: [6]} = Room.view_for(room, "account:2").game
@@ -474,7 +564,7 @@ defmodule ThreeSixes.RoomTest do
 
   describe "the turn timer" do
     defp timed(seconds \\ 30) do
-      lobby() |> rules!(%{turn_timer: seconds, blind_play?: false}) |> start_round()
+      lobby() |> rules!(%{turn_timer: seconds}) |> start_round()
     end
 
     defp ends_at(room, viewer \\ @host), do: Room.view_for(room, viewer).game.turn_ends_at
@@ -1021,7 +1111,7 @@ defmodule ThreeSixes.RoomTest do
                ],
                reveal: nil,
                voided_by: nil,
-               rules: %{turn_timer: nil, blind_play?: false},
+               rules: %{turn_timer: nil},
                turn_ends_at: nil,
                timed_out?: false
              }
@@ -1178,7 +1268,7 @@ defmodule ThreeSixes.RoomTest do
                  knocked_out?: false
                },
                voided_by: nil,
-               rules: %{turn_timer: nil, blind_play?: false},
+               rules: %{turn_timer: nil},
                turn_ends_at: nil,
                timed_out?: false
              }

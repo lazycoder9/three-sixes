@@ -723,6 +723,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       refute has_element?(timur, "#my-page")
       refute has_element?(timur, "#my-dice")
+      refute has_element?(timur, "#blind-switch")
       assert text(timur, "#watching") == "You're Knocked out. You're watching. Waiting for Dana."
       assert has_element?(timur, "#seat-1.is-out", "You")
       assert faces(timur) == []

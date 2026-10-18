@@ -141,6 +141,13 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
+  def handle_call({:blind, person_id, on?}, _from, state) do
+    case Room.blind(state.room, person_id, on?) do
+      {:ok, room} -> {:reply, :ok, changed_if_new(state, room)}
+      refused -> {:reply, refused, state}
+    end
+  end
+
   def handle_call({:set_rules, person_id, rules}, _from, state) do
     case Room.set_rules(state.room, person_id, rules) do
       {:ok, room} -> {:reply, :ok, changed_if_new(state, room)}

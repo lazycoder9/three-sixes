@@ -663,6 +663,64 @@ body:has(.game-table) .table-main {
   opacity: 1;
   animation: slam 0.3s var(--ease-press);
 }
+.blind-switch {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+.blind-switch__tick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  min-height: 36px;
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(11 * var(--u)) calc(4 * var(--u)) calc(8 * var(--u));
+  border: 0;
+  background: var(--color-sheet);
+  color: var(--color-graphite);
+  box-shadow: 0 4px 6px -3px rgba(0, 0, 0, 0.45);
+  font: 400 max(17px, calc(21 * var(--u))) / 1 var(--font-hand);
+  white-space: nowrap;
+  rotate: 2deg;
+  cursor: pointer;
+}
+.blind-switch__tick::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+.blind-switch__tick:focus-visible {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 2px;
+}
+.blind-switch__box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 2px solid currentColor;
+  border-radius: 5px 3px 6px 4px;
+}
+.blind-switch__tick[aria-checked="true"] .blind-switch__box::after {
+  content: "";
+  width: 12px;
+  height: 6px;
+  border: solid var(--color-tomato);
+  border-width: 0 0 3px 3px;
+  transform: rotate(-48deg) translate(1px, -2px);
+}
+.blind-switch__note {
+  padding-left: calc(8 * var(--u));
+  color: var(--color-ink);
+  text-shadow: var(--engrave);
+  font: 400 max(15px, calc(18 * var(--u))) / 1.1 var(--font-hand);
+  white-space: nowrap;
+}
 .my-dice {
   display: flex;
   flex-wrap: nowrap;
@@ -1125,24 +1183,28 @@ body:has(.game-table) .table-main {
     margin: 8px 0 12px;
   }
   .my-band {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
     column-gap: 12px;
   }
-  .my-band:has(> .my-dice > .die:nth-of-type(3)),
-  .my-band:has(.my-dice__blind) {
-    grid-template-columns: auto;
-    justify-content: center;
-  }
-  .my-band:has(> .my-dice > .die:nth-of-type(3)) > .my-said,
-  .my-band:has(.my-dice__blind) > .my-said {
-    justify-self: center;
-    margin-top: 6px;
-  }
-  .my-band:has(> .my-dice > .die:nth-of-type(3)) > .my-dice,
-  .my-band:has(.my-dice__blind) > .my-dice {
-    grid-column: 1;
+  .my-band > .my-dice {
+    grid-column: 1 / -1;
     grid-row: 2;
   }
+  .blind-switch {
+    grid-column: 2;
+  }
+  .blind-switch__tick {
+    min-height: 32px;
+    padding: 2px 9px 3px 7px;
+    font-size: 17px;
+  }
+  .blind-switch__note {
+    padding-left: 7px;
+    font-size: 15px;
+  }
   .my-said {
+    margin-top: 5px;
     padding: 1px 8px 2px;
     font-size: 16px;
   }

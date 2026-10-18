@@ -34,7 +34,7 @@ The one Player who may act right now, by Raising or Checking.
 One cycle of rolling, Bids and Raises, ending in a Check.
 
 **Blind**:
-A Player who Bids before looking at their own dice this Round, under the same rules as everyone. In a Game with blind play every Player's dice arrive face down each Round, and a Player may Look at any time, which shows their dice for the rest of the Round. A Bid made before looking marks the Player blind for everyone; looking after it turns the mark to "peeked". Looking before any Bid leaves no mark.
+A Player who Bids before looking at their own dice this Round, under the same rules as everyone. Each Player has their own switch on the table, beside their dice: while it is on, their dice arrive face down, from the next Round on, until they turn it off. A Player may Look at face-down dice at any time, which shows them for the rest of the Round. A Bid made before looking marks the Player blind for everyone; looking after it turns the mark to "peeked". Looking before any Bid leaves no mark.
 _Avoid_: Dark, hidden hand
 
 **Turn timer**:
@@ -46,7 +46,7 @@ A sequence of Rounds that ends when one Player is left who is not Knocked out.
 _Avoid_: Match
 
 **Game rules**:
-The choices the Host makes in the lobby before a Game: the Turn timer and blind play. They hold for the whole Game and stay set for the next one.
+The choices the Host makes in the lobby before a Game: the Turn timer. They hold for the whole Game and stay set for the next one.
 _Avoid_: Settings, options, house rules
 
 **Penalty die**:

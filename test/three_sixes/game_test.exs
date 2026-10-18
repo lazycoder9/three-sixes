@@ -876,23 +876,30 @@ defmodule ThreeSixes.GameTest do
     assert Game.to_roll(game) == [{"a", 2}, {"b", 1}, {"c", 1}]
   end
 
-  describe "blind play" do
+  describe "face-down Rounds" do
     defp blind_round do
       ["a", "b", "c"]
-      |> Game.new(%{turn_timer: nil, blind_play?: true})
-      |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]})
+      |> Game.new()
+      |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]}, ["a", "b", "c"])
     end
 
-    test "a Game with blind play deals every Round covered to each seat in play, one without none" do
+    test "a Round is dealt face down to exactly the seats in play it is given" do
       assert %{covered: ["a", "b", "c"], peeked: [], bid_blind?: false} = blind_round()
       assert round_one().covered == []
+
+      game =
+        ["a", "b", "c"]
+        |> Game.new()
+        |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]}, ["c", "z"])
+
+      assert game.covered == ["c"]
 
       game =
         blind_round()
         |> Map.put(:counts, %{"a" => 5, "b" => 1, "c" => 1})
         |> Game.start_round(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
         |> lose!("a", "b")
-        |> Game.start_round(%{"b" => [2], "c" => [3]})
+        |> Game.start_round(%{"b" => [2], "c" => [3]}, ["a", "b", "c"])
 
       assert game.covered == ["b", "c"]
     end
@@ -960,17 +967,16 @@ defmodule ThreeSixes.GameTest do
       assert Game.start_round(game, %{"a" => [1], "b" => [1, 1], "c" => [1]}).turn == "b"
     end
 
-    test "a save and a void clear the covered, the peeked and the blind Bid, and keep the rules" do
+    test "a save and a void clear the covered, the peeked and the blind Bid" do
       {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
 
-      assert %{covered: [], peeked: [], bid_blind?: false, rules: %{blind_play?: true}} =
-               Game.without_round(game)
+      assert %{covered: [], peeked: [], bid_blind?: false} = Game.without_round(game)
 
       assert {:void, voided} = Game.leave(game, "c")
       assert %{covered: [], peeked: [], bid_blind?: false} = voided
 
       assert %{covered: ["a", "b"], peeked: []} =
-               Game.start_round(voided, %{"a" => [3], "b" => [4]})
+               Game.start_round(voided, %{"a" => [3], "b" => [4]}, ["a", "b", "c"])
     end
 
     test "a seat moved to another person stays covered, or peeked, as that person" do

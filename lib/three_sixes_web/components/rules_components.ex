@@ -25,12 +25,6 @@ defmodule ThreeSixesWeb.RulesComponents do
             <span>{if timer, do: "#{timer} s", else: "Off"}</span>
           </label>
         </div>
-        <label class="tick">
-          <input type="hidden" name="blind_play" value="false" />
-          <input type="checkbox" name="blind_play" value="true" checked={@rules.blind_play?} />
-          Blind play
-        </label>
-        <small class="game-rules__hint">Dice arrive face down. Look when you like.</small>
       </fieldset>
     </form>
     """
@@ -41,16 +35,11 @@ defmodule ThreeSixesWeb.RulesComponents do
     <div id="rules" class="game-rules">
       <p class="lobby__label">Game rules</p>
       <p class="game-rules__line">{rules_line(@rules)}</p>
-      <p :if={@rules.blind_play?} class="game-rules__hint">
-        Dice arrive face down. Look when you like.
-      </p>
     </div>
     """
   end
 
   @spec rules_line(Game.rules()) :: String.t()
-  def rules_line(rules) do
-    timer = if rules.turn_timer, do: "#{rules.turn_timer} s turns", else: "No turn timer"
-    if rules.blind_play?, do: "#{timer} · blind play", else: timer
-  end
+  def rules_line(%{turn_timer: nil}), do: "No turn timer"
+  def rules_line(%{turn_timer: seconds}), do: "#{seconds} s turns"
 end

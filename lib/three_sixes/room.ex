@@ -17,7 +17,7 @@ defmodule ThreeSixes.Room do
     last: nil,
     away: %{},
     handover: nil,
-    rules: %{turn_timer: nil, blind_play?: false},
+    rules: %{turn_timer: nil},
     clock: nil
   ]
 
@@ -26,6 +26,7 @@ defmodule ThreeSixes.Room do
           id: person_id(),
           nickname: String.t(),
           sitting_out?: boolean(),
+          blind?: boolean(),
           left?: boolean(),
           removed?: boolean()
         }
@@ -118,7 +119,8 @@ defmodule ThreeSixes.Room do
             }
             | nil,
           over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil,
-          rules: Game.rules()
+          rules: Game.rules(),
+          blind?: boolean()
         }
   @type handover :: %{
           host: person_id(),
@@ -200,6 +202,7 @@ defmodule ThreeSixes.Room do
       id: person_id,
       nickname: nickname,
       sitting_out?: false,
+      blind?: false,
       left?: false,
       removed?: false
     }
@@ -267,6 +270,15 @@ defmodule ThreeSixes.Room do
     end
   end
 
+  @spec blind(t(), person_id(), boolean()) :: {:ok, t()} | {:error, :not_member}
+  def blind(room, person_id, on?) when is_boolean(on?) do
+    if member?(room, person_id) do
+      {:ok, update_member(room, person_id, &%{&1 | blind?: on?})}
+    else
+      {:error, :not_member}
+    end
+  end
+
   @spec set_rules(t(), person_id(), Game.rules()) ::
           {:ok, t()} | {:error, :not_host | :playing | :invalid}
   def set_rules(room, by, rules) do
@@ -274,7 +286,7 @@ defmodule ThreeSixes.Room do
       by != room.host_id -> {:error, :not_host}
       room.game != nil -> {:error, :playing}
       not Game.rules?(rules) -> {:error, :invalid}
-      true -> {:ok, %{room | rules: Map.take(rules, [:turn_timer, :blind_play?])}}
+      true -> {:ok, %{room | rules: Map.take(rules, [:turn_timer])}}
     end
   end
 
@@ -532,7 +544,10 @@ defmodule ThreeSixes.Room do
   end
 
   @spec start_round(t(), %{person_id() => [Game.face()]}) :: t()
-  def start_round(room, dice), do: %{room | game: Game.start_round(room.game, dice)}
+  def start_round(room, dice) do
+    face_down = for %{blind?: true, id: id} <- room.members, do: id
+    %{room | game: Game.start_round(room.game, dice, face_down)}
+  end
 
   @spec raise(t(), person_id(), term(), term()) ::
           {:ok, t()} | {:error, :not_bidding | :not_your_turn | :illegal}
@@ -620,7 +635,8 @@ defmodule ThreeSixes.Room do
     room = %{
       room
       | members: Enum.map(room.members, &Map.merge(member(&1.id, &1.nickname), &1)),
-        game: room.game && struct(Game, Map.from_struct(room.game))
+        game: room.game && restore_game(room.game),
+        rules: Map.take(room.rules, [:turn_timer])
     }
 
     cond do
@@ -628,6 +644,11 @@ defmodule ThreeSixes.Room do
       Game.over?(room.game) -> {:ok, game_over(room)}
       true -> {:roll, room}
     end
+  end
+
+  defp restore_game(saved) do
+    game = struct(Game, Map.from_struct(saved))
+    %{game | rules: Map.take(game.rules, [:turn_timer])}
   end
 
   defp game_over(%{game: game} = room) do
@@ -695,7 +716,7 @@ defmodule ThreeSixes.Room do
         end,
       me: me && me.nickname,
       removed?: Enum.any?(room.members, &(&1.id == person_id and &1.removed?)),
-      sitting_out?: me != nil and me.sitting_out?,
+      sitting_out?: own?(me, :sitting_out?),
       playing?: playing?(room, person_id),
       host?: host?,
       host_nickname: host && host.nickname,
@@ -706,9 +727,13 @@ defmodule ThreeSixes.Room do
       away: away_view(room, person_id),
       host_away: host_away_view(room, person_id),
       over: over_view(room, person_id),
-      rules: room.rules
+      rules: room.rules,
+      blind?: own?(me, :blind?)
     }
   end
+
+  defp own?(nil, _switch), do: false
+  defp own?(member, switch), do: Map.fetch!(member, switch)
 
   defp host_away_view(%{handover: nil}, _viewer), do: nil
   defp host_away_view(%{handover: %{host: viewer}}, viewer), do: nil

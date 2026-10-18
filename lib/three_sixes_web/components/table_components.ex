@@ -19,6 +19,7 @@ defmodule ThreeSixesWeb.TableComponents do
   }
 
   attr :game, :map, required: true
+  attr :blind?, :boolean, required: true
   attr :step, :integer, required: true
   attr :rolled, :integer, default: nil
   attr :tappable, :any, required: true
@@ -73,6 +74,7 @@ defmodule ThreeSixesWeb.TableComponents do
       <div :if={@game.seated?} class="my-band">
         <.my_dice game={@game} rolled={@rolled} />
         <.my_said :if={hd(@game.seats).said && !@game.reveal} game={@game} />
+        <.blind_switch on?={@blind?} later?={@blind? && @game.my_dice != nil} />
       </div>
       <div class="game-table__bottom">
         <.my_page
@@ -324,6 +326,29 @@ defmodule ThreeSixesWeb.TableComponents do
       You: <.bidn count={@me.said.count} face={@me.said.face} />
       <em :if={@me.said.blind?} class="seat__blind">blind</em>
     </p>
+    """
+  end
+
+  attr :on?, :boolean, required: true
+  attr :later?, :boolean, required: true
+
+  defp blind_switch(assigns) do
+    ~H"""
+    <div class="blind-switch">
+      <button
+        type="button"
+        id="blind-switch"
+        class="blind-switch__tick"
+        role="switch"
+        aria-checked={to_string(@on?)}
+        aria-describedby={@later? && "blind-note"}
+        phx-click="blind"
+        phx-value-blind={to_string(!@on?)}
+      >
+        <span class="blind-switch__box" aria-hidden="true"></span> Play blind
+      </button>
+      <small :if={@later?} id="blind-note" class="blind-switch__note">from the next Round</small>
+    </div>
     """
   end
 

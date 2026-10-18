@@ -19,59 +19,141 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       %{timur: timur, dana: dana} = table(~w(Timur Dana))
 
       assert has_element?(timur, "#rules-form input[name=turn_timer][value=off][checked]")
-      refute has_element?(timur, "#rules-form input[name=blind_play][type=checkbox][checked]")
       refute has_element?(dana, "#rules-form")
       assert text(dana, "#rules") == "Game rules No turn timer"
 
-      rules(timur, "30", true)
+      rules(timur, "30")
 
       assert has_element?(timur, "#rules-form input[name=turn_timer][value='30'][checked]")
-      assert has_element?(timur, "#rules-form input[name=blind_play][type=checkbox][checked]")
+      assert text(dana, "#rules") == "Game rules 30 s turns"
 
-      assert text(dana, "#rules") ==
-               "Game rules 30 s turns · blind play Dice arrive face down. Look when you like."
+      rules(timur, "off")
 
-      rules(timur, "off", true)
-
-      assert text(dana, "#rules") ==
-               "Game rules No turn timer · blind play Dice arrive face down. Look when you like."
+      assert text(dana, "#rules") == "Game rules No turn timer"
     end
 
     test "a rule not on offer changes nothing and leaves the Room open" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
 
       for params <- [
-            %{"turn_timer" => "20", "blind_play" => "true"},
-            %{"turn_timer" => "abc", "blind_play" => "false"},
-            %{"turn_timer" => "30", "blind_play" => "yes"},
+            %{"turn_timer" => "20"},
+            %{"turn_timer" => "abc"},
             %{"turn_timer" => ["30"]},
+            %{"blind_play" => "true"},
             %{}
           ],
           do: render_change(timur, "rules", params)
 
-      render_change(dana, "rules", %{"turn_timer" => "60", "blind_play" => "true"})
+      render_change(dana, "rules", %{"turn_timer" => "60"})
 
       assert text(dana, "#rules") == "Game rules No turn timer"
       assert Rooms.whereis(code)
     end
 
-    test "during a Game the Room menu shows them to Players and Spectators" do
+    test "the lobby and the Room menu have no blind control" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "15", true)
+
+      for view <- [timur, dana] do
+        refute text(view, "#lobby") =~ ~r/blind|face down/i
+        refute has_element?(view, "#lobby input[name=blind_play]")
+        refute has_element?(view, "#blind-switch")
+      end
+
+      rules(timur, "15")
       start(timur, [[2], [6]])
       aziz = late_arrival(code)
 
-      for view <- [timur, dana, aziz],
-          do: assert(text(view, "#room-menu #menu-rules") == "15 s turns · blind play")
-
-      refute has_element?(timur, "#menu-blind")
+      for view <- [timur, dana, aziz] do
+        assert text(view, "#room-menu #menu-rules") == "15 s turns"
+        refute text(view, "#room-menu") =~ ~r/blind/i
+      end
     end
   end
 
-  describe "blind play" do
-    test "every Player's dice arrive face down with Look, and no page holds a face" do
+  describe "the blind switch" do
+    test "only a seated Player sees it, off at first, in their own band" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "off", true)
+      start(timur, [[2], [6]])
+      aziz = late_arrival(code)
+
+      for player <- [timur, dana] do
+        assert has_element?(
+                 player,
+                 ".my-band button#blind-switch[role=switch][aria-checked=false]",
+                 "Play blind"
+               )
+
+        refute has_element?(player, "#blind-note")
+      end
+
+      refute has_element?(aziz, "#blind-switch")
+
+      for junk <- [%{"blind" => "yes"}, %{"blind" => ["true"]}, %{}],
+          do: render_click(timur, "blind", junk)
+
+      assert has_element?(timur, "#blind-switch[aria-checked=false]")
+      assert Rooms.whereis(code)
+    end
+
+    test "turned on mid-Round, it keeps your dice this Round and deals you the next face down, unseen by the others till your blind Bid" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      start(timur, [[2], [6]])
+
+      switch(timur)
+
+      assert has_element?(timur, "#blind-switch[aria-checked=true][aria-describedby=blind-note]")
+      assert text(timur, "#blind-note") == "from the next Round"
+      assert faces(timur) == [2]
+      refute has_element?(timur, "#look")
+      refute has_element?(dana, "#blind-note")
+      refute has_element?(dana, "#blind-switch[aria-checked=true]")
+
+      press(timur, "Bid one five")
+      check(dana)
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+      next_round(code, 1, [[3, 1], [4]])
+
+      refute_own_faces(timur)
+      assert has_element?(timur, "#my-dice button#look", "Look")
+      assert has_element?(timur, "#blind-switch[aria-checked=true]")
+      refute has_element?(timur, "#blind-note")
+      assert faces(dana) == [4]
+      refute has_element?(dana, "[aria-label='three'], [aria-label='one']")
+      refute has_element?(dana, ".seat__tag")
+      refute has_element?(dana, "#look")
+
+      press(timur, "Bid one five")
+
+      assert text(dana, "#scrap") == "Timur bids blind 1 × 3 dice on the table"
+      assert text(dana, "#seat-1 .seat__tag") == "blind"
+      refute has_element?(dana, "[aria-label='three'], [aria-label='one']")
+    end
+
+    test "turned off during a face-down Round, the Round stays face down, and the next shows your dice" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      blind(code, ["timur"])
+      start(timur, [[2], [6]])
+
+      refute_own_faces(timur)
+      switch(timur)
+
+      assert has_element?(timur, "#blind-switch[aria-checked=false]")
+      refute has_element?(timur, "#blind-note")
+      refute_own_faces(timur)
+      assert has_element?(timur, "#look")
+
+      press(timur, "Bid one five")
+      check(dana)
+      for step <- 1..3, do: reveal(code, {:reveal, 1, step})
+      next_round(code, 1, [[3, 1], [4]])
+
+      assert faces(timur) == [1, 3]
+      refute has_element?(timur, "#look")
+    end
+
+    test "every switched Player's dice arrive face down with Look, and no page holds a face" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      blind(code, ["timur", "dana"])
       start(timur, [[2], [6]])
       aziz = late_arrival(code)
 
@@ -92,14 +174,14 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
     test "a Raise before Look is blind on every screen, and a Look after it shows peeked" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "off", true)
+      blind(code, ["timur", "dana"])
       start(timur, [[2], [6]])
       aziz = late_arrival(code)
 
       press(timur, "Bid one five")
 
       assert text(timur, "#scrap") == "You bid blind 1 × 2 dice on the table"
-      assert text(timur, ".my-band") == "Look You: 1 × blind"
+      assert text(timur, ".my-band") == "Look You: 1 × blind Play blind"
       refute has_element?(timur, "#my-dice .my-dice__mark")
       refute_own_faces(timur)
 
@@ -123,8 +205,8 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
     end
 
     test "your own Bid made before Look is marked blind in your band, and the next is not" do
-      %{timur: timur, dana: dana} = table(~w(Timur Dana))
-      rules(timur, "off", true)
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      blind(code, ["timur", "dana"])
       start(timur, [[3], [5]])
 
       press(timur, "Bid one five")
@@ -139,8 +221,8 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
     end
 
     test "a Look before Bidding shows the dice and leaves no mark" do
-      %{timur: timur, dana: dana} = table(~w(Timur Dana))
-      rules(timur, "off", true)
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      blind(code, ["timur", "dana"])
       start(timur, [[2], [6]])
 
       timur |> element("#look") |> render_click()
@@ -157,8 +239,8 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
     end
 
     test "a seat's Bid made blind keeps its blind tag after a Look and the next Raise" do
-      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
-      rules(timur, "off", true)
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      blind(code, ["timur", "dana", "malika"])
       start(timur, [[4], [6], [3]])
 
       timur |> element("#look") |> render_click()
@@ -176,7 +258,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
     test "a covered Player on turn plays by keys, and a Check shows their dice at step 1" do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
-      rules(timur, "off", true)
+      blind(code, ["timur", "dana", "malika"])
       start(timur, [[4], [6], [3]])
 
       key(timur, "5")
@@ -196,9 +278,9 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       assert text(dana, "#seat-1 .seat__tag") == "blind"
     end
 
-    test "the next Round arrives face down again, and a Game without blind play shows dice at once" do
+    test "the next Round arrives face down again while the switch stays on; with none on, dice show at once" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "off", true)
+      blind(code, ["timur", "dana"])
       start(timur, [[2], [6]])
       timur |> element("#look") |> render_click()
       press(timur, "Bid one five")
@@ -223,7 +305,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       {:ok, code} = Rooms.create("guest:p1", "127.0.0.1")
       players = for n <- 1..9, do: visit(code, "p#{n}") |> tap(&enter(&1, "P#{n}"))
       host = hd(players)
-      rules(host, "off", true)
+      blind(code, for(n <- 1..9, do: "p#{n}"))
       start(host, List.duplicate([1], 9))
       key(host, "5")
 
@@ -235,8 +317,8 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
     end
 
     test "a covered Player who leaves during a reveal shows out, with no mark" do
-      %{timur: timur, dana: dana, malika: malika} = table(~w(Timur Dana Malika))
-      rules(timur, "off", true)
+      %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
+      blind(code, ["timur", "dana", "malika"])
       start(timur, [[4], [6], [3]])
 
       press(timur, "Bid one five")
@@ -252,7 +334,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
   describe "the turn timer" do
     test "the Player on turn and every other seat see the countdown, red in its last 5 seconds" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "30", false)
+      rules(timur, "30")
       start(timur, [[2], [6]])
       aziz = late_arrival(code)
 
@@ -276,7 +358,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
     test "with no Bid the time-out opens with one one, then the next time-out Checks, on both seats" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "15", false)
+      rules(timur, "15")
       start(timur, [[2], [6]])
 
       time_up(code)
@@ -301,7 +383,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
     test "a move by hand clears the time's up" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
-      rules(timur, "60", false)
+      rules(timur, "60")
       start(timur, [[2], [6]])
       time_up(code)
 
@@ -312,7 +394,7 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
     test "the Away banner and the sign-in note say the turn timer runs on" do
       %{timur: timur, dana: dana, malika: malika, code: code} = table(~w(Timur Dana Malika))
-      rules(timur, "30", false)
+      rules(timur, "30")
       start(timur, [[3], [5], [2]])
 
       assert has_element?(
@@ -332,11 +414,13 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
     end
   end
 
-  defp rules(view, turn_timer, blind_play?) do
-    view
-    |> form("#rules-form", %{turn_timer: turn_timer, blind_play: to_string(blind_play?)})
-    |> render_change()
-  end
+  defp rules(view, turn_timer),
+    do: view |> form("#rules-form", %{turn_timer: turn_timer}) |> render_change()
+
+  defp blind(code, guest_ids),
+    do: for(id <- guest_ids, do: :ok = Rooms.blind(code, "guest:#{id}", true))
+
+  defp switch(view), do: view |> element("#blind-switch") |> render_click()
 
   defp set_back(code, ms) do
     :sys.replace_state(

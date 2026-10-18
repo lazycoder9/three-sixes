@@ -288,42 +288,55 @@ defmodule ThreeSixes.RoomsTest do
   end
 
   describe "the Game rules" do
-    @blind_play %{turn_timer: nil, blind_play?: true}
+    @timed %{turn_timer: 30}
 
     test "the Host's change reaches every joined process, and a refused one sends nothing" do
       {code, dana} = table()
 
-      assert Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: true}) == :ok
-      assert_receive {:room_view, %{rules: %{turn_timer: 30, blind_play?: true}}}
-      assert_receive {:forwarded, ^dana, {:room_view, %{rules: %{turn_timer: 30}}}}
+      assert Rooms.set_rules(code, @host, @timed) == :ok
+      assert_receive {:room_view, %{rules: @timed}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{rules: @timed}}}
 
-      assert Rooms.set_rules(code, "guest:dana", @blind_play) == {:error, :not_host}
-
-      assert Rooms.set_rules(code, @host, %{turn_timer: 20, blind_play?: false}) ==
-               {:error, :invalid}
+      assert Rooms.set_rules(code, "guest:dana", @timed) == {:error, :not_host}
+      assert Rooms.set_rules(code, @host, %{turn_timer: 20}) == {:error, :invalid}
 
       start(code, dana)
 
-      assert Rooms.set_rules(code, @host, @blind_play) == {:error, :playing}
+      assert Rooms.set_rules(code, @host, @timed) == {:error, :playing}
       refute_receive {:room_view, _view}
       refute_receive {:forwarded, _pid, {:room_view, _view}}
 
       close(code)
 
-      assert Rooms.set_rules(code, @host, @blind_play) == {:error, :closed}
+      assert Rooms.set_rules(code, @host, @timed) == {:error, :closed}
     end
   end
 
-  describe "blind play" do
+  describe "the blind switch" do
     defp blind_play do
       {code, dana} = table()
-      :ok = Rooms.set_rules(code, @host, @blind_play)
+      :ok = Rooms.blind(code, @host, true)
+      :ok = Rooms.blind(code, "guest:dana", true)
       start(code, dana)
       flush_views()
       {code, dana}
     end
 
-    test "deals every seat covered, and a look shows that Player alone their dice" do
+    test "reaches its owner alone, and the next Round is dealt face down to them" do
+      {code, dana} = table()
+
+      assert Rooms.blind(code, "guest:dana", true) == :ok
+      assert_receive {:forwarded, ^dana, {:room_view, %{blind?: true}}}
+      assert_receive {:room_view, %{blind?: false}}
+
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{my_dice: nil}}}}
+      assert_receive {:room_view, %{game: %{my_dice: [6], seats: [_, %{blind?: false}]}}}
+    end
+
+    test "deals every switched seat covered, and a look shows that Player alone their dice" do
       {code, dana} = blind_play()
 
       assert {:ok, %{game: %{my_dice: nil}}} = Rooms.join(code, @host)
@@ -337,33 +350,39 @@ defmodule ThreeSixes.RoomsTest do
       assert_receive {:room_view, %{game: %{my_dice: nil, seats: [_, %{blind?: false}]}}}
     end
 
-    test "a refused look replies an error and sends no view" do
+    test "a refused look or switch, or an unchanged switch, sends no view" do
       {code, _dana} = blind_play()
       :ok = Rooms.look(code, @host)
       flush_views()
 
       assert Rooms.look(code, @host) == {:error, :not_covered}
+      assert Rooms.blind(code, "guest:aziz", true) == {:error, :not_member}
 
       :ok = Rooms.raise(code, @host, 1, 6)
       :ok = Rooms.check(code, "guest:dana")
       flush_after(Rooms.whereis(code))
 
       assert Rooms.look(code, "guest:dana") == {:error, :not_bidding}
+      assert Rooms.blind(code, @host, true) == :ok
       refute_receive {:room_view, _view}
       refute_receive {:forwarded, _pid, {:room_view, _view}}
 
       close(code)
 
       assert Rooms.look(code, @host) == {:error, :closed}
+      assert Rooms.blind(code, @host, false) == {:error, :closed}
     end
 
-    test "a restored Room keeps the rules, and deals its re-rolled Round covered" do
+    test "a restored Room keeps each switch, and deals its re-rolled Round covered to them" do
       {code, _dana} = blind_play()
+      :ok = Rooms.blind(code, @host, false)
       shut_down(code)
       Scripted.script([[4], [5]])
 
-      assert {:ok, %{rules: @blind_play, game: game}} = Rooms.join(code, "guest:dana")
-      assert %{round: 2, my_dice: nil, rules: @blind_play} = game
+      assert {:ok, %{blind?: true, game: %{round: 2, my_dice: nil}}} =
+               Rooms.join(code, "guest:dana")
+
+      assert {:ok, %{blind?: false, game: %{my_dice: [_]}}} = Rooms.join(code, @host)
     end
   end
 
@@ -372,7 +391,7 @@ defmodule ThreeSixes.RoomsTest do
       {code, dana} = table()
       room = Rooms.whereis(code)
       :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
-      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: false})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30})
       start(code, dana)
       flush_after(room)
       {code, room, dana}
@@ -439,7 +458,7 @@ defmodule ThreeSixes.RoomsTest do
       dana = join_from_another_process(code, "guest:dana")
       room = Rooms.whereis(code)
       :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
-      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: false})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30})
       Scripted.script([[6], [2]])
       :ok = Rooms.start_game(code, @host)
       old = turn_timeout(room)
@@ -473,7 +492,7 @@ defmodule ThreeSixes.RoomsTest do
       {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
       room = Rooms.whereis(code)
       :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
-      :ok = Rooms.set_rules(code, @host, %{turn_timer: 15, blind_play?: false})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 15})
       Scripted.script([[1], [2], [3]])
       :ok = Rooms.start_game(code, @host)
       old = turn_timeout(room)
