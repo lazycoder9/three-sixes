@@ -74,7 +74,11 @@ defmodule ThreeSixesWeb.TableComponents do
       <div :if={@game.seated?} class="my-band">
         <.my_dice game={@game} rolled={@rolled} />
         <.my_said :if={hd(@game.seats).said && !@game.reveal} game={@game} />
-        <.blind_switch on?={@blind?} later?={@blind? && @game.my_dice != nil} />
+        <.blind_switch
+          :if={!knocked_out_now?(@game.reveal)}
+          on?={@blind?}
+          later?={@blind? && @game.my_dice != nil && !@game.dealt_down?}
+        />
       </div>
       <div class="game-table__bottom">
         <.my_page
@@ -351,6 +355,9 @@ defmodule ThreeSixesWeb.TableComponents do
     </div>
     """
   end
+
+  defp knocked_out_now?(%{knocked_out?: true, loser: %{me?: true}}), do: true
+  defp knocked_out_now?(_reveal), do: false
 
   defp face_word(face), do: Enum.at(@faces, face - 1)
 

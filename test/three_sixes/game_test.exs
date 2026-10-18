@@ -884,7 +884,8 @@ defmodule ThreeSixes.GameTest do
     end
 
     test "a Round is dealt face down to exactly the seats in play it is given" do
-      assert %{covered: ["a", "b", "c"], peeked: [], bid_blind?: false} = blind_round()
+      assert %{covered: ["a", "b", "c"], dealt_down: ["a", "b", "c"], peeked: []} = blind_round()
+      refute blind_round().bid_blind?
       assert round_one().covered == []
 
       game =
@@ -892,7 +893,7 @@ defmodule ThreeSixes.GameTest do
         |> Game.new()
         |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]}, ["c", "z"])
 
-      assert game.covered == ["c"]
+      assert %{covered: ["c"], dealt_down: ["c"]} = game
 
       game =
         blind_round()
@@ -906,7 +907,7 @@ defmodule ThreeSixes.GameTest do
 
     test "a look uncovers that seat's dice, and only a covered seat in a bidding Round can look" do
       assert {:ok, game} = Game.look(blind_round(), "b")
-      assert %{covered: ["a", "c"], peeked: []} = game
+      assert %{covered: ["a", "c"], dealt_down: ["a", "b", "c"], peeked: []} = game
 
       assert Game.look(game, "b") == {:error, :not_covered}
       assert Game.look(round_one(), "a") == {:error, :not_covered}
@@ -970,10 +971,11 @@ defmodule ThreeSixes.GameTest do
     test "a save and a void clear the covered, the peeked and the blind Bid" do
       {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
 
-      assert %{covered: [], peeked: [], bid_blind?: false} = Game.without_round(game)
+      assert %{covered: [], dealt_down: [], peeked: [], bid_blind?: false} =
+               Game.without_round(game)
 
       assert {:void, voided} = Game.leave(game, "c")
-      assert %{covered: [], peeked: [], bid_blind?: false} = voided
+      assert %{covered: [], dealt_down: [], peeked: [], bid_blind?: false} = voided
 
       assert %{covered: ["a", "b"], peeked: []} =
                Game.start_round(voided, %{"a" => [3], "b" => [4]}, ["a", "b", "c"])
@@ -982,8 +984,11 @@ defmodule ThreeSixes.GameTest do
     test "a seat moved to another person stays covered, or peeked, as that person" do
       {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
 
-      assert %{covered: ["b", "c"], peeked: ["z"]} = Game.move_seat(game, "a", "z")
-      assert %{covered: ["y", "c"], peeked: ["a"]} = Game.move_seat(game, "b", "y")
+      assert %{covered: ["b", "c"], dealt_down: ["z", "b", "c"], peeked: ["z"]} =
+               Game.move_seat(game, "a", "z")
+
+      assert %{covered: ["y", "c"], dealt_down: ["a", "y", "c"], peeked: ["a"]} =
+               Game.move_seat(game, "b", "y")
     end
   end
 

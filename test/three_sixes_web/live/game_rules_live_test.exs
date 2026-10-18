@@ -151,6 +151,36 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       refute has_element?(timur, "#look")
     end
 
+    test "a face-down Round shows no next-Round note through a Look and the reveal; a switch turned on face up does" do
+      %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
+      blind(code, ["timur"])
+      start(timur, [[2], [6]])
+
+      press(timur, "Bid one five")
+      timur |> element("#look") |> render_click()
+
+      assert text(timur, "#my-dice .my-dice__mark") == "peeked"
+      assert has_element?(timur, "#blind-switch[aria-checked=true]")
+      refute has_element?(timur, "#blind-note")
+
+      switch(dana)
+
+      assert text(dana, "#blind-note") == "from the next Round"
+
+      check(dana)
+
+      for step <- 1..3 do
+        reveal(code, {:reveal, 1, step})
+        refute has_element?(timur, "#blind-note")
+      end
+
+      next_round(code, 1, [[3, 1], [4]])
+      dana |> element("#look") |> render_click()
+
+      assert faces(dana) == [4]
+      refute has_element?(dana, "#blind-note")
+    end
+
     test "every switched Player's dice arrive face down with Look, and no page holds a face" do
       %{timur: timur, dana: dana, code: code} = table(~w(Timur Dana))
       blind(code, ["timur", "dana"])

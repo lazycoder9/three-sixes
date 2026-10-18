@@ -718,6 +718,9 @@ defmodule ThreeSixesWeb.TableLiveTest do
       timur_takes_his_sixth_die(players)
 
       assert has_element?(timur, "#my-page")
+      assert has_element?(timur, "#my-dice")
+      refute has_element?(timur, "#blind-switch")
+      assert has_element?(dana, "#blind-switch")
 
       next_round(code, 5, [[2], [3]])
 

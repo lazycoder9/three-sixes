@@ -18,6 +18,7 @@ defmodule ThreeSixes.Game do
     checks: [],
     rules: @plain_rules,
     covered: [],
+    dealt_down: [],
     peeked: [],
     bid_blind?: false,
     timed_out?: false
@@ -61,6 +62,7 @@ defmodule ThreeSixes.Game do
           checks: [check()],
           rules: rules(),
           covered: [person_id()],
+          dealt_down: [person_id()],
           peeked: [person_id()],
           bid_blind?: boolean(),
           timed_out?: boolean()
@@ -96,6 +98,7 @@ defmodule ThreeSixes.Game do
         opener: opener,
         voided_by: if(game.reveal, do: nil, else: game.voided_by),
         covered: Enum.filter(in_play(game), &(&1 in face_down)),
+        dealt_down: Enum.filter(in_play(game), &(&1 in face_down)),
         peeked: [],
         bid_blind?: false,
         timed_out?: false
@@ -121,6 +124,7 @@ defmodule ThreeSixes.Game do
         opener: next_opener(game),
         voided_by: nil,
         covered: [],
+        dealt_down: [],
         peeked: [],
         bid_blind?: false,
         timed_out?: false
@@ -300,6 +304,7 @@ defmodule ThreeSixes.Game do
         reveal: nil,
         voided_by: leaver,
         covered: [],
+        dealt_down: [],
         peeked: [],
         bid_blind?: false,
         timed_out?: false
@@ -324,6 +329,7 @@ defmodule ThreeSixes.Game do
         opener: swap.(game.opener),
         out: Enum.map(game.out, swap),
         covered: Enum.map(game.covered, swap),
+        dealt_down: Enum.map(game.dealt_down, swap),
         peeked: Enum.map(game.peeked, swap),
         voided_by: swap.(game.voided_by),
         bid: game.bid && %{game.bid | by: swap.(game.bid.by)},
