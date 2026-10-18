@@ -41,6 +41,9 @@ defmodule ThreeSixesWeb.RulesComponents do
     <div id="rules" class="game-rules">
       <p class="lobby__label">Game rules</p>
       <p class="game-rules__line">{rules_line(@rules)}</p>
+      <p :if={@rules.blind_play?} class="game-rules__hint">
+        Dice arrive face down. Look when you like.
+      </p>
     </div>
     """
   end

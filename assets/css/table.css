@@ -1020,6 +1020,18 @@ body:has(.game-table) .table-main {
     font-size: 12px;
     line-height: 1.1;
   }
+  .seat--compact .seat__turn:has(> .turn-clock) .seat__turn-words,
+  .game-table--phone-compact .seat__turn:has(> .turn-clock) .seat__turn-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .seat--compact .seat__turn > .turn-clock,
+  .game-table--phone-compact .seat__turn > .turn-clock {
+    margin-left: 0;
+  }
   .seat--compact .seat__dice:has(> .seat__n):has(~ .seat__tag),
   .game-table--phone-compact .seat__dice:has(> .seat__n):has(~ .seat__tag) {
     justify-self: start;

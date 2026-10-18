@@ -325,6 +325,8 @@ defmodule ThreeSixesWeb.TableLiveTest do
 
       assert has_element?(timur, "#my-page[phx-hook=PlayKeys][data-my-turn=true]")
       assert has_element?(dana, "#my-page[phx-hook=PlayKeys][data-my-turn=false]")
+      assert has_element?(timur, "#my-page[data-rolled=true]")
+      refute has_element?(visit(code, "timur"), "#my-page[data-rolled]")
 
       press(timur, "Bid one five")
 

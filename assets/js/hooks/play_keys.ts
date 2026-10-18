@@ -43,6 +43,7 @@ type PlayKeysHook = Hook<{ onKey: (event: KeyboardEvent) => void; myTurn: boolea
 export const PlayKeys: PlayKeysHook = {
   mounted() {
     this.myTurn = this.el.dataset.myTurn === "true";
+    if (this.myTurn && this.el.dataset.rolled === "true") navigator.vibrate?.(TURN_BUZZ);
     this.onKey = (event) => {
       const key = playKey(event, document, this.el.dataset.myTurn === "true");
       if (key === null) return;

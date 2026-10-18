@@ -80,6 +80,7 @@ defmodule ThreeSixesWeb.TableComponents do
           game={@game}
           step={@step}
           reaction={@reactions[hd(@game.seats).person.n]}
+          rolled={@rolled}
           now={@now}
         />
         <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
@@ -132,7 +133,8 @@ defmodule ThreeSixesWeb.TableComponents do
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
       <small :if={@turn?} class="seat__turn">
-        on turn <.turn_clock :if={@game.turn_ends_at} ends_at={@game.turn_ends_at} now={@now} />
+        <span class="seat__turn-words">on turn</span>
+        <.turn_clock :if={@game.turn_ends_at} ends_at={@game.turn_ends_at} now={@now} />
       </small>
       <small :if={@seat.out?} class="seat__out">out</small>
       <small :if={!@seat.out? && blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
@@ -167,7 +169,10 @@ defmodule ThreeSixesWeb.TableComponents do
     assigns = assign(assigns, :reveal, reveal)
 
     ~H"""
-    <p class="scrap__bid faint">Bid <.bidn count={@reveal.bid.count} face={@reveal.bid.face} /></p>
+    <p class="scrap__bid faint">
+      {if @game.timed_out?, do: "Time's up."} Bid
+      <.bidn count={@reveal.bid.count} face={@reveal.bid.face} />
+    </p>
     <p class={["scrap__found", @reveal.count && "slam"]}>
       <.bidn
         count={@reveal.count || "?"}
@@ -259,8 +264,10 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :rolled, :integer, default: nil
 
-  defp my_dice(%{game: %{my_dice: nil}} = assigns) do
-    assigns = assign(assigns, :me, hd(assigns.game.seats))
+  defp my_dice(%{game: %{my_dice: nil} = game} = assigns) do
+    me = hd(game.seats)
+    said_blind? = !game.reveal and match?(%{blind?: true}, me.said)
+    assigns = assign(assigns, me: me, mark: if(!said_blind?, do: blind_mark(me)))
 
     ~H"""
     <div id="my-dice" class="my-dice" role="group" aria-label="Your dice, face down">
@@ -272,8 +279,8 @@ defmodule ThreeSixesWeb.TableComponents do
         aria-label="face down"
       >
       </span>
-      <span :if={!@game.reveal || blind_mark(@me)} class="my-dice__blind">
-        <small :if={blind_mark(@me)} class="my-dice__mark">{blind_mark(@me)}</small>
+      <span :if={!@game.reveal || @mark} class="my-dice__blind">
+        <small :if={@mark} class="my-dice__mark">{@mark}</small>
         <.block :if={!@game.reveal} id="look" class="my-dice__look" phx-click="look">Look</.block>
       </span>
     </div>
@@ -329,6 +336,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :reaction, :map, default: nil
+  attr :rolled, :integer, default: nil
   attr :now, :integer, required: true
 
   defp my_page(assigns) do
@@ -339,6 +347,7 @@ defmodule ThreeSixesWeb.TableComponents do
       aria-current={@game.my_turn? && "true"}
       phx-hook="PlayKeys"
       data-my-turn={to_string(@game.my_turn?)}
+      data-rolled={@rolled == @game.round && "true"}
     >
       <span :if={@game.my_turn?} class="my-page__turn">
         <span aria-hidden="true">Your turn</span>

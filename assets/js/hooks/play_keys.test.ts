@@ -7,6 +7,7 @@ function mountKeys({
   myTurn = true,
   querySelector = (_selector: string): object | null => null,
   vibrate = true as boolean,
+  rolled = false,
 } = {}) {
   const listeners = new Set<Listener>();
   const buzzes: unknown[] = [];
@@ -19,7 +20,12 @@ function mountKeys({
     navigator: vibrate ? { vibrate: (pattern: unknown) => buzzes.push(pattern) } : {},
   });
   const pushed: unknown[] = [];
-  const el = { dataset: { myTurn: String(myTurn) } as Record<string, string> };
+  const el = {
+    dataset: { myTurn: String(myTurn), ...(rolled && { rolled: "true" }) } as Record<
+      string,
+      string
+    >,
+  };
   const hook = {
     el,
     pushEvent: (event: string, payload: unknown) => pushed.push([event, payload]),
@@ -207,6 +213,14 @@ describe("play keys", () => {
     const keys = mountKeys({ myTurn: true });
     keys.patch(true);
     expect(keys.buzzes).toEqual([]);
+  });
+
+  test("the table arriving on my turn with a Round just rolled buzzes once", () => {
+    const keys = mountKeys({ myTurn: true, rolled: true });
+    keys.patch(true);
+    expect(keys.buzzes).toHaveLength(1);
+
+    expect(mountKeys({ myTurn: false, rolled: true }).buzzes).toEqual([]);
   });
 
   test("a browser without vibration takes the turn quietly", () => {

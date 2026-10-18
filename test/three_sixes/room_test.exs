@@ -503,6 +503,25 @@ defmodule ThreeSixes.RoomTest do
       assert %{clock: nil, game: nil} = Room.settle_clock(lobby(), 1_000)
     end
 
+    test "stops while every Player in play is Away, and starts afresh when one is back" do
+      room = Room.settle_clock(timed(), 1_000)
+
+      away =
+        Enum.reduce(["guest:dana", "guest:timur", @host], room, &Room.away(&2, &1, 2_000))
+
+      assert away |> Room.settle_clock(3_000) |> ends_at() == nil
+      assert Room.time_up(Room.settle_clock(away, 3_000)) == :stale
+
+      assert away
+             |> Room.settle_clock(3_000)
+             |> Room.back("guest:timur")
+             |> Room.settle_clock(5_000)
+             |> ends_at() == 35_000
+
+      assert room |> Room.away("guest:dana", 2_000) |> Room.settle_clock(3_000) |> ends_at() ==
+               31_000
+    end
+
     test "time up with no Bid opens the Round with one one for the Player on turn" do
       assert {:ok, room} = timed() |> Room.settle_clock(1_000) |> Room.time_up()
 

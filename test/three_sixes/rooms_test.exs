@@ -431,6 +431,32 @@ defmodule ThreeSixes.RoomsTest do
       assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, turn_ends_at: 31_000}}}}
     end
 
+    test "the last Player's process exiting stops it, and their return starts it afresh" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      host = join_from_another_process(code, @host)
+      dana = join_from_another_process(code, "guest:dana")
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: false})
+      Scripted.script([[6], [2]])
+      :ok = Rooms.start_game(code, @host)
+      old = turn_timeout(room)
+
+      leave(dana)
+      assert %{turn_timer: {_timer, %{ends_at: 31_000}}} = :sys.get_state(room)
+
+      leave(host)
+      assert %{turn_timer: nil} = :sys.get_state(room)
+      assert_ignored(room, [old])
+
+      :sys.replace_state(room, &%{&1 | now: fn -> 50_000 end})
+      {:ok, _view} = Rooms.join(code, "guest:dana")
+
+      assert %{turn_timer: {_timer, %{ends_at: 80_000}}} = :sys.get_state(room)
+    end
+
     test "a stale turn timeout changes nothing" do
       {code, room, _dana} = timed()
       old = turn_timeout(room)

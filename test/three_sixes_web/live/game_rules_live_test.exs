@@ -27,11 +27,14 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
 
       assert has_element?(timur, "#rules-form input[name=turn_timer][value='30'][checked]")
       assert has_element?(timur, "#rules-form input[name=blind_play][type=checkbox][checked]")
-      assert text(dana, "#rules") == "Game rules 30 s turns · blind play"
+
+      assert text(dana, "#rules") ==
+               "Game rules 30 s turns · blind play Dice arrive face down. Look when you like."
 
       rules(timur, "off", true)
 
-      assert text(dana, "#rules") == "Game rules No turn timer · blind play"
+      assert text(dana, "#rules") ==
+               "Game rules No turn timer · blind play Dice arrive face down. Look when you like."
     end
 
     test "a rule not on offer changes nothing and leaves the Room open" do
@@ -96,7 +99,8 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       press(timur, "Bid one five")
 
       assert text(timur, "#scrap") == "You bid blind 1 × 2 dice on the table"
-      assert text(timur, "#my-dice .my-dice__mark") == "blind"
+      assert text(timur, ".my-band") == "Look You: 1 × blind"
+      refute has_element?(timur, "#my-dice .my-dice__mark")
       refute_own_faces(timur)
 
       for watcher <- [dana, aziz] do
@@ -287,9 +291,12 @@ defmodule ThreeSixesWeb.GameRulesLiveTest do
       assert text(dana, "#scrap") == "Time's up. You Check! 1 ×"
       refute has_element?(dana, ".turn-clock")
 
-      reveal(code, {:reveal, 1, 1})
+      for step <- 1..3 do
+        reveal(code, {:reveal, 1, step})
 
-      refute text(dana, "#scrap") =~ "Time's up"
+        assert text(timur, "#scrap") =~ ~r/^Time's up\. Bid 1 ×/
+        assert text(dana, "#scrap") =~ ~r/^Time's up\. Bid 1 ×/
+      end
     end
 
     test "a move by hand clears the time's up" do

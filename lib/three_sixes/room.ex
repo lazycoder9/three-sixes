@@ -562,14 +562,18 @@ defmodule ThreeSixes.Room do
 
   defp clock(%{game: %Game{rules: %{turn_timer: seconds}} = game} = room, now)
        when is_integer(seconds) do
-    case {turn_key(game), room.clock} do
-      {nil, _clock} -> nil
-      {key, %{key: key} = clock} -> clock
-      {key, _stale} -> %{key: key, ends_at: now + :timer.seconds(seconds)}
+    case {turn_key(game), room.clock, every_player_away?(room)} do
+      {nil, _clock, _away?} -> nil
+      {_key, _clock, true} -> nil
+      {key, %{key: key} = clock, false} -> clock
+      {key, _stale, false} -> %{key: key, ends_at: now + :timer.seconds(seconds)}
     end
   end
 
   defp clock(_room, _now), do: nil
+
+  defp every_player_away?(%{game: game, away: away}),
+    do: Enum.all?(game.seats -- game.out, &Map.has_key?(away, &1))
 
   defp turn_key(%Game{turn: turn} = game) when turn != nil, do: {game.round, turn, game.bid}
   defp turn_key(_game), do: nil
