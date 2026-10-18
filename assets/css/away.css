@@ -44,6 +44,8 @@
 }
 
 #banners {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: var(--spacing-2);
   justify-items: center;
