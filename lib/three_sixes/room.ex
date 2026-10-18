@@ -730,8 +730,15 @@ defmodule ThreeSixes.Room do
     }
   end
 
-  defp my_dice(%{reveal: %{step: step}} = game, viewer) when step >= 1, do: game.dice[viewer]
-  defp my_dice(game, viewer), do: if(viewer not in game.blind, do: game.dice[viewer])
+  defp my_dice(game, viewer) do
+    if shown_to?(game, viewer), do: sorted(game.dice[viewer])
+  end
+
+  defp shown_to?(%{reveal: %{step: step}}, _viewer) when step >= 1, do: true
+  defp shown_to?(game, viewer), do: viewer not in game.blind
+
+  defp sorted(nil), do: nil
+  defp sorted(dice), do: Enum.sort(dice)
 
   defp three_sixes_unchecked?(%{reveal: nil, bid: bid}), do: Game.three_sixes?(bid)
   defp three_sixes_unchecked?(_game), do: false

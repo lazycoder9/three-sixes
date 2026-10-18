@@ -927,6 +927,33 @@ defmodule ThreeSixes.RoomTest do
       end
     end
 
+    test "your dice come sorted low to high; the faces shown at the reveal keep the roll's order" do
+      {:ok, room} = Room.start_game(lobby(), @host, ["guest:dana", "guest:timur", @host])
+
+      room = %{
+        room
+        | game: %{room.game | counts: %{"guest:dana" => 3, "guest:timur" => 4, @host => 1}}
+      }
+
+      room =
+        Room.start_round(room, %{
+          "guest:dana" => [5, 2, 6],
+          "guest:timur" => [4, 1, 3, 1],
+          @host => [2]
+        })
+
+      assert %{my_dice: [1, 1, 3, 4]} = Room.view_for(room, "guest:timur").game
+      assert %{my_dice: [2, 5, 6]} = Room.view_for(room, "guest:dana").game
+
+      {:ok, room} = Room.raise(room, "guest:dana", 1, 6)
+      {:ok, room} = Room.check(room, "guest:timur")
+      {:ok, room} = Room.reveal(room, 1, 1)
+      view = Room.view_for(room, "guest:timur")
+
+      assert view.game.my_dice == [1, 1, 3, 4]
+      assert faces(view) == [[4, 1, 3, 1], [2], [5, 2, 6]]
+    end
+
     test "someone not seated sees the table from the first seat, with no faces" do
       room = enter!(raised(), "guest:aziz", "Aziz")
       view = Room.view_for(room, "guest:aziz")
