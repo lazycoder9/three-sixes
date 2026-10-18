@@ -85,6 +85,9 @@
 :root {
   --line: rgba(36, 22, 14, 0.28);
   --engrave: 0 1px 0 rgba(255, 255, 255, 0.35);
+  --plank: rgba(255, 244, 222, 0.06);
+  --tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='t' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.6' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5  0 0 0 0 .4  0 0 0 0 .24  .22 0 0 0 -.075'/%3E%3C/filter%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.15 .7' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 -.88'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23t)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --birch-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='90'%3E%3Cfilter id='b' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.01 .32' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42  0 0 0 0 .26  0 0 0 0 .1  .9 0 0 0 -.38'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E");
 }
 
 [data-theme="dark"] {
@@ -97,6 +100,7 @@
   --color-note: var(--color-sticky-dark);
   --line: rgba(248, 240, 222, 0.24);
   --engrave: 0 2px 0 rgba(0, 0, 0, 0.4);
+  --plank: rgba(0, 0, 0, 0.07);
 }
 
 @layer base {
@@ -112,12 +116,17 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  [data-theme="dark"] body::after {
+  body::after {
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 0;
+    background:
+      radial-gradient(70% 55% at 28% 0%, rgba(255, 246, 225, 0.22), transparent 70%),
+      radial-gradient(130% 110% at 50% 35%, transparent 62%, rgba(70, 40, 15, 0.16));
+  }
+  [data-theme="dark"] body::after {
     background:
       radial-gradient(90% 70% at 50% 0%, rgba(255, 200, 120, 0.18), transparent 60%),
       radial-gradient(120% 100% at 50% 40%, transparent 50%, rgba(0, 0, 0, 0.45));
@@ -143,11 +152,14 @@
     background-image:
       repeating-linear-gradient(
         180deg,
-        transparent 0 217px,
-        rgba(36, 22, 14, 0.22) 217px 219px,
-        rgba(255, 255, 255, 0.12) 219px 220px
+        rgba(255, 255, 255, 0.07) 0,
+        transparent 6px 208px,
+        rgba(36, 22, 14, 0.1) 217px,
+        rgba(24, 14, 9, 0.36) 217px 219px,
+        rgba(255, 255, 255, 0.16) 219px 220px
       ),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='440'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .11' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2  0 0 0 0 .1  0 0 0 0 .04  1.15 0 0 0 -.44'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+      repeating-linear-gradient(180deg, transparent 0 220px, var(--plank) 220px 440px),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='440'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .11' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2  0 0 0 0 .1  0 0 0 0 .04  1.15 0 0 0 -.44'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.03 .9' numOctaves='2' seed='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3  0 0 0 0 .17  0 0 0 0 .07  2 0 0 0 -1.3'/%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0022 .018' numOctaves='2' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22  0 0 0 0 .12  0 0 0 0 .05  .6 0 0 0 -.27'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
   }
 
   .top {
@@ -241,10 +253,11 @@
     height: 42px;
     border-radius: 50%;
     color: var(--color-espresso);
-    background: var(--color-tile);
+    background: var(--birch-grain) -60px -20px / 240px 90px, var(--color-tile);
     box-shadow:
       0 3px 0 var(--color-tile-edge),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -2px 3px rgba(110, 70, 25, 0.14);
   }
   /* Grows the touch target to the 44px minimum. */
   .round-button::before {
@@ -272,25 +285,33 @@
     padding: calc(var(--d) * 0.13);
     border-radius: 17%;
     color: var(--color-die-ink);
-    background: radial-gradient(
-      120% 120% at 30% 22%,
-      var(--color-die-shine),
-      var(--color-die) 65%,
-      var(--color-die-shade)
-    );
+    --die-contact:
+      0 calc(var(--d) * 0.03) calc(var(--d) * 0.03) rgba(40, 25, 10, 0.3),
+      0 calc(var(--d) * 0.08) calc(var(--d) * 0.12) rgba(0, 0, 0, 0.16);
+    background:
+      radial-gradient(38% 26% at 30% 16%, rgba(255, 255, 255, 0.7), transparent),
+      radial-gradient(
+        120% 120% at 30% 22%,
+        var(--color-die-shine),
+        var(--color-die) 65%,
+        var(--color-die-shade)
+      );
     box-shadow:
       inset 0 0 0 1px rgba(120, 95, 50, 0.3),
-      inset 0 0 calc(var(--d) * 0.14) rgba(120, 95, 50, 0.4);
+      inset 0 0 calc(var(--d) * 0.14) rgba(120, 95, 50, 0.4),
+      inset calc(var(--d) * -0.03) calc(var(--d) * -0.05) calc(var(--d) * 0.08) rgba(120, 90, 40, 0.18),
+      var(--die-contact);
   }
   .die i {
     border-radius: 50%;
     margin: 9%;
   }
   .die i.on {
-    background: radial-gradient(circle at 38% 30%, var(--color-pip-shine), var(--color-pip) 68%);
+    background: radial-gradient(circle at 58% 72%, var(--color-pip-shine), var(--color-pip) 62%);
     box-shadow:
-      inset 0 calc(var(--d) * 0.025) calc(var(--d) * 0.03) rgba(0, 0, 0, 0.85),
-      0 1px 0 rgba(255, 255, 255, 0.75);
+      inset 0 calc(var(--d) * 0.025) calc(var(--d) * 0.035) rgba(0, 0, 0, 0.9),
+      0 calc(var(--d) * 0.012) 0 rgba(255, 255, 255, 0.8),
+      0 calc(var(--d) * -0.008) calc(var(--d) * 0.01) rgba(120, 90, 40, 0.3);
   }
 
   .cube {
@@ -319,6 +340,7 @@
     animation: tumble-in 1.3s var(--ease-roll) 0.4s backwards;
   }
   .cube__face {
+    --die-contact: 0 0 transparent;
     position: absolute;
     inset: 0;
     --h: calc(var(--s, 64px) / 2);
@@ -389,12 +411,15 @@
     border-radius: var(--radius-wood);
     font: 700 16px/1 var(--font-ui);
     color: var(--color-espresso);
-    background: var(--color-tile);
+    background-color: var(--color-tile);
+    background-image: var(--birch-grain);
+    background-size: 240px 90px;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
     box-shadow:
       0 5px 0 var(--edge),
       0 10px 14px -5px rgba(0, 0, 0, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.55);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -3px 4px -1px rgba(90, 55, 20, 0.14);
     transition:
       transform 0.09s,
       box-shadow 0.09s,
@@ -412,19 +437,22 @@
   }
   .block--tomato {
     --edge: var(--color-tomato-edge);
-    background: var(--color-tomato);
+    background-color: var(--color-tomato);
+    background-blend-mode: soft-light;
     color: var(--color-cream);
     text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
   }
   .block--walnut {
     --edge: var(--color-walnut-edge);
-    background: var(--color-walnut);
+    background-color: var(--color-walnut);
+    background-blend-mode: soft-light;
     color: var(--color-bone);
     text-shadow: none;
   }
   .block--white {
     --edge: var(--color-white-edge);
     background: var(--color-white);
+    background-image: none;
     color: var(--color-white-ink);
     text-shadow: none;
   }
@@ -450,7 +478,7 @@
     border: 0;
     border-radius: var(--radius-tile);
     margin-bottom: 4px;
-    background: var(--color-birch);
+    background: var(--birch-grain) 0 0 / 240px 90px, var(--color-birch);
     color: var(--color-espresso);
     text-align: center;
     text-transform: uppercase;
@@ -458,7 +486,15 @@
     box-shadow:
       0 4px 0 var(--color-birch-edge),
       0 8px 10px -4px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 1px 0 0 rgba(255, 255, 255, 0.2),
+      inset 0 -3px 4px -1px rgba(110, 70, 25, 0.16);
+  }
+  .letter-tile:nth-child(2n) {
+    background-position: -70px -40px;
+  }
+  .letter-tile:nth-child(3n) {
+    background-position: -150px -15px;
   }
   input.letter-tile:focus {
     outline: 3px solid var(--color-mustard);
@@ -484,7 +520,7 @@
   }
   .letter-tile--blank {
     color: transparent;
-    background: var(--color-birch-blank);
+    background-color: var(--color-birch-blank);
   }
   @keyframes clack {
     from {
@@ -517,6 +553,8 @@
     inset: 0;
     z-index: -1;
     background:
+      var(--tooth),
+      linear-gradient(170deg, rgba(255, 255, 255, 0.3), transparent 35% 70%, rgba(110, 85, 45, 0.05)),
       linear-gradient(
         90deg,
         transparent clamp(30px, 5vw, 40px),
@@ -530,6 +568,9 @@
         )
         0 calc(var(--spacing-rule) * 0.5 + 8px),
       var(--color-sheet);
+    box-shadow:
+      inset 0 0 0 1px rgba(120, 95, 60, 0.07),
+      inset 0 -14px 18px -16px rgba(90, 70, 40, 0.18);
     -webkit-mask: radial-gradient(circle 5px at 50% 0, transparent 96%, black) 0 0 / 19px 100%;
     mask: radial-gradient(circle 5px at 50% 0, transparent 96%, black) 0 0 / 19px 100%;
   }
@@ -546,22 +587,23 @@
     padding: var(--spacing-5);
   }
   .paper--scrap::before {
-    background: var(--color-sheet);
-    -webkit-mask: none;
-    mask: none;
+    background:
+      var(--tooth),
+      linear-gradient(170deg, rgba(255, 255, 255, 0.3), transparent 35% 70%, rgba(110, 85, 45, 0.05)),
+      var(--color-sheet);
+    --fibres: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='4'%3E%3ClinearGradient id='v' x2='0' y2='1'%3E%3Cstop offset='0' stop-opacity='0'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1 .4' numOctaves='2' seed='8' stitchTiles='stitch'/%3E%3CfeComposite in2='SourceGraphic' operator='arithmetic' k2='1.3' k3='2.2' k4='-1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='url(%23v)' filter='url(%23n)'/%3E%3C/svg%3E");
+    -webkit-mask:
+      var(--fibres) 0 0 / 160px 4px repeat-x,
+      linear-gradient(#000 0 0) 0 4px / 100% 100% no-repeat;
+    mask:
+      var(--fibres) 0 0 / 160px 4px repeat-x,
+      linear-gradient(#000 0 0) 0 4px / 100% 100% no-repeat;
     clip-path: polygon(
-      0 3%,
-      6% 0,
-      14% 2%,
-      27% 0,
-      41% 3%,
-      55% 0,
-      68% 2%,
-      82% 0,
-      93% 3%,
-      100% 1%,
-      100% 100%,
-      0 100%
+      0% 3%, 1.5% 2.2%, 4% 0.4%, 6% 0%, 9% 1.4%, 11.5% 1.1%, 13% 1.4%, 15% 2.2%, 18% 2%,
+      19.5% 0.7%, 22% 1%, 26% 0.8%, 28.5% 0.7%, 32.5% 1.5%, 35% 1.2%, 36.5% 2.2%, 41% 3%,
+      44% 3%, 46% 1.9%, 49.5% 1.3%, 52% 0.4%, 55.5% 0%, 60% 0.6%, 62% 0.6%, 64% 1.9%,
+      65.5% 1.2%, 67.5% 1.2%, 70% 1.8%, 72.5% 1.2%, 78.5% 0%, 84.5% 0.1%, 87.5% 1.1%,
+      89% 2.5%, 95% 2.8%, 98% 1.5%, 100% 1%, 100% 100%, 0 100%
     );
   }
   .paper h1,
@@ -594,8 +636,20 @@
     margin-left: -48px;
     transform: rotate(-3deg);
     z-index: 2;
-    background: rgba(233, 215, 160, 0.86);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    background:
+      linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.3) 2%,
+        transparent 4%,
+        rgba(120, 100, 50, 0.14) 5.5%,
+        transparent 7% 93%,
+        rgba(255, 255, 255, 0.32) 94.5%,
+        rgba(120, 100, 50, 0.12) 96%,
+        transparent 97.5%
+      ),
+      linear-gradient(rgba(255, 255, 255, 0.22), transparent 35% 75%, rgba(120, 100, 50, 0.1)),
+      var(--tooth) 0 0 / 110px,
+      rgba(233, 215, 160, 0.74);
     clip-path: polygon(
       0 12%,
       3% 0,
@@ -669,7 +723,11 @@
     --color-tile: var(--color-birch);
     --color-tile-edge: var(--color-birch-edge);
     position: relative;
-    background: var(--color-note);
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.28), transparent 40%),
+      linear-gradient(to top, rgba(140, 100, 0, 0.07), transparent 20%),
+      radial-gradient(60% 40% at 100% 100%, rgba(140, 100, 0, 0.07), transparent),
+      var(--color-note);
     color: var(--color-graphite);
     padding: clamp(20px, 5vw, 30px);
     font: 400 20px/var(--spacing-rule) var(--font-hand);
