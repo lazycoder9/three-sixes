@@ -13,8 +13,8 @@ defmodule ThreeSixesWeb.RulesComponents do
     <form id="rules-form" class="game-rules" phx-change="rules" phx-auto-recover="ignore">
       <fieldset>
         <legend class="lobby__label">Game rules</legend>
-        <p class="game-rules__label" id="turn-timer-label">Turn timer</p>
         <div class="game-rules__timers" role="radiogroup" aria-labelledby="turn-timer-label">
+          <span class="game-rules__label" id="turn-timer-label">Turn timer</span>
           <label :for={timer <- @timers} class="game-rules__timer">
             <input
               type="radio"

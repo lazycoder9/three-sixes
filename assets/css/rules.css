@@ -10,13 +10,14 @@
   padding: 0;
 }
 .game-rules__label {
-  font: 600 15px/1.2 var(--font-ui);
+  margin-right: var(--spacing-1);
+  font: 500 16px/1.2 var(--font-ui);
 }
 .game-rules__timers {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-2);
-  margin-bottom: var(--spacing-1);
 }
 .game-rules__timer {
   position: relative;
@@ -32,8 +33,8 @@
 .game-rules__timer span {
   display: grid;
   place-items: center;
-  min-width: 52px;
-  min-height: 40px;
+  min-width: 48px;
+  min-height: 36px;
   padding: 0 10px;
   border-radius: var(--radius-tile);
   background: var(--color-tile);
@@ -59,6 +60,8 @@
 }
 .game-rules__hint {
   max-width: 22em;
+  margin-top: calc(-1 * var(--spacing-2));
+  padding-left: 36px;
   color: var(--color-ink-dim);
   font: 500 14px/1.3 var(--font-ui);
 }
@@ -69,7 +72,7 @@
 
 .dialog .menu-rules {
   margin-top: var(--spacing-1);
-  color: var(--color-graphite-faint);
+  color: var(--color-graphite);
   font: 400 19px/1.2 var(--font-hand);
 }
 
