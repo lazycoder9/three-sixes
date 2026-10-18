@@ -876,67 +876,69 @@ defmodule ThreeSixes.GameTest do
     assert Game.to_roll(game) == [{"a", 2}, {"b", 1}, {"c", 1}]
   end
 
-  describe "playing blind" do
-    test "a Round is dealt blind to the seats asked for that are in play, a Knocked-out one not" do
-      game =
-        ["a", "b", "c"]
-        |> Game.new()
-        |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]}, ["c", "a", "z"])
-
-      assert %{blind: ["a", "c"], peeked: [], bid_blind?: false} = game
-      assert round_one().blind == []
-
-      game =
-        %{"a" => 5, "b" => 1, "c" => 1}
-        |> holding(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
-        |> lose!("a", "b")
-        |> Game.start_round(%{"b" => [2], "c" => [3]}, ["a", "b"])
-
-      assert game.blind == ["b"]
-    end
-
+  describe "blind play" do
     defp blind_round do
       ["a", "b", "c"]
-      |> Game.new()
-      |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]}, ["a", "b"])
+      |> Game.new(%{turn_timer: nil, blind_play?: true})
+      |> Game.start_round(%{"a" => [2], "b" => [5], "c" => [5]})
     end
 
-    test "a peek moves the seat from blind to peeked, and only a blind seat can peek" do
-      assert {:ok, game} = Game.peek(blind_round(), "b")
-      assert %{blind: ["a"], peeked: ["b"]} = game
+    test "a Game with blind play deals every Round covered to each seat in play, one without none" do
+      assert %{covered: ["a", "b", "c"], peeked: [], bid_blind?: false} = blind_round()
+      assert round_one().covered == []
 
-      assert Game.peek(game, "b") == {:error, :not_blind}
-      assert Game.peek(game, "c") == {:error, :not_blind}
-      assert Game.peek(game, "z") == {:error, :not_blind}
+      game =
+        blind_round()
+        |> Map.put(:counts, %{"a" => 5, "b" => 1, "c" => 1})
+        |> Game.start_round(%{"a" => [1, 1, 1, 1, 1], "b" => [2], "c" => [3]})
+        |> lose!("a", "b")
+        |> Game.start_round(%{"b" => [2], "c" => [3]})
+
+      assert game.covered == ["b", "c"]
     end
 
-    test "a peek is refused once a Check is made, and with no Round dealt" do
+    test "a look uncovers that seat's dice, and only a covered seat in a bidding Round can look" do
+      assert {:ok, game} = Game.look(blind_round(), "b")
+      assert %{covered: ["a", "c"], peeked: []} = game
+
+      assert Game.look(game, "b") == {:error, :not_covered}
+      assert Game.look(round_one(), "a") == {:error, :not_covered}
+      assert Game.look(game, "z") == {:error, :not_covered}
+
       checked = blind_round() |> raise!("a", 1, 5) |> check!("b")
 
-      assert Game.peek(checked, "a") == {:error, :not_bidding}
-      assert Game.peek(Game.advance_reveal(checked, 3), "a") == {:error, :not_bidding}
-      assert Game.peek(Game.without_round(blind_round()), "a") == {:error, :not_bidding}
-      assert Game.peek(Game.new(["a", "b"]), "a") == {:error, :not_bidding}
+      assert Game.look(checked, "a") == {:error, :not_bidding}
+      assert Game.look(Game.advance_reveal(checked, 3), "a") == {:error, :not_bidding}
+      assert Game.look(Game.without_round(blind_round()), "a") == {:error, :not_bidding}
     end
 
-    test "a Bid is blind when its bidder is blind as they Raise, not once they peeked or when sighted" do
-      game = raise!(blind_round(), "a", 1, 5)
+    test "a Raise before looking is a blind Bid and marks the seat blind; a look before Bidding marks nothing" do
+      {:ok, game} = Game.look(blind_round(), "b")
+      game = raise!(game, "a", 1, 5)
+
       assert game.bid_blind?
+      assert Game.blind?(game, "a")
+      refute Game.blind?(game, "b")
 
-      {:ok, game} = Game.peek(game, "b")
       game = raise!(game, "b", 1, 6)
-      refute game.bid_blind?
 
-      game = raise!(game, "c", 2, 1)
       refute game.bid_blind?
-
-      assert raise!(game, "a", 2, 2).bid_blind?
+      refute Game.blind?(game, "b")
+      assert game.peeked == []
     end
 
-    test "what a seat said keeps whether it was said blind, through a peek and the next Raise" do
-      game = raise!(blind_round(), "a", 1, 5)
-      {:ok, game} = Game.peek(game, "a")
-      game = game |> raise!("b", 1, 6) |> raise!("c", 2, 1)
+    test "a look after a blind Bid turns the blind mark to peeked" do
+      {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
+
+      refute Game.blind?(game, "a")
+      assert game.peeked == ["a"]
+      assert raise!(game |> raise!("b", 1, 6) |> raise!("c", 2, 1), "a", 2, 3).peeked == ["a"]
+    end
+
+    test "what a seat said keeps whether it was said blind, through a look and the next Raise" do
+      {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
+      {:ok, game} = game |> raise!("b", 1, 6) |> Game.look("c")
+      game = raise!(game, "c", 2, 1)
 
       assert game.said == %{
                "a" => %{count: 1, face: 5, blind?: true},
@@ -958,23 +960,69 @@ defmodule ThreeSixes.GameTest do
       assert Game.start_round(game, %{"a" => [1], "b" => [1, 1], "c" => [1]}).turn == "b"
     end
 
-    test "a save and a void clear the blind, the peeked and the blind Bid" do
-      {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.peek("b")
+    test "a save and a void clear the covered, the peeked and the blind Bid, and keep the rules" do
+      {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
 
-      assert %{blind: [], peeked: [], bid_blind?: false} = Game.without_round(game)
+      assert %{covered: [], peeked: [], bid_blind?: false, rules: %{blind_play?: true}} =
+               Game.without_round(game)
 
       assert {:void, voided} = Game.leave(game, "c")
-      assert %{blind: [], peeked: [], bid_blind?: false} = voided
+      assert %{covered: [], peeked: [], bid_blind?: false} = voided
 
-      assert %{blind: ["a"], peeked: []} =
-               Game.start_round(voided, %{"a" => [3], "b" => [4]}, ["a", "c"])
+      assert %{covered: ["a", "b"], peeked: []} =
+               Game.start_round(voided, %{"a" => [3], "b" => [4]})
     end
 
-    test "a seat moved to another person stays blind, or peeked, as that person" do
-      {:ok, game} = Game.peek(blind_round(), "b")
+    test "a seat moved to another person stays covered, or peeked, as that person" do
+      {:ok, game} = blind_round() |> raise!("a", 1, 5) |> Game.look("a")
 
-      assert %{blind: ["z"], peeked: ["b"]} = Game.move_seat(game, "a", "z")
-      assert %{blind: ["a"], peeked: ["y"]} = Game.move_seat(game, "b", "y")
+      assert %{covered: ["b", "c"], peeked: ["z"]} = Game.move_seat(game, "a", "z")
+      assert %{covered: ["y", "c"], peeked: ["a"]} = Game.move_seat(game, "b", "y")
+    end
+  end
+
+  describe "time up" do
+    test "with no Bid, the Player on turn opens with one one, and the turn passes" do
+      assert {:ok, game} = Game.time_up(round_one())
+
+      assert %{bid: %{count: 1, face: 1, by: "a"}, turn: "b", timed_out?: true} = game
+      assert game.said["a"] == %{count: 1, face: 1, blind?: false}
+    end
+
+    test "with a Bid, the Player on turn Checks it" do
+      assert {:ok, game} = round_one() |> raise!("a", 2, 5) |> Game.time_up()
+
+      assert %{reveal: %{checker: "b", stood?: true, loser: "b"}, turn: nil, timed_out?: true} =
+               game
+    end
+
+    test "the next move by hand is no longer timed out" do
+      {:ok, game} = Game.time_up(round_one())
+
+      refute raise!(game, "b", 1, 6).timed_out?
+      refute check!(game, "b").timed_out?
+      refute Game.start_round(game, %{"a" => [1], "b" => [2], "c" => [3]}).timed_out?
+    end
+
+    test "a timed-out Check on three sixes costs two Penalty dice" do
+      {:ok, game} = round_one() |> raise!("a", 3, 6) |> Game.time_up()
+
+      assert %{loser: "a", penalty: 2} = game.reveal
+    end
+
+    test "a covered Player's timed-out opening Bid is a blind Bid" do
+      {:ok, game} = Game.time_up(blind_round())
+
+      assert game.bid_blind?
+      assert Game.blind?(game, "a")
+    end
+
+    test "is refused with no bidding Round" do
+      checked = round_one() |> raise!("a", 1, 5) |> check!("b")
+
+      assert Game.time_up(checked) == {:error, :not_bidding}
+      assert Game.time_up(Game.new(["a", "b"])) == {:error, :not_bidding}
+      assert Game.time_up(Game.without_round(round_one())) == {:error, :not_bidding}
     end
   end
 

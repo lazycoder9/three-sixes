@@ -1,0 +1,101 @@
+.game-rules fieldset {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.game-rules legend {
+  padding: 0;
+}
+.game-rules__label {
+  font: 600 15px/1.2 var(--font-ui);
+}
+.game-rules__timers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
+}
+.game-rules__timer {
+  position: relative;
+  cursor: pointer;
+}
+.game-rules__timer input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.game-rules__timer span {
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-tile);
+  background: var(--color-tile);
+  color: var(--color-espresso);
+  box-shadow:
+    0 2px 0 var(--color-tile-edge),
+    0 5px 7px -4px rgba(0, 0, 0, 0.4);
+  font: 700 16px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.game-rules__timer:has(input:checked) span {
+  background: var(--color-espresso);
+  color: var(--color-cream);
+  box-shadow:
+    0 2px 0 var(--color-walnut-edge),
+    0 5px 7px -4px rgba(0, 0, 0, 0.4);
+  transform: translateY(1px);
+}
+.game-rules__timer:has(input:focus-visible) span {
+  outline: 3px solid var(--color-mustard);
+  outline-offset: 2px;
+}
+.game-rules__hint {
+  max-width: 22em;
+  color: var(--color-ink-dim);
+  font: 500 14px/1.3 var(--font-ui);
+}
+.game-rules__line {
+  max-width: 22em;
+  font: 400 20px/1.3 var(--font-hand);
+}
+
+.dialog .menu-rules {
+  margin-top: var(--spacing-1);
+  color: var(--color-graphite-faint);
+  font: 400 19px/1.2 var(--font-hand);
+}
+
+.turn-clock {
+  display: inline-block;
+  margin-left: 0.3em;
+  padding: 0.1em 0.4em 0.15em;
+  border-radius: 999px;
+  background: var(--color-espresso);
+  color: var(--color-cream);
+  font: 700 0.8em/1.1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.08em;
+  white-space: nowrap;
+}
+.turn-clock.is-late {
+  background: var(--color-cream);
+  color: var(--color-tomato);
+  animation: clock-late 1s ease-in-out infinite;
+}
+@keyframes clock-late {
+  50% {
+    scale: 1.15;
+  }
+}
+.my-page__turn .turn-clock {
+  font-size: 0.72em;
+  vertical-align: 0.15em;
+}

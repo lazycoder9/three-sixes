@@ -16,7 +16,9 @@ defmodule ThreeSixes.Room do
     tally: %{},
     last: nil,
     away: %{},
-    handover: nil
+    handover: nil,
+    rules: %{turn_timer: nil, blind_play?: false},
+    clock: nil
   ]
 
   @type person_id :: String.t()
@@ -24,7 +26,6 @@ defmodule ThreeSixes.Room do
           id: person_id(),
           nickname: String.t(),
           sitting_out?: boolean(),
-          blind?: boolean(),
           left?: boolean(),
           removed?: boolean()
         }
@@ -71,7 +72,10 @@ defmodule ThreeSixes.Room do
               knocked_out?: boolean()
             }
             | nil,
-          voided_by: person_ref() | nil
+          voided_by: person_ref() | nil,
+          rules: Game.rules(),
+          turn_ends_at: integer() | nil,
+          timed_out?: boolean()
         }
   @type view :: %{
           code: String.t(),
@@ -89,7 +93,6 @@ defmodule ThreeSixes.Room do
           me: String.t() | nil,
           removed?: boolean(),
           sitting_out?: boolean(),
-          blind?: boolean(),
           playing?: boolean(),
           host?: boolean(),
           host_nickname: String.t() | nil,
@@ -114,7 +117,8 @@ defmodule ThreeSixes.Room do
               vote_again_at: integer() | nil
             }
             | nil,
-          over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil
+          over: %{winner: person_ref(), placement: [person_ref()], rounds: pos_integer()} | nil,
+          rules: Game.rules()
         }
   @type handover :: %{
           host: person_id(),
@@ -130,7 +134,13 @@ defmodule ThreeSixes.Room do
           tally: %{person_id() => pos_integer()},
           last: %{placement: [person_id()], rounds: pos_integer(), checks: [Game.check()]} | nil,
           away: %{person_id() => integer()},
-          handover: handover() | nil
+          handover: handover() | nil,
+          rules: Game.rules(),
+          clock: clock() | nil
+        }
+  @type clock :: %{
+          key: {pos_integer(), person_id(), Game.placed_bid() | nil},
+          ends_at: integer()
         }
   @type finished :: %{
           room_code: String.t(),
@@ -190,7 +200,6 @@ defmodule ThreeSixes.Room do
       id: person_id,
       nickname: nickname,
       sitting_out?: false,
-      blind?: false,
       left?: false,
       removed?: false
     }
@@ -258,12 +267,14 @@ defmodule ThreeSixes.Room do
     end
   end
 
-  @spec blind(t(), person_id(), boolean()) :: {:ok, t()} | {:error, :not_member}
-  def blind(room, person_id, on?) when is_boolean(on?) do
-    if member?(room, person_id) do
-      {:ok, update_member(room, person_id, &%{&1 | blind?: on?})}
-    else
-      {:error, :not_member}
+  @spec set_rules(t(), person_id(), Game.rules()) ::
+          {:ok, t()} | {:error, :not_host | :playing | :invalid}
+  def set_rules(room, by, rules) do
+    cond do
+      by != room.host_id -> {:error, :not_host}
+      room.game != nil -> {:error, :playing}
+      not Game.rules?(rules) -> {:error, :invalid}
+      true -> {:ok, %{room | rules: Map.take(rules, [:turn_timer, :blind_play?])}}
     end
   end
 
@@ -371,6 +382,8 @@ defmodule ThreeSixes.Room do
   defp host_after_move(room, _from, _to), do: room.host_id
 
   defp swap_seats(room, from, to) do
+    game = room.game && Game.move_seat(room.game, from, to)
+
     swap = fn
       ^from -> to
       ^to -> from
@@ -387,10 +400,17 @@ defmodule ThreeSixes.Room do
       room
       | members: Enum.map(room.members, &%{&1 | id: swap.(&1.id)}),
         away: away,
-        game: room.game && Game.move_seat(room.game, from, to),
-        last: room.last && swap_last(room.last, swap)
+        game: game,
+        last: room.last && swap_last(room.last, swap),
+        clock: clock_after_move(room.clock, room.game, game)
     }
   end
+
+  defp clock_after_move(%{key: key} = clock, old, new) do
+    if key == turn_key(old), do: %{clock | key: turn_key(new)}, else: clock
+  end
+
+  defp clock_after_move(nil, _old, _new), do: nil
 
   defp swap_last(last, swap) do
     %{
@@ -507,15 +527,12 @@ defmodule ThreeSixes.Room do
       room.game != nil -> {:error, :playing}
       length(dealt_in) < 2 -> {:error, :too_few}
       Enum.sort(seats) != Enum.sort(dealt_in) -> {:error, :wrong_seats}
-      true -> {:ok, %{room | game: Game.new(seats), last: nil}}
+      true -> {:ok, %{room | game: Game.new(seats, room.rules), last: nil}}
     end
   end
 
   @spec start_round(t(), %{person_id() => [Game.face()]}) :: t()
-  def start_round(room, dice) do
-    blind = for %{blind?: true, id: id} <- room.members, do: id
-    %{room | game: Game.start_round(room.game, dice, blind)}
-  end
+  def start_round(room, dice), do: %{room | game: Game.start_round(room.game, dice)}
 
   @spec raise(t(), person_id(), term(), term()) ::
           {:ok, t()} | {:error, :not_bidding | :not_your_turn | :illegal}
@@ -533,12 +550,47 @@ defmodule ThreeSixes.Room do
     with {:ok, game} <- Game.check(room.game, by), do: {:ok, %{room | game: game}}
   end
 
-  @spec peek(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_blind}
-  def peek(%{game: nil}, _id), do: {:error, :not_bidding}
+  @spec look(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_covered}
+  def look(%{game: nil}, _id), do: {:error, :not_bidding}
 
-  def peek(room, id) do
-    with {:ok, game} <- Game.peek(room.game, id), do: {:ok, %{room | game: game}}
+  def look(room, id) do
+    with {:ok, game} <- Game.look(room.game, id), do: {:ok, %{room | game: game}}
   end
+
+  @spec settle_clock(t(), integer()) :: t()
+  def settle_clock(room, now), do: %{room | clock: clock(room, now)}
+
+  defp clock(%{game: %Game{rules: %{turn_timer: seconds}} = game} = room, now)
+       when is_integer(seconds) do
+    case {turn_key(game), room.clock} do
+      {nil, _clock} -> nil
+      {key, %{key: key} = clock} -> clock
+      {key, _stale} -> %{key: key, ends_at: now + :timer.seconds(seconds)}
+    end
+  end
+
+  defp clock(_room, _now), do: nil
+
+  defp turn_key(%Game{turn: turn} = game) when turn != nil, do: {game.round, turn, game.bid}
+  defp turn_key(_game), do: nil
+
+  @spec time_up(t()) :: {:ok, t()} | :stale
+  def time_up(%{clock: %{key: key}} = room) do
+    if turn_key(room.game) == key do
+      {:ok, game} = Game.time_up(room.game)
+      {:ok, %{room | game: game}}
+    else
+      :stale
+    end
+  end
+
+  def time_up(_room), do: :stale
+
+  defp turn_ends_at(%{clock: %{key: key, ends_at: ends_at}} = room) do
+    if turn_key(room.game) == key, do: ends_at
+  end
+
+  defp turn_ends_at(_room), do: nil
 
   @spec reveal(t(), pos_integer(), 1..3) :: {:ok, t()} | :stale
   def reveal(%{game: %Game{round: round, reveal: %{}} = game} = room, round, step),
@@ -555,7 +607,7 @@ defmodule ThreeSixes.Room do
   end
 
   @spec to_save(t()) :: t()
-  def to_save(room), do: %{room | game: room.game && Game.without_round(room.game)}
+  def to_save(room), do: %{room | game: room.game && Game.without_round(room.game), clock: nil}
 
   @spec restore(t()) :: {:roll, t()} | {:ok, t()}
   def restore(saved) do
@@ -640,7 +692,6 @@ defmodule ThreeSixes.Room do
       me: me && me.nickname,
       removed?: Enum.any?(room.members, &(&1.id == person_id and &1.removed?)),
       sitting_out?: me != nil and me.sitting_out?,
-      blind?: blind?(me),
       playing?: playing?(room, person_id),
       host?: host?,
       host_nickname: host && host.nickname,
@@ -650,12 +701,10 @@ defmodule ThreeSixes.Room do
       spectators: spectators(room, person_id),
       away: away_view(room, person_id),
       host_away: host_away_view(room, person_id),
-      over: over_view(room, person_id)
+      over: over_view(room, person_id),
+      rules: room.rules
     }
   end
-
-  defp blind?(nil), do: false
-  defp blind?(member), do: member.blind?
 
   defp host_away_view(%{handover: nil}, _viewer), do: nil
   defp host_away_view(%{handover: %{host: viewer}}, viewer), do: nil
@@ -726,7 +775,10 @@ defmodule ThreeSixes.Room do
       three_sixes?: three_sixes_unchecked?(game),
       seats: game.seats |> from_seat(viewer) |> Enum.map(&seat_view(game, &1, ref)),
       reveal: game.reveal && reveal_view(game, ref),
-      voided_by: game.voided_by && ref.(game.voided_by)
+      voided_by: game.voided_by && ref.(game.voided_by),
+      rules: game.rules,
+      turn_ends_at: turn_ends_at(room),
+      timed_out?: game.timed_out?
     }
   end
 
@@ -735,7 +787,7 @@ defmodule ThreeSixes.Room do
   end
 
   defp shown_to?(%{reveal: %{step: step}}, _viewer) when step >= 1, do: true
-  defp shown_to?(game, viewer), do: viewer not in game.blind
+  defp shown_to?(game, viewer), do: viewer not in game.covered
 
   defp sorted(nil), do: nil
   defp sorted(dice), do: Enum.sort(dice)
@@ -761,7 +813,7 @@ defmodule ThreeSixes.Room do
       faces: if(reveal.step >= 1, do: game.dice[seat]),
       penalty?: reveal.step >= 3 and reveal.loser == seat,
       out?: out?(game, seat),
-      blind?: seat in game.blind,
+      blind?: Game.blind?(game, seat),
       peeked?: seat in game.peeked
     }
   end

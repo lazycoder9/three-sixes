@@ -80,6 +80,7 @@ defmodule ThreeSixesWeb.TableComponents do
           game={@game}
           step={@step}
           reaction={@reactions[hd(@game.seats).person.n]}
+          now={@now}
         />
         <.torn_scrap :if={!@game.seated?} id="watching" class="game-table__watching">
           {if @game.knocked_out?, do: "You're Knocked out."} You're watching. {head(@game)}
@@ -130,7 +131,9 @@ defmodule ThreeSixesWeb.TableComponents do
         <b class="seat__n">{@seat.dice}</b>
         <span :for={_ <- 1..@seat.dice//1} class="die is-down"></span>
       </span>
-      <small :if={@turn?} class="seat__turn">on turn</small>
+      <small :if={@turn?} class="seat__turn">
+        on turn <.turn_clock :if={@game.turn_ends_at} ends_at={@game.turn_ends_at} now={@now} />
+      </small>
       <small :if={@seat.out?} class="seat__out">out</small>
       <small :if={!@seat.out? && blind_mark(@seat)} class="seat__tag">{blind_mark(@seat)}</small>
       <.away_tag :if={@since} class="seat__away" since={@since} now={@now} />
@@ -152,6 +155,7 @@ defmodule ThreeSixesWeb.TableComponents do
     assigns = assign(assigns, :reveal, reveal)
 
     ~H"""
+    <p :if={@game.timed_out?} class="faint">Time's up.</p>
     <p class="scrawl red slam">
       {name(@reveal.checker)} {verb(@reveal.checker, "Checks", "Check")}!
     </p>
@@ -199,11 +203,32 @@ defmodule ThreeSixesWeb.TableComponents do
   defp scrap(assigns) do
     ~H"""
     <p class="faint">
-      {name(@game.bid.by)} {verb(@game.bid.by, "bids", "bid")}
+      {if @game.timed_out?, do: "Time's up."}
+      {name(@game.bid.by)} {bid_verb(@game)}
       <em :if={@game.bid.blind?} class="scrap__blind">blind</em>
     </p>
     <.bidn count={@game.bid.count} face={@game.bid.face} />
     <p class="faint">{@game.dice_on_table} dice on the table</p>
+    """
+  end
+
+  defp bid_verb(%{timed_out?: true, bid: %{by: by}}), do: verb(by, "opens", "open")
+  defp bid_verb(%{bid: %{by: by}}), do: verb(by, "bids", "bid")
+
+  attr :ends_at, :integer, required: true
+  attr :now, :integer, required: true
+
+  defp turn_clock(assigns) do
+    assigns = assign(assigns, :seconds, div(max(assigns.ends_at - assigns.now, 0) + 999, 1000))
+
+    ~H"""
+    <span
+      class={["turn-clock", @seconds <= 5 && "is-late"]}
+      role="timer"
+      aria-label={"#{@seconds} seconds left"}
+    >
+      {clock(@seconds * 1000)}
+    </span>
     """
   end
 
@@ -238,7 +263,7 @@ defmodule ThreeSixesWeb.TableComponents do
     assigns = assign(assigns, :me, hd(assigns.game.seats))
 
     ~H"""
-    <div id="my-dice" class="my-dice" role="group" aria-label="Your dice, blind">
+    <div id="my-dice" class="my-dice" role="group" aria-label="Your dice, face down">
       <span
         :for={i <- 0..(@me.dice - 1)//1}
         id={"my-die-#{@game.round}-#{i}"}
@@ -247,9 +272,9 @@ defmodule ThreeSixesWeb.TableComponents do
         aria-label="face down"
       >
       </span>
-      <span class="my-dice__blind">
-        <small class="my-dice__mark">blind</small>
-        <.block :if={!@game.reveal} id="peek" class="my-dice__peek" phx-click="peek">Peek</.block>
+      <span :if={!@game.reveal || blind_mark(@me)} class="my-dice__blind">
+        <small :if={blind_mark(@me)} class="my-dice__mark">{blind_mark(@me)}</small>
+        <.block :if={!@game.reveal} id="look" class="my-dice__look" phx-click="look">Look</.block>
       </span>
     </div>
     """
@@ -304,6 +329,7 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :game, :map, required: true
   attr :step, :integer, required: true
   attr :reaction, :map, default: nil
+  attr :now, :integer, required: true
 
   defp my_page(assigns) do
     ~H"""
@@ -314,7 +340,10 @@ defmodule ThreeSixesWeb.TableComponents do
       phx-hook="PlayKeys"
       data-my-turn={to_string(@game.my_turn?)}
     >
-      <span :if={@game.my_turn?} class="my-page__turn" aria-hidden="true">Your turn</span>
+      <span :if={@game.my_turn?} class="my-page__turn">
+        <span aria-hidden="true">Your turn</span>
+        <.turn_clock :if={@game.turn_ends_at} ends_at={@game.turn_ends_at} now={@now} />
+      </span>
       <p class={["scrawl my-page__head", !@game.my_turn? && "faint"]}>{head(@game)}</p>
       <.offers game={@game} step={@step} />
       <.block
@@ -516,12 +545,13 @@ defmodule ThreeSixesWeb.TableComponents do
   attr :since, :integer, required: true
   attr :now, :integer, required: true
   attr :host?, :boolean, required: true
+  attr :timer?, :boolean, required: true
 
   def turn_away_banner(assigns) do
     ~H"""
     <.sticky_note class="banner">
       <span>
-        <b>{@person.nickname}</b> is on turn and away {clock(@now - @since)}. The table waits.
+        <b>{@person.nickname}</b> is on turn and away {clock(@now - @since)}. {waits(@timer?)}
       </span>
       <.block :if={@host?} variant={:walnut} phx-click="remove" phx-value-n={@person.n}>
         Remove {@person.nickname}
@@ -530,6 +560,9 @@ defmodule ThreeSixesWeb.TableComponents do
     </.sticky_note>
     """
   end
+
+  defp waits(true), do: "The turn timer runs on."
+  defp waits(false), do: "The table waits."
 
   attr :host, :string, required: true
   attr :away, :map, required: true

@@ -2,6 +2,7 @@ defmodule ThreeSixesWeb.Layouts do
   use ThreeSixesWeb, :html
 
   alias ThreeSixesWeb.AuthController
+  alias ThreeSixesWeb.RulesComponents
 
   embed_templates "layouts/*"
 
@@ -76,8 +77,7 @@ defmodule ThreeSixesWeb.Layouts do
   attr :my_turn?, :boolean, default: false
   attr :return_to, :string, required: true
   attr :sitting_out?, :boolean, required: true
-  attr :blind?, :boolean, required: true
-  attr :blind_note, :string, default: nil
+  attr :rules, :map, default: nil, doc: "the Game's rules, while a Game is in play"
   attr :playing?, :boolean, required: true
   attr :revealing?, :boolean, default: false
   slot :under_code
@@ -112,6 +112,7 @@ defmodule ThreeSixesWeb.Layouts do
 
     <div id="room-menu" class="dialog" popover role="dialog" aria-labelledby="room-menu-title">
       <h2 id="room-menu-title">Room {@code}</h2>
+      <p :if={@rules} id="menu-rules" class="menu-rules">{RulesComponents.rules_line(@rules)}</p>
       <div class="stack">
         <.copy_room_link id="menu-copied" code={@code} />
         <.block
@@ -121,10 +122,6 @@ defmodule ThreeSixesWeb.Layouts do
         >
           {if @sitting_out?, do: "Sitting out the next Game", else: "Sit out the next Game"}
         </.block>
-        <.block id="menu-blind" phx-click="blind" phx-value-blind={to_string(!@blind?)}>
-          {if @blind?, do: "Stop playing blind", else: "Play blind"}
-        </.block>
-        <small :if={@blind_note} id="menu-blind-note" class="menu-note">{@blind_note}</small>
         <.block id="menu-theme" phx-hook="ThemeSwitch">Light or dark</.block>
       </div>
       <section
@@ -133,7 +130,11 @@ defmodule ThreeSixesWeb.Layouts do
         class="menu-sign-in"
         aria-label="Sign in"
       >
-        <p :if={@my_turn?} class="menu-sign-in__turn">The table will wait while you sign in.</p>
+        <p :if={@my_turn?} class="menu-sign-in__turn">
+          {if @rules && @rules.turn_timer,
+            do: "Your turn timer keeps running while you sign in.",
+            else: "The table will wait while you sign in."}
+        </p>
         <.sign_in_options return_to={@return_to} />
       </section>
       <div class="row">

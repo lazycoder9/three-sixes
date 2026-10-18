@@ -1,4 +1,7 @@
 defmodule ThreeSixes.Game do
+  @plain_rules %{turn_timer: nil, blind_play?: false}
+  @turn_timers [15, 30, 60]
+
   @enforce_keys [:seats, :counts]
   defstruct [
     :seats,
@@ -13,9 +16,11 @@ defmodule ThreeSixes.Game do
     out: [],
     voided_by: nil,
     checks: [],
-    blind: [],
+    rules: @plain_rules,
+    covered: [],
     peeked: [],
-    bid_blind?: false
+    bid_blind?: false,
+    timed_out?: false
   ]
 
   @knocked_out_at 6
@@ -25,6 +30,7 @@ defmodule ThreeSixes.Game do
   @type bid :: %{count: pos_integer(), face: face()}
   @type placed_bid :: %{count: pos_integer(), face: face(), by: person_id()}
   @type said :: %{count: pos_integer(), face: face(), blind?: boolean()}
+  @type rules :: %{turn_timer: 15 | 30 | 60 | nil, blind_play?: boolean()}
   @type reveal :: %{
           bid: placed_bid(),
           checker: person_id(),
@@ -53,16 +59,31 @@ defmodule ThreeSixes.Game do
           out: [person_id()],
           voided_by: person_id() | nil,
           checks: [check()],
-          blind: [person_id()],
+          rules: rules(),
+          covered: [person_id()],
           peeked: [person_id()],
-          bid_blind?: boolean()
+          bid_blind?: boolean(),
+          timed_out?: boolean()
         }
 
-  @spec new([person_id()]) :: t()
-  def new(seats), do: %__MODULE__{seats: seats, counts: Map.new(seats, &{&1, 1})}
+  @spec new([person_id()], rules()) :: t()
+  def new(seats, rules \\ @plain_rules),
+    do: %__MODULE__{seats: seats, counts: Map.new(seats, &{&1, 1}), rules: rules}
 
-  @spec start_round(t(), %{person_id() => [face()]}, [person_id()]) :: t()
-  def start_round(game, dice, blind \\ []) do
+  @spec plain_rules() :: rules()
+  def plain_rules, do: @plain_rules
+
+  @spec turn_timers() :: [pos_integer()]
+  def turn_timers, do: @turn_timers
+
+  @spec rules?(term()) :: boolean()
+  def rules?(%{turn_timer: timer, blind_play?: blind_play?}),
+    do: (timer == nil or timer in @turn_timers) and is_boolean(blind_play?)
+
+  def rules?(_rules), do: false
+
+  @spec start_round(t(), %{person_id() => [face()]}) :: t()
+  def start_round(game, dice) do
     opener = opener(game)
 
     %{
@@ -75,9 +96,10 @@ defmodule ThreeSixes.Game do
         reveal: nil,
         opener: opener,
         voided_by: if(game.reveal, do: nil, else: game.voided_by),
-        blind: Enum.filter(in_play(game), &(&1 in blind)),
+        covered: if(game.rules.blind_play?, do: in_play(game), else: []),
         peeked: [],
-        bid_blind?: false
+        bid_blind?: false,
+        timed_out?: false
     }
   end
 
@@ -99,9 +121,10 @@ defmodule ThreeSixes.Game do
         reveal: nil,
         opener: next_opener(game),
         voided_by: nil,
-        blind: [],
+        covered: [],
         peeked: [],
-        bid_blind?: false
+        bid_blind?: false,
+        timed_out?: false
     }
   end
 
@@ -148,12 +171,15 @@ defmodule ThreeSixes.Game do
   end
 
   defp raised(game, by, count, face) do
+    blind? = by in game.covered
+
     %{
       game
       | bid: %{count: count, face: face, by: by},
-        said: Map.put(game.said, by, %{count: count, face: face, blind?: by in game.blind}),
+        said: Map.put(game.said, by, %{count: count, face: face, blind?: blind?}),
         turn: next_seat(game, by),
-        bid_blind?: by in game.blind
+        bid_blind?: blind?,
+        timed_out?: false
     }
   end
 
@@ -182,17 +208,32 @@ defmodule ThreeSixes.Game do
       step: 0
     }
 
-    %{game | turn: nil, reveal: reveal}
+    %{game | turn: nil, reveal: reveal, timed_out?: false}
   end
 
-  @spec peek(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_blind}
-  def peek(game, id) do
+  @spec time_up(t()) :: {:ok, t()} | {:error, :not_bidding}
+  def time_up(game) do
     cond do
       not bidding?(game) -> {:error, :not_bidding}
-      id not in game.blind -> {:error, :not_blind}
-      true -> {:ok, %{game | blind: game.blind -- [id], peeked: game.peeked ++ [id]}}
+      game.bid == nil -> {:ok, %{raised(game, game.turn, 1, 1) | timed_out?: true}}
+      true -> {:ok, %{checked(game, game.turn) | timed_out?: true}}
     end
   end
+
+  @spec look(t(), person_id()) :: {:ok, t()} | {:error, :not_bidding | :not_covered}
+  def look(game, id) do
+    cond do
+      not bidding?(game) -> {:error, :not_bidding}
+      id not in game.covered -> {:error, :not_covered}
+      true -> {:ok, %{game | covered: game.covered -- [id], peeked: peeked(game, id)}}
+    end
+  end
+
+  defp peeked(game, id),
+    do: if(Map.has_key?(game.said, id), do: game.peeked ++ [id], else: game.peeked)
+
+  @spec blind?(t(), person_id()) :: boolean()
+  def blind?(game, id), do: id in game.covered and Map.has_key?(game.said, id)
 
   @spec three_sixes?(bid() | placed_bid() | nil) :: boolean()
   def three_sixes?(bid), do: match?(%{count: 3, face: 6}, bid)
@@ -259,9 +300,10 @@ defmodule ThreeSixes.Game do
         dice: %{},
         reveal: nil,
         voided_by: leaver,
-        blind: [],
+        covered: [],
         peeked: [],
-        bid_blind?: false
+        bid_blind?: false,
+        timed_out?: false
     }
   end
 
@@ -282,7 +324,7 @@ defmodule ThreeSixes.Game do
         turn: swap.(game.turn),
         opener: swap.(game.opener),
         out: Enum.map(game.out, swap),
-        blind: Enum.map(game.blind, swap),
+        covered: Enum.map(game.covered, swap),
         peeked: Enum.map(game.peeked, swap),
         voided_by: swap.(game.voided_by),
         bid: game.bid && %{game.bid | by: swap.(game.bid.by)},

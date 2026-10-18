@@ -287,70 +287,194 @@ defmodule ThreeSixes.RoomsTest do
     assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 1}}}}
   end
 
-  describe "playing blind" do
-    defp dana_blind do
+  describe "the Game rules" do
+    @blind_play %{turn_timer: nil, blind_play?: true}
+
+    test "the Host's change reaches every joined process, and a refused one sends nothing" do
       {code, dana} = table()
-      :ok = Rooms.blind(code, "guest:dana", true)
+
+      assert Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: true}) == :ok
+      assert_receive {:room_view, %{rules: %{turn_timer: 30, blind_play?: true}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{rules: %{turn_timer: 30}}}}
+
+      assert Rooms.set_rules(code, "guest:dana", @blind_play) == {:error, :not_host}
+
+      assert Rooms.set_rules(code, @host, %{turn_timer: 20, blind_play?: false}) ==
+               {:error, :invalid}
+
       start(code, dana)
-      flush_views()
-      {code, dana}
-    end
 
-    test "the switch reaches every joined process, and the Round is dealt blind to that Player" do
-      {code, dana} = table()
-
-      assert Rooms.blind(code, "guest:dana", true) == :ok
-      assert_receive {:forwarded, ^dana, {:room_view, %{blind?: true}}}
-      assert_receive {:room_view, %{blind?: false}}
-
-      Scripted.script([[6], [2]])
-      :ok = Rooms.start_game(code, @host)
-
-      assert_receive {:forwarded, ^dana,
-                      {:room_view, %{game: %{my_dice: nil, seats: [%{blind?: true} | _]}}}}
-
-      assert_receive {:room_view, %{game: %{my_dice: [6], seats: [_, %{blind?: true}]}}}
-    end
-
-    test "a peek shows the blind Player their dice, and every joined process the mark" do
-      {code, dana} = dana_blind()
-
-      assert Rooms.peek(code, "guest:dana") == :ok
-
-      assert_receive {:forwarded, ^dana,
-                      {:room_view, %{game: %{my_dice: [2], seats: [%{peeked?: true} | _]}}}}
-
-      assert_receive {:room_view, %{game: %{seats: [_, %{blind?: false, peeked?: true}]}}}
-    end
-
-    test "a refused switch or peek replies an error and sends no view" do
-      {code, _dana} = dana_blind()
-
-      assert Rooms.blind(code, "guest:aziz", true) == {:error, :not_member}
-      assert Rooms.peek(code, @host) == {:error, :not_blind}
-
-      :ok = Rooms.raise(code, @host, 1, 6)
-      :ok = Rooms.check(code, "guest:dana")
-      flush_after(Rooms.whereis(code))
-
-      assert Rooms.peek(code, "guest:dana") == {:error, :not_bidding}
+      assert Rooms.set_rules(code, @host, @blind_play) == {:error, :playing}
       refute_receive {:room_view, _view}
       refute_receive {:forwarded, _pid, {:room_view, _view}}
 
       close(code)
 
-      assert Rooms.blind(code, @host, true) == {:error, :closed}
-      assert Rooms.peek(code, @host) == {:error, :closed}
+      assert Rooms.set_rules(code, @host, @blind_play) == {:error, :closed}
+    end
+  end
+
+  describe "blind play" do
+    defp blind_play do
+      {code, dana} = table()
+      :ok = Rooms.set_rules(code, @host, @blind_play)
+      start(code, dana)
+      flush_views()
+      {code, dana}
     end
 
-    test "a restored Room keeps the switch, and deals its re-rolled Round blind to that Player" do
-      {code, _dana} = dana_blind()
+    test "deals every seat covered, and a look shows that Player alone their dice" do
+      {code, dana} = blind_play()
+
+      assert {:ok, %{game: %{my_dice: nil}}} = Rooms.join(code, @host)
+      flush_views()
+
+      assert Rooms.look(code, "guest:dana") == :ok
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view, %{game: %{my_dice: [2], seats: [%{peeked?: false} | _]}}}}
+
+      assert_receive {:room_view, %{game: %{my_dice: nil, seats: [_, %{blind?: false}]}}}
+    end
+
+    test "a refused look replies an error and sends no view" do
+      {code, _dana} = blind_play()
+      :ok = Rooms.look(code, @host)
+      flush_views()
+
+      assert Rooms.look(code, @host) == {:error, :not_covered}
+
+      :ok = Rooms.raise(code, @host, 1, 6)
+      :ok = Rooms.check(code, "guest:dana")
+      flush_after(Rooms.whereis(code))
+
+      assert Rooms.look(code, "guest:dana") == {:error, :not_bidding}
+      refute_receive {:room_view, _view}
+      refute_receive {:forwarded, _pid, {:room_view, _view}}
+
+      close(code)
+
+      assert Rooms.look(code, @host) == {:error, :closed}
+    end
+
+    test "a restored Room keeps the rules, and deals its re-rolled Round covered" do
+      {code, _dana} = blind_play()
       shut_down(code)
       Scripted.script([[4], [5]])
 
-      assert {:ok, %{blind?: true, game: game}} = Rooms.join(code, "guest:dana")
-      assert %{round: 2, my_dice: nil, seats: [%{blind?: true, peeked?: false} | _]} = game
-      assert %{blind?: false, game: %{my_dice: [4]}} = Rooms.join(code, @host) |> elem(1)
+      assert {:ok, %{rules: @blind_play, game: game}} = Rooms.join(code, "guest:dana")
+      assert %{round: 2, my_dice: nil, rules: @blind_play} = game
+    end
+  end
+
+  describe "the turn timer" do
+    defp timed do
+      {code, dana} = table()
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 30, blind_play?: false})
+      start(code, dana)
+      flush_after(room)
+      {code, room, dana}
+    end
+
+    defp turn_timeout(room) do
+      assert {timer, _clock} = :sys.get_state(room).turn_timer
+      {:timeout, timer, :turn}
+    end
+
+    test "is armed when the turn changes, and every joined process gets the deadline" do
+      {code, room, dana} = timed()
+
+      assert %{turn_timer: {timer, %{ends_at: 31_000}}} = :sys.get_state(room)
+      assert :erlang.read_timer(timer) in 29_000..30_000
+
+      :sys.replace_state(room, &%{&1 | now: fn -> 5_000 end})
+      :ok = Rooms.raise(code, @host, 1, 6)
+
+      assert_receive {:room_view, %{game: %{turn_ends_at: 35_000}}}
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{turn_ends_at: 35_000}}}}
+      assert %{turn_timer: {new_timer, %{ends_at: 35_000}}} = :sys.get_state(room)
+      assert :erlang.read_timer(timer) == false
+      assert :erlang.read_timer(new_timer) in 29_000..30_000
+    end
+
+    test "with no Bid, the timeout opens with one one for the Player on turn, seen by all" do
+      {_code, room, dana} = timed()
+
+      send(room, turn_timeout(room))
+
+      assert_receive {:room_view,
+                      %{game: %{timed_out?: true, bid: %{count: 1, face: 1, by: %{me?: true}}}}}
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{my_turn?: true}}}}
+      assert %{turn_timer: {_timer, %{ends_at: 31_000}}} = :sys.get_state(room)
+    end
+
+    test "with a Bid, the timeout Checks it, the reveal runs, and the clock stops till the next Round" do
+      {code, room, dana} = timed()
+      :ok = Rooms.raise(code, @host, 1, 6)
+      flush_after(room)
+
+      send(room, turn_timeout(room))
+
+      assert_receive {:forwarded, ^dana,
+                      {:room_view,
+                       %{game: %{timed_out?: true, reveal: %{step: 0, checker: %{me?: true}}}}}}
+
+      assert %{turn_timer: nil, reveal_timers: [_ | _]} = :sys.get_state(room)
+
+      send(room, {:reveal, 1, 3})
+      Scripted.script([[3], [4, 4]])
+      send(room, {:next_round, 1})
+
+      assert_receive {:forwarded, ^dana, {:room_view, %{game: %{round: 2, turn_ends_at: 31_000}}}}
+    end
+
+    test "a stale turn timeout changes nothing" do
+      {code, room, _dana} = timed()
+      old = turn_timeout(room)
+      :ok = Rooms.raise(code, @host, 1, 6)
+      flush_after(room)
+
+      assert_ignored(room, [old, {:timeout, make_ref(), :turn}])
+    end
+
+    test "a leave that voids the Round re-arms it for the new Round, and Game over stops it" do
+      {:ok, code} = Rooms.create(@host, @address)
+      {:ok, _view} = Rooms.enter(code, @host, "Malika")
+      {:ok, _view} = Rooms.enter(code, "guest:dana", "Dana")
+      {:ok, _view} = Rooms.enter(code, "guest:timur", "Timur")
+      room = Rooms.whereis(code)
+      :sys.replace_state(room, &%{&1 | now: fn -> 1_000 end})
+      :ok = Rooms.set_rules(code, @host, %{turn_timer: 15, blind_play?: false})
+      Scripted.script([[1], [2], [3]])
+      :ok = Rooms.start_game(code, @host)
+      old = turn_timeout(room)
+
+      :sys.replace_state(room, &%{&1 | now: fn -> 7_000 end})
+      Scripted.script([[1], [2]])
+      :ok = Rooms.leave(code, "guest:timur")
+
+      assert %{turn_timer: {_timer, %{ends_at: 22_000}}, room: %{game: %{round: 2}}} =
+               :sys.get_state(room)
+
+      assert_ignored(room, [old])
+
+      :ok = Rooms.leave(code, "guest:dana")
+
+      assert %{turn_timer: nil, room: %{game: nil}} = :sys.get_state(room)
+    end
+
+    test "a restored Room arms it for its re-rolled Round" do
+      {code, _room, _dana} = timed()
+      shut_down(code)
+      Scripted.script([[4], [5]])
+
+      assert {:ok, %{game: %{round: 2, turn_ends_at: ends_at}}} = Rooms.join(code, @host)
+
+      assert {_timer, %{ends_at: ^ends_at}} = :sys.get_state(Rooms.whereis(code)).turn_timer
+      assert (ends_at - System.system_time(:millisecond)) in 25_000..30_000
     end
   end
 

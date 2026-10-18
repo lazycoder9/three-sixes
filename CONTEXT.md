@@ -34,12 +34,20 @@ The one Player who may act right now, by Raising or Checking.
 One cycle of rolling, Bids and Raises, ending in a Check.
 
 **Blind**:
-A Player who has chosen not to see their own dice this Round and Bids without looking, under the same rules as everyone. The choice is a switch that holds from Round to Round until turned off, and a blind Player may peek, which shows their dice for the rest of the Round and tells everyone they peeked.
+A Player who Bids before looking at their own dice this Round, under the same rules as everyone. In a Game with blind play every Player's dice arrive face down each Round, and a Player may Look at any time, which shows their dice for the rest of the Round. A Bid made before looking marks the Player blind for everyone; looking after it turns the mark to "peeked". Looking before any Bid leaves no mark.
 _Avoid_: Dark, hidden hand
+
+**Turn timer**:
+The time the Player on turn has to Raise or Check, a Game rule the Host sets before the Game. When it runs out, the server Checks for them, or opens the Round with one ⚀ if there is no Bid yet.
+_Avoid_: Shot clock, turn limit
 
 **Game**:
 A sequence of Rounds that ends when one Player is left who is not Knocked out.
 _Avoid_: Match
+
+**Game rules**:
+The choices the Host makes in the lobby before a Game: the Turn timer and blind play. They hold for the whole Game and stay set for the next one.
+_Avoid_: Settings, options, house rules
 
 **Penalty die**:
 The extra die the loser of a Check takes: the Checker if the Bid stood, otherwise the bidder. A Check on three sixes (exactly 3 × ⚅) costs two Penalty dice. Every Player starts a Game with one die.

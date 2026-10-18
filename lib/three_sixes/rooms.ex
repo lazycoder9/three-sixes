@@ -54,12 +54,13 @@ defmodule ThreeSixes.Rooms do
           :ok | {:error, :not_member | :closed}
   def sit_out(code, person_id, sitting_out?), do: call(code, {:sit_out, person_id, sitting_out?})
 
-  @spec blind(String.t(), Room.person_id(), boolean()) :: :ok | {:error, :not_member | :closed}
-  def blind(code, person_id, on?), do: call(code, {:blind, person_id, on?})
+  @spec set_rules(String.t(), Room.person_id(), ThreeSixes.Game.rules()) ::
+          :ok | {:error, :not_host | :playing | :invalid | :closed}
+  def set_rules(code, person_id, rules), do: call(code, {:set_rules, person_id, rules})
 
-  @spec peek(String.t(), Room.person_id()) ::
-          :ok | {:error, :not_bidding | :not_blind | :closed}
-  def peek(code, person_id), do: call(code, {:peek, person_id})
+  @spec look(String.t(), Room.person_id()) ::
+          :ok | {:error, :not_bidding | :not_covered | :closed}
+  def look(code, person_id), do: call(code, {:look, person_id})
 
   @spec start_game(String.t(), Room.person_id()) ::
           :ok | {:error, :not_host | :playing | :too_few | :closed}

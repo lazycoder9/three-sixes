@@ -52,7 +52,7 @@ defmodule ThreeSixes.Rooms.Server do
     state =
       case Room.restore(saved) do
         {:roll, room} ->
-          room |> roll() |> state(closes_at) |> all_away() |> unsaved()
+          room |> roll() |> state(closes_at) |> settle_clock() |> all_away() |> unsaved()
 
         {:ok, room} ->
           room
@@ -61,8 +61,10 @@ defmodule ThreeSixes.Rooms.Server do
           |> finished_on_restore(Room.finished(saved, room))
       end
 
-    arm_handover(state)
+    arm_timers(state)
   end
+
+  defp settle_clock(state), do: %{state | room: Room.settle_clock(state.room, state.now.())}
 
   defp all_away(%{room: room} = state) do
     at = state.now.()
@@ -97,7 +99,8 @@ defmodule ThreeSixes.Rooms.Server do
       save_timer: nil,
       refresh_timer: nil,
       handover_timer: nil,
-      vote_timer: nil
+      vote_timer: nil,
+      turn_timer: nil
     })
   end
 
@@ -138,15 +141,15 @@ defmodule ThreeSixes.Rooms.Server do
     end
   end
 
-  def handle_call({:blind, person_id, on?}, _from, state) do
-    case Room.blind(state.room, person_id, on?) do
+  def handle_call({:set_rules, person_id, rules}, _from, state) do
+    case Room.set_rules(state.room, person_id, rules) do
       {:ok, room} -> {:reply, :ok, changed_if_new(state, room)}
       refused -> {:reply, refused, state}
     end
   end
 
-  def handle_call({:peek, person_id}, _from, state) do
-    case Room.peek(state.room, person_id) do
+  def handle_call({:look, person_id}, _from, state) do
+    case Room.look(state.room, person_id) do
       {:ok, room} -> {:reply, :ok, changed(state, room)}
       refused -> {:reply, refused, state}
     end
@@ -170,15 +173,8 @@ defmodule ThreeSixes.Rooms.Server do
 
   def handle_call({:check, person_id}, _from, state) do
     case Room.check(state.room, person_id) do
-      {:ok, room} ->
-        timers =
-          for {delay, message} <- Room.reveal_schedule(room),
-              do: Process.send_after(self(), message, delay)
-
-        {:reply, :ok, changed(%{state | reveal_timers: timers}, room)}
-
-      refused ->
-        {:reply, refused, state}
+      {:ok, room} -> {:reply, :ok, checked(state, room)}
+      refused -> {:reply, refused, state}
     end
   end
 
@@ -291,6 +287,18 @@ defmodule ThreeSixes.Rooms.Server do
 
   def handle_info({:timeout, _stale, :vote}, state), do: {:noreply, state}
 
+  def handle_info({:timeout, timer, :turn}, %{turn_timer: {timer, _clock}} = state) do
+    state = %{state | turn_timer: nil}
+
+    case Room.time_up(state.room) do
+      {:ok, %{game: %{reveal: nil}} = room} -> {:noreply, changed(state, room)}
+      {:ok, room} -> {:noreply, checked(state, room)}
+      :stale -> {:noreply, state}
+    end
+  end
+
+  def handle_info({:timeout, _stale, :turn}, state), do: {:noreply, state}
+
   def handle_info(:save, state), do: {:noreply, save(%{state | save_timer: nil})}
 
   @impl true
@@ -366,6 +374,14 @@ defmodule ThreeSixes.Rooms.Server do
     state
   end
 
+  defp checked(state, room) do
+    timers =
+      for {delay, message} <- Room.reveal_schedule(room),
+          do: Process.send_after(self(), message, delay)
+
+    changed(%{state | reveal_timers: timers}, room)
+  end
+
   defp stop_reveal(%{room: %{game: nil}} = state) do
     Enum.each(state.reveal_timers, &Process.cancel_timer/1)
     %{state | reveal_timers: []}
@@ -399,36 +415,41 @@ defmodule ThreeSixes.Rooms.Server do
   defp changed_if_new(state, room), do: changed(state, room)
 
   defp changed(state, room) do
-    room = Room.settle_handover(room, state.now.(), &Dice.shuffle/1)
+    now = state.now.()
+    room = room |> Room.settle_handover(now, &Dice.shuffle/1) |> Room.settle_clock(now)
     record(Room.finished(state.room, room))
-    state = arm_handover(unsaved(%{state | room: room}))
+    state = arm_timers(unsaved(%{state | room: room}))
     send_views(state)
     state
   end
 
-  defp arm_handover(%{room: %{handover: handover}} = state) do
+  defp arm_timers(%{room: %{handover: handover, clock: clock}} = state) do
     state
     |> arm(:handover_timer, :handover, get_in(handover, [:ends_at]))
     |> arm(:vote_timer, :vote, get_in(handover, [:vote, :ends_at]))
+    |> arm(:turn_timer, :turn, clock)
   end
 
-  defp arm(state, key, message, ends_at) do
+  defp arm(state, key, message, deadline) do
     case Map.fetch!(state, key) do
-      {_timer, ^ends_at} ->
+      {_timer, ^deadline} ->
         state
 
       {timer, _old} ->
         :erlang.cancel_timer(timer)
-        arm(%{state | key => nil}, key, message, ends_at)
+        arm(%{state | key => nil}, key, message, deadline)
 
-      nil when ends_at == nil ->
+      nil when deadline == nil ->
         state
 
       nil ->
-        wait = max(ends_at - state.now.(), 0)
-        %{state | key => {:erlang.start_timer(wait, self(), message), ends_at}}
+        wait = max(ends_at(deadline) - state.now.(), 0)
+        %{state | key => {:erlang.start_timer(wait, self(), message), deadline}}
     end
   end
+
+  defp ends_at(%{ends_at: ends_at}), do: ends_at
+  defp ends_at(ends_at), do: ends_at
 
   defp record(nil), do: :ok
 

@@ -1,6 +1,7 @@
 defmodule ThreeSixesWeb.RoomLive do
   use ThreeSixesWeb, :live_view
 
+  import ThreeSixesWeb.RulesComponents
   import ThreeSixesWeb.TableComponents
 
   alias ThreeSixes.Accounts
@@ -140,13 +141,15 @@ defmodule ThreeSixesWeb.RoomLive do
     {:noreply, socket}
   end
 
-  def handle_event("blind", %{"blind" => flag}, socket) when flag in ~w(true false) do
-    Rooms.blind(socket.assigns.code, socket.assigns.person_id, flag == "true")
+  def handle_event("rules", params, socket) do
+    with {:ok, rules} <- rules(params),
+         do: Rooms.set_rules(socket.assigns.code, socket.assigns.person_id, rules)
+
     {:noreply, socket}
   end
 
-  def handle_event("peek", _params, socket) do
-    Rooms.peek(socket.assigns.code, socket.assigns.person_id)
+  def handle_event("look", _params, socket) do
+    Rooms.look(socket.assigns.code, socket.assigns.person_id)
     {:noreply, socket}
   end
 
@@ -231,7 +234,7 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   def handle_event(event, _params, socket)
-      when event in ~w(raise step sit_out blind key react vote),
+      when event in ~w(raise step sit_out key react vote),
       do: {:noreply, socket}
 
   defp enter(socket, nickname) do
@@ -280,6 +283,17 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   defp whole(_value), do: :error
+
+  defp rules(%{"turn_timer" => timer, "blind_play" => blind_play})
+       when blind_play in ~w(true false) do
+    with {:ok, timer} <- turn_timer(timer),
+         do: {:ok, %{turn_timer: timer, blind_play?: blind_play == "true"}}
+  end
+
+  defp rules(_params), do: :error
+
+  defp turn_timer("off"), do: {:ok, nil}
+  defp turn_timer(timer), do: whole(timer)
 
   @face_keys ~w(1 2 3 4 5 6)
 
@@ -377,8 +391,7 @@ defmodule ThreeSixesWeb.RoomLive do
       my_turn?={@view.game.my_turn?}
       return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
-      blind?={@view.blind?}
-      blind_note={blind_note(@view)}
+      rules={@view.game.rules}
       playing?={@view.playing?}
       revealing?={@view.game.reveal != nil}
     >
@@ -398,6 +411,7 @@ defmodule ThreeSixesWeb.RoomLive do
           since={turn_away_since(@view)}
           now={@now}
           host?={@view.host?}
+          timer?={@view.game.rules.turn_timer != nil}
         />
       </:banner>
       <:banner :if={@view.host_away}>
@@ -426,7 +440,6 @@ defmodule ThreeSixesWeb.RoomLive do
       account={@account}
       return_to={~p"/r/#{@view.code}"}
       sitting_out?={@view.sitting_out?}
-      blind?={@view.blind?}
       playing?={@view.playing?}
     >
       <:banner :if={@view.host_away}>
@@ -648,12 +661,7 @@ defmodule ThreeSixesWeb.RoomLive do
             Sit out the next Game
           </label>
         </form>
-        <form id="blind-form" phx-change="blind" phx-auto-recover="ignore">
-          <label class="tick">
-            <input type="hidden" name="blind" value="false" />
-            <input type="checkbox" name="blind" value="true" checked={@view.blind?} /> Play blind
-          </label>
-        </form>
+        <.game_rules rules={@view.rules} host?={@view.host?} />
         <div :if={@view.host?} class="lobby__start">
           <.block variant={:tomato} size={:big} phx-click="start" disabled={!@view.can_start?}>
             {if @view.over, do: "Next Game", else: "Start Game"}
@@ -726,30 +734,31 @@ defmodule ThreeSixesWeb.RoomLive do
   defp rolled(%{game: %{round: round}}, _old, _rolled), do: round
   defp rolled(_view, _old, _rolled), do: nil
 
-  defp blind_note(%{blind?: on?, game: %{seated?: true, seats: [me | _], reveal: reveal}}),
-    do: blind_note(on?, me, reveal)
-
-  defp blind_note(_view), do: nil
-
-  defp blind_note(false, %{blind?: false, peeked?: false}, _reveal),
-    do: "Starts from the next Round."
-
-  defp blind_note(true, %{blind?: false, peeked?: false}, _reveal),
-    do: "You play blind from the next Round."
-
-  defp blind_note(false, %{blind?: true}, nil), do: "This Round stays blind unless you peek."
-  defp blind_note(_on?, _me, _reveal), do: nil
-
   defp bid_key(%{game: %{round: round, bid: bid}}), do: {round, bid}
   defp bid_key(_view), do: nil
 
   defp turn_away_since(%{game: %{turn: %{n: n}, reveal: nil}, away: away}), do: away[n]
   defp turn_away_since(_view), do: nil
 
-  defp keep_ticking(%{assigns: %{view: %{away: away}, tick: nil}} = socket) when away != %{},
-    do: assign(socket, tick: Process.send_after(self(), :tick, @tick))
+  defp keep_ticking(%{assigns: %{view: view, now: now, tick: nil}} = socket) do
+    case tick_after(view, now) do
+      nil -> socket
+      wait -> assign(socket, tick: Process.send_after(self(), :tick, wait))
+    end
+  end
 
   defp keep_ticking(socket), do: socket
+
+  defp tick_after(%{game: %{turn_ends_at: ends_at}}, now)
+       when is_integer(ends_at) and ends_at > now do
+    case rem(ends_at - now, @tick) do
+      0 -> @tick
+      wait -> wait
+    end
+  end
+
+  defp tick_after(%{away: away}, _now) when away != %{}, do: @tick
+  defp tick_after(_view, _now), do: nil
 
   defp now, do: System.system_time(:millisecond)
 
