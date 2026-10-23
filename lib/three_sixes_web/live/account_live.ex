@@ -2,6 +2,7 @@ defmodule ThreeSixesWeb.AccountLive do
   use ThreeSixesWeb, :live_view
 
   alias ThreeSixes.Accounts
+  alias ThreeSixes.Leaderboard
 
   @impl true
   def mount(_params, _session, socket) do
@@ -10,7 +11,8 @@ defmodule ThreeSixesWeb.AccountLive do
        assign(socket,
          page_title: Layouts.account_name(socket.assigns.account),
          stats: Accounts.stats(socket.assigns.person_id),
-         games: Accounts.recent_games(socket.assigns.person_id)
+         games: Accounts.recent_games(socket.assigns.person_id),
+         standing: Leaderboard.row(socket.assigns.account.id)
        )}
     else
       {:ok, push_navigate(socket, to: ~p"/signin?#{[return_to: ~p"/account"]}")}
@@ -27,6 +29,12 @@ defmodule ThreeSixesWeb.AccountLive do
         <div class="sheets">
           <.notebook_page tape={:center}>
             <h2>The score so far</h2>
+            <p :if={@standing} id="standing" class="standing">
+              You're
+              <.link navigate={~p"/leaderboard"}>
+                {ordinal(@standing.position)} on the Leaderboard
+              </.link>
+            </p>
             <dl class="score">
               <div>
                 <dt>Games</dt>

@@ -1,0 +1,210 @@
+.to-leaderboard {
+  margin: var(--spacing-6) 0 0;
+  text-align: center;
+  color: var(--color-ink-dim);
+}
+.to-leaderboard a {
+  display: inline-block;
+  padding: 10px 4px;
+  white-space: nowrap;
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.standing {
+  margin: 0 0 var(--spacing-rule);
+}
+
+/* A rotated sheet draws its hard-edged margin line as broken steps, so this long one stays square. */
+.leaderboard__sheet {
+  max-width: 760px;
+  margin: var(--spacing-6) auto 0;
+}
+
+.standings {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.standings col.standings__position {
+  width: 72px;
+}
+.standings col.standings__games {
+  width: 72px;
+}
+.standings col.standings__wins {
+  width: 64px;
+}
+.standings th,
+.standings td {
+  height: var(--spacing-rule);
+  padding: 0 0 0 var(--spacing-3);
+  line-height: var(--spacing-rule);
+  white-space: nowrap;
+  vertical-align: top;
+}
+.standings th:first-child,
+.standings td:first-child {
+  padding-left: 0;
+}
+.standings th {
+  color: var(--color-graphite-faint);
+  font-size: 17px;
+  font-weight: 400;
+  text-align: left;
+}
+.standings th:nth-child(n + 3),
+.standings__games,
+.standings__wins {
+  text-align: right;
+}
+
+td.standings__position {
+  position: relative;
+  font: 700 22px/var(--spacing-rule) var(--font-scrawl);
+}
+/* The ring is drawn wider than its text; the inset keeps it clear of the red margin line. */
+.standings__position .circled {
+  margin-left: 10px;
+}
+.standings__position .circled::after {
+  inset: -1px -8px -2px;
+}
+
+.crown {
+  position: absolute;
+  left: 3px;
+  top: -14px;
+  width: 34px;
+  height: 24px;
+  transform: rotate(-16deg);
+  overflow: visible;
+  filter: url(#rough);
+  pointer-events: none;
+}
+.crown path,
+.crown circle {
+  fill: none;
+  stroke: var(--color-graphite);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.crown .crown__fill {
+  fill: rgba(233, 180, 59, 0.55);
+  stroke: none;
+}
+
+.standings__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+  font-size: 21px;
+}
+.standings__name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.is-me .standings__name > span {
+  padding: 0 0.25em;
+  margin: 0 -0.25em;
+  border-radius: 4px 12px 6px 10px;
+  background: linear-gradient(
+    100deg,
+    transparent 1%,
+    var(--color-highlighter) 3% 97%,
+    transparent 99%
+  );
+}
+.standings__name em {
+  flex: none;
+  font: 700 22px/1 var(--font-scrawl);
+  color: var(--color-ballpoint);
+}
+td.standings__games {
+  color: var(--color-graphite-faint);
+}
+/* Smaller than the row's text, yet on the same baseline, without making the row taller than a rule. */
+td.standings__games small {
+  font-size: 18px;
+  line-height: 0;
+}
+td.standings__wins {
+  font: 700 27px/var(--spacing-rule) var(--font-scrawl);
+}
+
+.slip {
+  position: sticky;
+  bottom: var(--spacing-4);
+  z-index: 5;
+  margin: var(--spacing-rule) -14px 0;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2)) drop-shadow(0 12px 12px rgba(0, 0, 0, 0.3));
+}
+.slip__paper {
+  padding: 12px 14px 10px;
+  color: var(--color-graphite);
+  background:
+    var(--tooth),
+    linear-gradient(170deg, rgba(255, 255, 255, 0.4), transparent 40%),
+    var(--color-sheet);
+  transform: rotate(-0.8deg);
+  clip-path: polygon(
+    0 3px, 4% 0, 9% 4px, 15% 1px, 22% 5px, 30% 0, 38% 3px, 47% 1px, 55% 4px, 63% 0,
+    71% 3px, 80% 1px, 88% 5px, 95% 1px, 100% 3px,
+    100% calc(100% - 2px), 93% 100%, 84% calc(100% - 4px), 75% calc(100% - 1px),
+    64% calc(100% - 5px), 52% 100%, 41% calc(100% - 3px), 30% calc(100% - 1px),
+    19% calc(100% - 5px), 8% calc(100% - 1px), 0 calc(100% - 4px)
+  );
+}
+.slip__note {
+  display: block;
+  margin: 0;
+  padding: 2px 0;
+  font: 700 27px/var(--spacing-rule) var(--font-scrawl);
+}
+a.slip__note {
+  color: var(--color-ballpoint);
+}
+
+@media (max-width: 640px) {
+  .standings col.standings__position {
+    width: 56px;
+  }
+  .standings col.standings__games {
+    width: 48px;
+  }
+  .standings col.standings__wins {
+    width: 40px;
+  }
+  .standings th,
+  .standings td {
+    padding-left: var(--spacing-2);
+  }
+  .standings th {
+    font-size: 15px;
+  }
+  .standings__name {
+    gap: var(--spacing-1);
+    font-size: 19px;
+  }
+  .standings__name em {
+    font-size: 19px;
+  }
+  td.standings__games small {
+    font-size: 16px;
+  }
+  td.standings__wins {
+    font-size: 25px;
+  }
+  .slip {
+    margin-inline: -10px;
+  }
+  .slip__paper {
+    padding-inline: 10px;
+  }
+  .slip__note {
+    font-size: 23px;
+  }
+}

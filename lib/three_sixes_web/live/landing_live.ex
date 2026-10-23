@@ -178,6 +178,10 @@ defmodule ThreeSixesWeb.LandingLive do
             </.torn_scrap>
           </li>
         </ol>
+
+        <p class="to-leaderboard">
+          Who has won the most Games? <.link navigate={~p"/leaderboard"}>See the Leaderboard</.link>
+        </p>
       </section>
     </Layouts.app>
     """

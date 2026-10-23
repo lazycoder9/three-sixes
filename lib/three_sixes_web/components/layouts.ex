@@ -19,6 +19,7 @@ defmodule ThreeSixesWeb.Layouts do
     <header class="top">
       <.logo />
       <nav aria-label="Account and settings">
+        <.link navigate={~p"/leaderboard"}>Leaderboard</.link>
         <button
           id="theme-switch"
           type="button"

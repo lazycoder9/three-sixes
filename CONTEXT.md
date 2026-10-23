@@ -91,8 +91,8 @@ A one-tap emoji or canned line from a fixed set that pops up next to a person's 
 _Avoid_: Chat, message, emote
 
 **Tally**:
-The count of Games each person has won since the Room opened. It ends when the Room closes.
-_Avoid_: Scoreboard, leaderboard
+The count of Games each person has won since the Room opened. It ends when the Room closes. Not the Leaderboard, which spans every Room and outlives them.
+_Avoid_: Scoreboard
 
 ## People
 
@@ -103,6 +103,10 @@ _Avoid_: Anonymous, visitor
 **Account**:
 A person signed in with Google. An Account keeps its nickname, seat, stats and Game history across devices, and takes over the Guest history of the device it signs in on.
 _Avoid_: User, profile, member
+
+**Leaderboard**:
+The standing of every Account across all Games ever finished, open for anyone to see. It ranks by Games won, and on equal wins the fewer Games played ranks higher. Guests never appear on it; their Games count once their device signs in to an Account.
+_Avoid_: Ranking, ladder, hall of fame
 
 **Nickname**:
 The name a person goes by in a Room. It is unique within the Room: a repeated name automatically gets a number, such as "Dana 2", which its owner can edit.

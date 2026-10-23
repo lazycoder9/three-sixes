@@ -34,6 +34,7 @@ defmodule ThreeSixesWeb.Router do
       live "/r/:code", RoomLive
       live "/signin", SignInLive
       live "/account", AccountLive
+      live "/leaderboard", LeaderboardLive
     end
   end
 
