@@ -42,7 +42,7 @@ defmodule ThreeSixesWeb.AccountLive do
               </div>
               <div>
                 <dt>Wins</dt>
-                <dd><.tally count={@stats.wins} aria-hidden="true" />{@stats.wins}</dd>
+                <dd>{@stats.wins}</dd>
               </div>
               <div>
                 <dt>Win rate</dt>

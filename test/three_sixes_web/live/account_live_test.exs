@@ -52,7 +52,7 @@ defmodule ThreeSixesWeb.AccountLiveTest do
     %{dana_conn: dana_conn, timur_conn: timur_conn}
   end
 
-  test "the score sheet shows the six stats, with wins as tally marks", %{dana_conn: conn} do
+  test "the score sheet shows the six stats as plain numbers", %{dana_conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/account")
 
     assert has_element?(view, ".paper h2", "The score so far")
@@ -62,7 +62,7 @@ defmodule ThreeSixesWeb.AccountLiveTest do
     assert_stat(view, "Average Placement", "2.2")
     assert_stat(view, "Checks won", "4")
     assert_stat(view, "Bluffs caught", "3")
-    assert has_element?(view, ~s(dl.score dd .tally[aria-hidden="true"]))
+    refute has_element?(view, ".tally")
   end
 
   test "Recent Games lists my Games newest first, with the date, my Placement and the full Placement list",
