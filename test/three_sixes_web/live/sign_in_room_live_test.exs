@@ -5,6 +5,7 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
 
   alias ThreeSixes.Accounts
   alias ThreeSixes.Dice.Scripted
+  alias ThreeSixes.Records
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
 
@@ -107,6 +108,61 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
                ~s(header.top nav a[href="/signin?return_to=%2Fr%2F#{code}"]),
                "Sign in"
              )
+    end
+  end
+
+  describe "Game over" do
+    setup do
+      {:ok, code} = Rooms.create("guest:timur", "127.0.0.1")
+      {_, timur} = guest("timur") |> visit(code) |> enter_as("Timur")
+      timur |> form("#sit-out-form", %{sitting_out: "true"}) |> render_change()
+      {_, dana} = guest("dana") |> visit(code) |> enter_as("Dana")
+      {_, scully} = code |> account("Scully") |> enter_as("Scully")
+
+      %{code: code, timur: timur, dana: dana, scully: scully}
+    end
+
+    test "a Guest who played counts the Games on this device, the one just ended too, and is asked to sign in",
+         %{code: code, timur: timur, dana: dana, scully: scully} do
+      for _game <- 1..2, do: record(["guest:dana", "guest:rival"])
+
+      dana_loses(code, timur, dana, scully)
+
+      assert text(dana, "#placement h1") == "Scully wins."
+
+      assert text(dana, "#placement #keep-games") ==
+               "You've finished 3 Games on this device. " <>
+                 "Sign in to keep them and get on the Leaderboard."
+
+      assert has_element?(
+               dana,
+               ~s(#keep-games a[href="/signin?return_to=%2Fr%2F#{code}"]),
+               "Sign in"
+             )
+
+      assert has_element?(dana, "#lobby", "Waiting for Timur to start the next Game.")
+      refute has_element?(scully, "#keep-games")
+      refute has_element?(timur, "#keep-games")
+
+      {_, again} = visit(guest("dana"), code)
+      assert text(again, "#keep-games") =~ "You've finished 3 Games on this device."
+
+      no_sign_in()
+      {_, without} = visit(guest("dana"), code)
+      assert text(without, "#placement h1") == "Scully wins."
+      refute has_element?(without, "#keep-games")
+
+      next_game(timur, [[3], [4]])
+      refute has_element?(dana, "#keep-games")
+    end
+
+    test "a Guest's first Game reads in the singular",
+         %{code: code, timur: timur, dana: dana, scully: scully} do
+      dana_loses(code, timur, dana, scully)
+
+      assert text(dana, "#keep-games") ==
+               "You've finished 1 Game on this device. " <>
+                 "Sign in to keep it and get on the Leaderboard."
     end
   end
 
@@ -265,6 +321,62 @@ defmodule ThreeSixesWeb.SignInRoomLiveTest do
       {String.to_existing_atom(id), {conn, view}}
     end)
     |> Map.put(:code, code)
+  end
+
+  defp dana_loses(code, timur, dana, scully) do
+    start(timur, [[1], [2]])
+
+    for round <- 1..4 do
+      bluff_caught(code, dana, scully, round)
+      reveal(code, {:next_round, round}, [List.duplicate(1, round + 1), [2]])
+    end
+
+    bluff_caught(code, dana, scully, 5)
+    reveal(code, {:next_round, 5}, [])
+  end
+
+  defp bluff_caught(code, bidder, checker, round) do
+    press(bidder, "Bid one six")
+    checker |> element("#my-page button", "Check") |> render_click()
+    for step <- 1..3, do: reveal(code, {:reveal, round, step}, [])
+  end
+
+  defp reveal(code, message, rolls) do
+    Scripted.script(rolls)
+    pid = Rooms.whereis(code)
+    send(pid, message)
+    :sys.get_state(pid)
+  end
+
+  defp next_game(host, rolls) do
+    Scripted.script(rolls)
+    host |> element("#lobby button", "Next Game") |> render_click()
+  end
+
+  defp record(person_ids) do
+    {:ok, _game} =
+      Records.record_game(%{
+        room_code: "KQXT",
+        rounds: 1,
+        finished_at: ~U[2026-10-02 20:00:00Z],
+        placement:
+          for {person_id, place} <- Enum.with_index(person_ids, 1) do
+            %{person_id: person_id, nickname: person_id, place: place}
+          end,
+        checks: []
+      })
+  end
+
+  defp no_sign_in do
+    google = Application.fetch_env!(:ueberauth, Ueberauth.Strategy.Google.OAuth)
+    dev_login = Application.fetch_env!(:three_sixes, :dev_login_enabled)
+    Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, [])
+    Application.put_env(:three_sixes, :dev_login_enabled, false)
+
+    on_exit(fn ->
+      Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, google)
+      Application.put_env(:three_sixes, :dev_login_enabled, dev_login)
+    end)
   end
 
   defp account(code, name) do

@@ -17,15 +17,20 @@ defmodule ThreeSixesWeb.LeaderboardLive do
        page_title: "Leaderboard",
        rows: rows,
        my_id: my_id,
-       slip: slip(account, rows)
+       slip: slip(account, socket.assigns.person_id, rows)
      )}
   end
 
-  defp slip(nil, _rows) do
-    if AuthController.sign_in_available?(), do: :sign_in
+  defp slip(nil, person_id, _rows) do
+    if AuthController.sign_in_available?() do
+      case Leaderboard.guest_standing(person_id) do
+        nil -> :sign_in
+        standing -> {:guest, standing}
+      end
+    end
   end
 
-  defp slip(account, rows) do
+  defp slip(account, _person_id, rows) do
     if !Enum.any?(rows, &(&1.account_id == account.id)) do
       case Leaderboard.row(account.id) do
         nil -> :no_games
@@ -74,6 +79,13 @@ defmodule ThreeSixesWeb.LeaderboardLive do
                   >
                     Sign in to get on the Leaderboard
                   </.link>
+                <% {:guest, standing} -> %>
+                  <p class="slip__note slip__note--guest">
+                    You've finished {games(standing.games)} on this device, but Guests aren't on the Leaderboard.
+                    <.link navigate={~p"/signin?#{[return_to: ~p"/leaderboard"]}"}>Sign in</.link>
+                    and {if standing.games == 1, do: "it moves", else: "they move"} to your Account.
+                    That's enough for {ordinal(standing.position)} place.
+                  </p>
                 <% :no_games -> %>
                   <p class="slip__note">Finish a Game to get on the Leaderboard.</p>
               <% end %>
@@ -84,6 +96,10 @@ defmodule ThreeSixesWeb.LeaderboardLive do
     </Layouts.app>
     """
   end
+
+  @spec games(pos_integer()) :: String.t()
+  def games(1), do: "1 Game"
+  def games(count), do: "#{count} Games"
 
   defp columns(assigns) do
     ~H"""

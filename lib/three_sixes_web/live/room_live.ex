@@ -1,13 +1,16 @@
 defmodule ThreeSixesWeb.RoomLive do
   use ThreeSixesWeb, :live_view
 
+  import ThreeSixesWeb.LeaderboardLive, only: [games: 1]
   import ThreeSixesWeb.RulesComponents
   import ThreeSixesWeb.TableComponents
 
   alias ThreeSixes.Accounts
   alias ThreeSixes.Game
+  alias ThreeSixes.Leaderboard
   alias ThreeSixes.RoomCode
   alias ThreeSixes.Rooms
+  alias ThreeSixesWeb.AuthController
 
   @fits_zoomed 16
   @reaction_wait 2000
@@ -32,6 +35,7 @@ defmodule ThreeSixesWeb.RoomLive do
         was: was_guest(socket.assigns.account, session),
         new_account?: session["new_account"] == true,
         view: nil,
+        guest_games: nil,
         closed?: false,
         room_ref: nil,
         nickname: "",
@@ -376,10 +380,22 @@ defmodule ThreeSixesWeb.RoomLive do
     socket = if view.game, do: socket, else: assign(socket, spectators_open?: false)
 
     socket
+    |> assign(guest_games: guest_games(socket.assigns, view))
     |> assign(view: view, step: step, rolled: rolled(view, old, rolled), now: now())
     |> assign(page_title: page_title(view))
     |> keep_ticking()
   end
+
+  defp guest_games(%{view: %{over: over}, guest_games: games}, %{over: over}), do: games
+
+  defp guest_games(%{account: nil, person_id: person_id}, %{over: %{placement: placement}}) do
+    if Enum.any?(placement, & &1.me?) and AuthController.sign_in_available?() do
+      standing = Leaderboard.guest_standing(person_id)
+      standing && standing.games
+    end
+  end
+
+  defp guest_games(_assigns, _view), do: nil
 
   defp page_title(%{game: %{my_turn?: true}}), do: "Your turn · Three Sixes"
   defp page_title(_view), do: "Three Sixes"
@@ -449,7 +465,13 @@ defmodule ThreeSixesWeb.RoomLive do
       <:banner :if={@view.host_away}>
         <.host_away_banner host={@view.host_nickname} away={@view.host_away} now={@now} />
       </:banner>
-      <.lobby view={@view} reactions={@reactions} waiting?={@reaction_wait != nil} now={@now} />
+      <.lobby
+        view={@view}
+        guest_games={@guest_games}
+        reactions={@reactions}
+        waiting?={@reaction_wait != nil}
+        now={@now}
+      />
       <.person_dialog :for={person <- tappable_people(@view)} person={person} />
     </Layouts.room>
     """
@@ -611,6 +633,7 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   attr :view, :map, required: true
+  attr :guest_games, :integer, required: true
   attr :reactions, :map, required: true
   attr :waiting?, :boolean, required: true
   attr :now, :integer, required: true
@@ -622,7 +645,12 @@ defmodule ThreeSixesWeb.RoomLive do
       class={["lobby", @view.over && "is-over", crowded?(@view) && "lobby--crowded"]}
     >
       <div class="lobby__pages">
-        <.placement :if={@view.over} over={@view.over} />
+        <.placement
+          :if={@view.over}
+          over={@view.over}
+          code={@view.code}
+          guest_games={@guest_games}
+        />
         <.notebook_page>
           <h1>{if @view.over, do: "Next Game", else: "Who's playing"}</h1>
           <ul id="people" class="people">
@@ -680,6 +708,8 @@ defmodule ThreeSixesWeb.RoomLive do
   end
 
   attr :over, :map, required: true
+  attr :code, :string, required: true
+  attr :guest_games, :integer, required: true
 
   defp placement(assigns) do
     ~H"""
@@ -694,6 +724,11 @@ defmodule ThreeSixesWeb.RoomLive do
           </span>
         </li>
       </ol>
+      <p :if={@guest_games} id="keep-games" class="keep-games">
+        You've finished {games(@guest_games)} on this device.
+        <.link navigate={~p"/signin?#{[return_to: ~p"/r/#{@code}"]}"}>Sign in</.link>
+        to keep {if @guest_games == 1, do: "it", else: "them"} and get on the Leaderboard.
+      </p>
     </.notebook_page>
     """
   end

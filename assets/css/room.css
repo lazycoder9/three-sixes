@@ -226,6 +226,14 @@
 .placement li:first-child::before {
   color: var(--color-tomato);
 }
+.keep-games {
+  margin: calc(var(--spacing-rule) * 0.5) 0 0;
+  color: var(--color-graphite-faint);
+  font-size: 17px;
+}
+.keep-games a {
+  white-space: nowrap;
+}
 .circled {
   position: relative;
   display: inline-block;

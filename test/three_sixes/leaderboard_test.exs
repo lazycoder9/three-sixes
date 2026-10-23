@@ -109,6 +109,40 @@ defmodule ThreeSixes.LeaderboardTest do
     end
   end
 
+  describe "a Guest's standing" do
+    test "counts the Guest's Games and Wins, and places them among Accounts by the same rule" do
+      ana = account!("Ana")
+      bo = account!("Bo")
+      cy = account!("Cy")
+      dee = account!("Dee")
+
+      play!(ana, wins: 5, games: 9)
+      play!(bo, wins: 2, games: 4)
+      play!(cy, wins: 2, games: 6)
+      play!(dee, wins: 2, games: 7)
+      play!("guest:dana", wins: 2, games: 6)
+
+      assert Leaderboard.guest_standing("guest:dana") == %{games: 6, wins: 2, position: 3}
+    end
+
+    test "is first on an empty Leaderboard, and first when no Account is ahead" do
+      play!("guest:dana", wins: 0, games: 1)
+
+      assert Leaderboard.guest_standing("guest:dana") == %{games: 1, wins: 0, position: 1}
+
+      play!(account!("Ana"), wins: 1, games: 3)
+      play!("guest:dana", wins: 1, games: 1)
+
+      assert Leaderboard.guest_standing("guest:dana") == %{games: 2, wins: 1, position: 1}
+    end
+
+    test "is nothing for a Guest with no finished Game" do
+      play!(account!("Ana"), wins: 1, games: 1)
+
+      assert Leaderboard.guest_standing("guest:dana") == nil
+    end
+  end
+
   defp account!(nickname, name \\ nil) do
     n = System.unique_integer([:positive])
 
@@ -120,8 +154,8 @@ defmodule ThreeSixes.LeaderboardTest do
     })
   end
 
-  defp play!(account, wins: wins, games: games) do
-    me = Accounts.person_id(account)
+  defp play!(person, wins: wins, games: games) do
+    me = if is_binary(person), do: person, else: Accounts.person_id(person)
 
     for game <- 1..games//1 do
       if game <= wins, do: record!([me, @guest]), else: record!([@guest, me])

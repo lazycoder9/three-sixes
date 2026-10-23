@@ -752,7 +752,7 @@ defmodule ThreeSixesWeb.TableLiveTest do
       refute has_element?(malika, "#game-table")
       assert text(malika, "#placement h1") == "You win!"
       assert text(dana, "#placement h1") == "Malika wins."
-      assert text(dana, "#placement p") == "Final Placement, after 10 Rounds"
+      assert text(dana, "#placement p.faint") == "Final Placement, after 10 Rounds"
       assert placement(dana) == ["M Malika", "D You", "T Timur"]
       assert placement(malika) == ["M You", "D Dana", "T Timur"]
       assert has_element?(dana, "#placement li:first-child .circled", "Malika")

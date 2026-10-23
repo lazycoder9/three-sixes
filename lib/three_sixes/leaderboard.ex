@@ -4,6 +4,7 @@ defmodule ThreeSixes.Leaderboard do
   alias ThreeSixes.Accounts.Account
   alias ThreeSixes.Records.Placement
   alias ThreeSixes.Repo
+  alias ThreeSixes.Room
 
   @size 50
 
@@ -31,6 +32,35 @@ defmodule ThreeSixes.Leaderboard do
     |> then(&(&1 && to_row(&1)))
   end
 
+  @type guest_standing :: %{
+          games: pos_integer(),
+          wins: non_neg_integer(),
+          position: pos_integer()
+        }
+
+  @spec guest_standing(Room.person_id()) :: guest_standing() | nil
+  def guest_standing(person_id) do
+    case Repo.one(record_of(person_id)) do
+      %{games: 0} -> nil
+      %{games: games, wins: wins} -> %{games: games, wins: wins, position: place(games, wins)}
+    end
+  end
+
+  defp record_of(person_id) do
+    from p in Placement,
+      where: p.person_id == ^person_id,
+      select: %{games: count(p.id), wins: filter(count(p.id), p.place == 1)}
+  end
+
+  defp place(games, wins) do
+    ahead =
+      from s in subquery(standings()),
+        where: s.wins > ^wins or (s.wins == ^wins and s.games < ^games),
+        select: count()
+
+    Repo.one(ahead) + 1
+  end
+
   defp board do
     from s in subquery(positioned()),
       as: :standing,
@@ -47,23 +77,24 @@ defmodule ThreeSixes.Leaderboard do
   end
 
   defp positioned do
-    standings =
-      from p in Placement,
-        join: a in Account,
-        on: p.person_id == fragment("'account:' || ?", a.id),
-        group_by: a.id,
-        select: %{
-          account_id: a.id,
-          person_id: p.person_id,
-          nickname: a.nickname,
-          google_name: a.name,
-          games: count(p.id),
-          wins: filter(count(p.id), p.place == 1)
-        }
-
-    from s in subquery(standings),
+    from s in subquery(standings()),
       windows: [standing: [order_by: [desc: s.wins, asc: s.games]]],
       select: %{s | position: over(rank(), :standing)}
+  end
+
+  defp standings do
+    from p in Placement,
+      join: a in Account,
+      on: p.person_id == fragment("'account:' || ?", a.id),
+      group_by: a.id,
+      select: %{
+        account_id: a.id,
+        person_id: p.person_id,
+        nickname: a.nickname,
+        google_name: a.name,
+        games: count(p.id),
+        wins: filter(count(p.id), p.place == 1)
+      }
   end
 
   defp last_nickname do

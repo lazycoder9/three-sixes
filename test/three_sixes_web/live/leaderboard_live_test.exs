@@ -83,20 +83,49 @@ defmodule ThreeSixesWeb.LeaderboardLiveTest do
       refute has_element?(view, "#leaderboard tr.is-me")
     end
 
-    test "a Guest gets no slip when there is no way to sign in", %{conn: conn} do
-      google = Application.fetch_env!(:ueberauth, Ueberauth.Strategy.Google.OAuth)
-      dev_login = Application.fetch_env!(:three_sixes, :dev_login_enabled)
-      Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, [])
-      Application.put_env(:three_sixes, :dev_login_enabled, false)
+    test "a Guest with finished Games is told how many, and where signing in would put them",
+         %{conn: conn} do
+      play("guest:kim", wins: 2, games: 6)
 
-      on_exit(fn ->
-        Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, google)
-        Application.put_env(:three_sixes, :dev_login_enabled, dev_login)
-      end)
+      {:ok, view, _html} =
+        conn |> init_test_session(%{"guest_id" => "kim"}) |> live(~p"/leaderboard")
+
+      assert text(view, "#my-standing") ==
+               "You've finished 6 Games on this device, but Guests aren't on the Leaderboard. " <>
+                 "Sign in and they move to your Account. That's enough for 2nd place."
+
+      assert has_element?(
+               view,
+               ~s(#my-standing a[href="/signin?return_to=%2Fleaderboard"]),
+               "Sign in"
+             )
+
+      refute has_element?(view, "#leaderboard tr.is-me")
+    end
+
+    test "a Guest with one finished Game reads it in the singular, with the place it is worth",
+         %{conn: conn} do
+      play("guest:kim", wins: 0, games: 1)
+
+      {:ok, view, _html} =
+        conn |> init_test_session(%{"guest_id" => "kim"}) |> live(~p"/leaderboard")
+
+      assert text(view, "#my-standing") ==
+               "You've finished 1 Game on this device, but Guests aren't on the Leaderboard. " <>
+                 "Sign in and it moves to your Account. That's enough for 4th place."
+    end
+
+    test "a Guest gets no slip when there is no way to sign in", %{conn: conn} do
+      no_sign_in()
+      play("guest:kim", wins: 2, games: 6)
 
       {:ok, view, _html} = live(conn, ~p"/leaderboard")
 
+      {:ok, kim, _html} =
+        build_conn() |> init_test_session(%{"guest_id" => "kim"}) |> live(~p"/leaderboard")
+
       refute has_element?(view, "#my-standing")
+      refute has_element?(kim, "#my-standing")
     end
 
     test "an Account with no finished Game is told how to get on", %{sasha_conn: conn} do
@@ -166,6 +195,28 @@ defmodule ThreeSixesWeb.LeaderboardLiveTest do
 
       assert has_element?(view, "#standing", "You're 51st on the Leaderboard")
     end
+  end
+
+  defp no_sign_in do
+    google = Application.fetch_env!(:ueberauth, Ueberauth.Strategy.Google.OAuth)
+    dev_login = Application.fetch_env!(:three_sixes, :dev_login_enabled)
+    Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, [])
+    Application.put_env(:three_sixes, :dev_login_enabled, false)
+
+    on_exit(fn ->
+      Application.put_env(:ueberauth, Ueberauth.Strategy.Google.OAuth, google)
+      Application.put_env(:three_sixes, :dev_login_enabled, dev_login)
+    end)
+  end
+
+  defp text(view, selector) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(selector)
+    |> LazyHTML.text()
+    |> String.split()
+    |> Enum.join(" ")
   end
 
   defp rows(view, selector) do

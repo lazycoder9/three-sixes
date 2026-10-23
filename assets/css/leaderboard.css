@@ -167,6 +167,14 @@ td.standings__wins {
 a.slip__note {
   color: var(--color-ballpoint);
 }
+.slip__note--guest {
+  font-size: 22px;
+  line-height: 26px;
+}
+.slip__note a {
+  color: var(--color-ballpoint);
+  white-space: nowrap;
+}
 
 @media (max-width: 640px) {
   .standings col.standings__position {
@@ -206,5 +214,9 @@ a.slip__note {
   }
   .slip__note {
     font-size: 23px;
+  }
+  .slip__note--guest {
+    font-size: 20px;
+    line-height: 24px;
   }
 }
